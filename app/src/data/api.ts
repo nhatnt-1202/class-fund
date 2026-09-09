@@ -14,7 +14,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { assertChanged, friendlyError, supabase } from '@/lib/supabase';
 import type {
-  AppConfig, AuditLog, ClassRole, Expense, ExpensePublic, Fund, FundBalance, Income, IncomePublic,
+  AppConfig, AuditLog, ClassOfficer, ClassRole, Expense, ExpensePublic, Fund, FundBalance, Income, IncomePublic,
   Invite, Klass, KlassPublic, LedgerRow, Membership, Period, PeriodProgress, Profile, Student,
   StudentDebt, StudentPublic, UiRole,
 } from '@/types/db';
@@ -51,6 +51,7 @@ export const qk = {
   ledger: (id: string) => ['ledger', id] as const,
   audit: (id: string) => ['audit', id] as const,
   members: (id: string) => ['members', id] as const,
+  officers: (id: string) => ['officers', id] as const,
   invites: (id: string) => ['invites', id] as const,
 };
 
@@ -99,6 +100,25 @@ export function useMyClasses(enabled: boolean, isSystemOwner: boolean) {
       }));
     },
     enabled,
+  });
+}
+
+/**
+ * Ban quản lý của lớp (quản trị lớp, thủ quỹ) — đọc được với mọi vai trò, kể cả khách.
+ * Bảng memberships chỉ quản trị lớp mới đọc được, nên phải đi qua view v_class_officers:
+ * ai cũng cần biết trong lớp mình ai đang giữ quỹ.
+ */
+export function useClassOfficers(classId: string | null) {
+  return useQuery({
+    queryKey: qk.officers(classId ?? ''),
+    queryFn: async (): Promise<ClassOfficer[]> => {
+      const { data, error } = await supabase.from('v_class_officers').select('*')
+        .eq('class_id', classId!).order('role');
+      if (error) throw new Error(friendlyError(error.message));
+      return (data ?? []) as ClassOfficer[];
+    },
+    enabled: Boolean(classId),
+    staleTime: 60_000,
   });
 }
 
@@ -637,6 +657,7 @@ export function useGrantClassRole() {
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['members'] });
+      void qc.invalidateQueries({ queryKey: ['officers'] });
       void qc.invalidateQueries({ queryKey: ['invites'] });
       void qc.invalidateQueries({ queryKey: qk.myClasses });
       void qc.invalidateQueries({ queryKey: ['audit'] });
@@ -654,6 +675,7 @@ export function useRevokeClassRole() {
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['members'] });
+      void qc.invalidateQueries({ queryKey: ['officers'] });
       void qc.invalidateQueries({ queryKey: qk.myClasses });
       void qc.invalidateQueries({ queryKey: ['audit'] });
     },
@@ -687,6 +709,7 @@ export function useUpdateMembership() {
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['members'] });
+      void qc.invalidateQueries({ queryKey: ['officers'] });
       void qc.invalidateQueries({ queryKey: ['audit'] });
     },
   });
@@ -703,6 +726,7 @@ export function useUpdateProfile() {
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['members'] });
+      void qc.invalidateQueries({ queryKey: ['officers'] });
       void qc.invalidateQueries({ queryKey: ['audit'] });
     },
   });

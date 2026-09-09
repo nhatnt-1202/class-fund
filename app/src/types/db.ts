@@ -58,6 +58,15 @@ export interface KlassPublic {
 }
 
 /** Ai thuộc lớp nào với vai trò gì. */
+/** Một người trong ban quản lý lớp (view v_class_officers) — công bố cho cả khách. */
+export interface ClassOfficer {
+  class_id: string;
+  student_id: string | null;
+  role: Exclude<ClassRole, 'member'>;
+  person_name: string;
+  in_student_list: boolean;
+}
+
 export interface Membership {
   id: string;
   user_id: string;

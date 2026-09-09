@@ -40,10 +40,10 @@ VITE_SUPABASE_ANON_KEY=sb_publishable_xxxxxxxxxxxxxxxxxxxx
 
 Không đặt dấu ngoặc kép, không có dấu `/` ở cuối URL. File `.env` đã được `.gitignore`.
 
-### 3. Chạy 6 migration
+### 3. Chạy 7 migration
 
 **Cách A — không cài gì thêm** (nhanh nhất): Dashboard → **SQL Editor** → *New query* → dán
-**toàn bộ** file `supabase/setup_all.sql` → *Run*. File này là bản gộp của cả 6 migration nên
+**toàn bộ** file `supabase/setup_all.sql` → *Run*. File này là bản gộp của cả 7 migration nên
 chỉ phải dán một lần; thành công thì SQL Editor báo *“Success. No rows returned”*.
 
 Muốn dán từng file (dễ soi lỗi hơn) thì theo **đúng thứ tự** này, mỗi file *Run* một lần:
@@ -54,6 +54,7 @@ Muốn dán từng file (dễ soi lỗi hơn) thì theo **đúng thứ tự** n�
 4. `supabase/migrations/0004_multiclass.sql` — chuyển sang nhiều lớp (bảng `classes`, `memberships`)
 5. `supabase/migrations/0005_multiclass_rls.sql` — RLS theo từng lớp
 6. `supabase/migrations/0006_root_governance.sql` — chỉ tài khoản gốc mở lớp và giao quản trị lớp
+7. `supabase/migrations/0007_class_officers.sql` — công bố ban quản lý lớp để đánh dấu trong danh sách
 
 Sửa migration thì chạy `npm run db:bundle` để sinh lại `setup_all.sql`.
 
@@ -71,7 +72,9 @@ Muốn có sẵn vài bản ghi để xem giao diện thì chạy thêm `supabas
 Dashboard → **Authentication**:
 
 - **Sign In / Providers → Email**: để bật (mặc định đã bật).
-- **Confirm email**: **TẮT**. Sinh viên đăng ký bằng email trường dạng
+- **Confirm email**: **TẮT** (Sign In / Providers → Email → tắt *Confirm email*). Nếu trước đó
+  đã tạo tài khoản lúc còn bật thì tắt công tắc không cứu được số cũ — chạy
+  `supabase/tools/confirm_all_emails.sql` một lần trong SQL Editor. Sinh viên đăng ký bằng email trường dạng
   `<mã SV>@student.humg.edu.vn` và đăng nhập được ngay, không phải mở hộp thư. Rủi ro thấp vì
   trigger `handle_new_user()` chỉ nhận đúng hai loại email: đúng định dạng mã sinh viên của
   trường, hoặc email đã được quản trị lớp thêm sẵn — email lạ bị chặn ngay khi đăng ký.
@@ -84,7 +87,7 @@ Dashboard → **Authentication**:
 
 ```bash
 npm install
-npm run check     # xác nhận URL/khoá đúng, đã chạy đủ 6 migration, và RLS đang chặn đúng chỗ
+npm run check     # xác nhận URL/khoá đúng, đã chạy đủ 7 migration, và RLS đang chặn đúng chỗ
 npm run dev
 ```
 
@@ -227,10 +230,10 @@ Hai chi tiết dễ sai đã được xử lý:
 ```bash
 npm test              # 47 phép kiểm tra logic + smoke test mount App (vitest)
 npm run build         # tsc strict + vite build
-bash ../tests/db/run.sh   # 114 phép kiểm tra RLS/nghiệp vụ trên Postgres 17 thật (cần Docker)
+bash ../tests/db/run.sh   # 123 phép kiểm tra RLS/nghiệp vụ trên Postgres 17 thật (cần Docker)
 ```
 
-E2E bằng Playwright — 47 phép kiểm tra × 3 cấu hình (desktop sáng, desktop tối, Pixel 7):
+E2E bằng Playwright — 48 phép kiểm tra × 3 cấu hình (desktop sáng, desktop tối, Pixel 7):
 
 ```bash
 npx playwright install chromium     # một lần
@@ -248,7 +251,7 @@ chặn và trả dữ liệu mẫu. Nhờ vậy test chạy offline, không ph�
 | Nhóm | Kiểm tra |
 |---|---|
 | `thu-chi.spec.ts` | Ghi thu/chi gửi lên đúng dữ liệu · chọn đợt Quỹ Đoàn thì quỹ đi theo đợt và bị khoá · cảnh báo nộp thừa · chi vượt tồn quỹ phải xác nhận rồi mới ghi kèm cờ vượt quỹ · thiếu người nộp/người mua thì không gửi gì lên · người thu chọn từ danh sách hoặc nhập tay |
-| `quyen.spec.ts` | Khách xem được số liệu nhưng không có nút ghi chép, không thấy menu quản trị, không thấy cột ngày sinh, che tên khi bật công tắc · thành viên chỉ xem QR của chính mình · thủ quỹ không tạo được đợt thu · quản trị tạo được |
+| `quyen.spec.ts` | Khách xem được số liệu nhưng không có nút ghi chép, không thấy menu quản trị, không thấy cột ngày sinh, che tên khi bật công tắc · danh sách lớp đánh dấu thủ quỹ / quản trị lớp · thành viên chỉ xem QR của chính mình · thủ quỹ không tạo được đợt thu · quản trị tạo được |
 | `qr.spec.ts` | QR mang đúng số còn thiếu, số tài khoản và mã SV · xác nhận đã nhận tiền ghi khoản thu dạng chuyển khoản · QR cả lớp đúng số người còn nợ |
 | `giao-dien.spec.ts` | Hộp thoại đúng tâm màn hình · mọi ô nhập cao bằng nhau · không cuộn ngang · Esc đóng hộp thoại · bảng có `<caption>` · đổi sáng/tối |
 | `nhieu-lop.spec.ts` | Quản trị lớp không thấy menu *Quản lý lớp* và vào thẳng URL cũng bị từ chối · mọi truy vấn số liệu đều kèm `class_id` của lớp đang xem · tài khoản gốc thấy mọi lớp, đổi lớp thì dữ liệu hỏi theo lớp mới · mở lớp mới gửi đúng `create_class` (email hạ chữ thường) · giao quản trị gửi đúng `grant_class_role` · chưa có lớp thì được dẫn đi mở lớp / được nói rõ vì sao chưa thấy gì |
@@ -268,7 +271,7 @@ của hộp thoại — hai thứ từng sai mà đọc code không thấy: fram
 làm hỏng cách căn giữa bằng `-translate-x/y-1/2`, và CSS chọn `input[type='text']` không khớp
 `<input>` không có thuộc tính `type`.
 
-Bộ DB dựng một Postgres sạch trong Docker, chạy cả 6 migration, rồi kiểm tra ma trận quyền của
+Bộ DB dựng một Postgres sạch trong Docker, chạy cả 7 migration, rồi kiểm tra ma trận quyền của
 mọi vai trò (kể cả `anon`), **cách ly dữ liệu giữa các lớp**, việc chỉ tài khoản gốc mở được lớp,
 đẳng thức tồn quỹ, tách biệt hai quỹ, quy tắc xoá mềm, bảo vệ tài khoản, nội dung audit log và
 RPC import. Đây là chỗ chứng minh phân quyền, chứ không phải giao diện.

@@ -40,6 +40,23 @@ test.describe('Khách chưa đăng nhập', () => {
     await expect(page.getByRole('columnheader', { name: 'Ngày sinh' })).toHaveCount(0);
   });
 
+  test('danh sách lớp đánh dấu ai là thủ quỹ, ai là quản trị lớp', async ({ page }) => {
+    // Khách cũng phải biết ai đang giữ quỹ để liên hệ khi nộp tiền hay khi số liệu sai
+    await stubSupabase(page);
+    await page.goto('/lop');
+    const officers = page.getByText('Ban quản lý lớp:').locator('..');
+    await expect(officers.getByText('Lê Thị Thử')).toBeVisible();
+    await expect(officers.getByText('Phạm Lớp Trưởng')).toBeVisible();
+    // người giữ quỹ không có trong danh sách phải được nói rõ là ngoài danh sách
+    await expect(officers.getByText('(ngoài danh sách)')).toBeVisible();
+
+    // và ngay trên dòng của sinh viên đó có nhãn vai trò
+    const row = page.getByRole('row', { name: /Lê Thị Thử/ });
+    await expect(row.getByText('Thủ quỹ')).toBeVisible();
+    // sinh viên thường thì không có nhãn nào
+    await expect(page.getByRole('row', { name: /Phạm Minh Ví/ }).getByText(/Thủ quỹ|Quản trị/)).toHaveCount(0);
+  });
+
   test('bật che tên thì chỉ thấy tên viết tắt', async ({ page }) => {
     await stubSupabase(page, { hideNamesFromGuest: true });
     await page.goto('/lop');

@@ -556,4 +556,52 @@ begin;
 commit;
 
 \echo ''
+\echo '=== 19. Ban quản lý lớp hiện ra cho mọi người (0007) ==='
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'owner_jwt';
+  -- lớp A: nâng sinh viên 2421070527 (Trần Văn Mẫu) lên thủ quỹ để có người gắn với danh sách
+  update memberships set role = 'treasurer'
+    where class_id = :'class_a'
+      and user_id = (select id from profiles where email = '2421070527@student.humg.edu.vn');
+commit;
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'sv_jwt';
+  -- Không ai ngoài quản trị lớp liệt kê được bảng memberships (chỉ thấy dòng của chính mình),
+  -- nhưng ai cũng phải biết trong lớp mình ai đang giữ quỹ ⇒ đó là việc của v_class_officers.
+  select assert((select count(*) from memberships where class_id = :'class_a') = 1,
+    'Không phải quản trị thì chỉ đọc được dòng membership của chính mình');
+  select assert((select role from v_class_officers
+                 where class_id = :'class_a' and person_name = 'Trần Văn Mẫu') = 'treasurer',
+    'Thành viên vẫn thấy ai là thủ quỹ qua v_class_officers');
+  select assert((select in_student_list from v_class_officers
+                 where class_id = :'class_a' and person_name = 'Trần Văn Mẫu'),
+    'Thủ quỹ này có trong danh sách lớp ⇒ đánh dấu được ngay trên dòng của họ');
+  select assert((select count(*) from v_class_officers where class_id = :'class_a' and role = 'member') = 0,
+    'View chỉ công bố người có trách nhiệm với quỹ, không liệt kê thành viên thường');
+commit;
+begin;
+  set local role anon;
+  select assert((select count(*) from v_class_officers where class_id = :'class_a') >= 1,
+    'Khách cũng biết ai đang giữ quỹ của lớp');
+  -- lớp A đã bật che tên ở nhóm 15 ⇒ tên ban quản lý cũng phải bị che với khách
+  -- lớp A có hai thủ quỹ: một người trong danh sách lớp, một người được mời bằng email
+  select assert((select person_name from v_class_officers
+                 where class_id = :'class_a' and role = 'treasurer' and in_student_list) = 'Trần V. M.',
+    'Bật che tên ⇒ khách chỉ thấy tên viết tắt của ban quản lý');
+  select assert((select count(*) from v_class_officers
+                 where class_id = :'class_a' and not in_student_list) = 1,
+    'Người giữ quỹ ngoài danh sách lớp vẫn có trong ban quản lý');
+  select assert_blocked($q$select email from v_class_officers$q$,
+    'View không công bố email của ban quản lý');
+commit;
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'adm_c_jwt';
+  select assert((select count(*) from v_class_officers where class_id = :'class_c' and role = 'admin') = 1,
+    'Lớp C có đúng một quản trị lớp trong ban quản lý');
+commit;
+
+\echo ''
 \echo '=== XONG: tất cả phép kiểm tra DB đều đạt ==='

@@ -6,11 +6,11 @@ import { useKlassContext } from '@/app/ClassProvider';
 import {
   Badge, Button, Card, EmptyState, Input, Money, Select, TableSkeleton, TableWrap,
 } from '@/components/ui';
-import { useDebts, usePeriods, useStudents } from '@/data/api';
+import { useClassOfficers, useDebts, usePeriods, useStudents } from '@/data/api';
 import { fmtDate, fmtNum, fmtVnd, noAccent, toInt } from '@/lib/format';
 import { can } from '@/lib/permissions';
 import { pageVariants, rowStagger } from '@/lib/motion';
-import { FUNDS, type Fund, type Student } from '@/types/db';
+import { FUNDS, ROLE_LABEL, type ClassOfficer, type Fund, type Student } from '@/types/db';
 import IncomeDialog from '@/features/incomes/IncomeDialog';
 import { QrDialog } from '@/features/qr/QrDialogs';
 import StudentDialog from './StudentDialog';
@@ -22,6 +22,7 @@ export default function StudentsPage() {
   const students = useStudents(classId, role);
   const periods = usePeriods(classId);
   const debts = useDebts(classId, role);
+  const officers = useClassOfficers(classId);
   const { klass } = useKlassContext();
 
   const [q, setQ] = useState('');
@@ -37,6 +38,17 @@ export default function StudentsPage() {
   const [income, setIncome] = useState<{ open: boolean; studentId: string; periodId: string }>(
     { open: false, studentId: '', periodId: '' },
   );
+
+  /**
+   * Ai trong danh sách đang giữ vai gì. Đọc từ view v_class_officers nên thành viên và cả
+   * khách cũng thấy — đúng thứ họ cần biết để liên hệ khi nộp tiền hay khi số liệu sai.
+   */
+  const officerOf = useMemo(() => {
+    const m = new Map<string, ClassOfficer>();
+    for (const o of officers.data ?? []) if (o.student_id) m.set(o.student_id, o);
+    return m;
+  }, [officers.data]);
+  const officersOutside = (officers.data ?? []).filter((o) => !o.in_student_list);
 
   const paidMap = useMemo(() => {
     const m = new Map<string, number>();
@@ -146,6 +158,27 @@ export default function StudentsPage() {
           )}
         </div>
 
+        {/*
+          * Người giữ quỹ có thể không nằm trong danh sách sinh viên (giáo viên, lớp trưởng đã
+          * chuyển lớp), nên ngoài nhãn trên từng dòng còn cần một chỗ nêu đủ ban quản lý.
+          */}
+        {(officers.data ?? []).length > 0 && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-line bg-surface2
+            px-4 py-2 text-[13px]">
+            <span className="font-semibold text-ink2">Ban quản lý lớp:</span>
+            {(officers.data ?? []).map((o) => (
+              <span key={`${o.role}-${o.person_name}`} className="flex items-center gap-1.5">
+                <Badge tone={o.role === 'admin' ? 'brand' : 'ok'}>{ROLE_LABEL[o.role]}</Badge>
+                {o.person_name}
+                {!o.in_student_list && <span className="text-ink3">(ngoài danh sách)</span>}
+              </span>
+            ))}
+            {officersOutside.length === (officers.data ?? []).length && (
+              <span className="text-ink3">— chưa ai trong danh sách được gắn quyền</span>
+            )}
+          </div>
+        )}
+
         {students.isLoading || debts.isLoading ? (
           <TableSkeleton rows={8} cols={6} />
         ) : rows.length === 0 ? (
@@ -181,11 +214,23 @@ export default function StudentsPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r, i) => (
+                {rows.map((r, i) => {
+                  const officer = officerOf.get(r.s.id);
+                  return (
                   <motion.tr key={r.s.id} {...rowStagger(i)}>
                     <td className="num text-ink3">{r.s.stt ?? ''}</td>
                     <td className="num">{r.s.code}</td>
-                    <td className="font-semibold">{r.s.full_name}</td>
+                    <td className="font-semibold">
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        {r.s.full_name}
+                        {officer && (
+                          <Badge tone={officer.role === 'admin' ? 'brand' : 'ok'}>
+                            {ROLE_LABEL[officer.role]}
+                          </Badge>
+                        )}
+                        {r.s.id === myStudentId && <Badge>bạn</Badge>}
+                      </span>
+                    </td>
                     {can.viewStudentDob(role) && <td className="num text-xs text-ink3">{fmtDate(r.s.dob)}</td>}
                     <td className="text-xs text-ink3">{r.s.class_code}</td>
                     {cols.map((p) => {
@@ -235,7 +280,8 @@ export default function StudentsPage() {
                       </div>
                     </td>
                   </motion.tr>
-                ))}
+                  );
+                })}
               </tbody>
               <tfoot>
                 <tr>

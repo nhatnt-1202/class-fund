@@ -133,6 +133,12 @@ export async function stubSupabase(page: Page, opts: StubOptions = {}): Promise<
     classes: opts.noClasses ? [] : opts.twoClasses || opts.systemOwner ? [klass, otherKlass] : [klass],
     memberships: opts.noClasses ? [] : memberships,
     v_classes_public: publicClasses,
+    // Ban quản lý lớp: s2 (Lê Thị Thử) là thủ quỹ và có trong danh sách; một quản trị lớp
+    // được mời bằng email nên không có dòng sinh viên nào.
+    v_class_officers: [
+      { class_id: CLASS_ID, student_id: 's2', role: 'treasurer', person_name: 'Lê Thị Thử', in_student_list: true },
+      { class_id: CLASS_ID, student_id: null, role: 'admin', person_name: 'Phạm Lớp Trưởng', in_student_list: false },
+    ],
     profiles: [profile],
     students,
     periods,
