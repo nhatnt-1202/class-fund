@@ -15,7 +15,8 @@
     "db:types": "supabase gen types typescript --local > src/types/database.types.ts",
     "check": "node scripts/check-connection.mjs",
     "db:bundle": "node scripts/bundle-migrations.mjs",
-    "create:owner": "node scripts/create-owner.mjs"
+    "create:owner": "node scripts/create-owner.mjs",
+    "db:exec": "node scripts/db-exec.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

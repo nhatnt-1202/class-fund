@@ -38,6 +38,11 @@ export default function IncomesPage() {
   }, [debts.data]);
   const paidOf = (s: string, p: string) => paidMap.get(`${s}|${p}`) ?? 0;
 
+  const collectors = useMemo(
+    () => [...new Set((incomes.data ?? []).map((r) => r.collected_by).filter(Boolean))],
+    [incomes.data],
+  );
+
   const rows = useMemo(() => (incomes.data ?? []).filter((r) =>
     (!fund || r.fund === fund)
     && (!periodId || (periodId === '__none' ? !r.period_id : r.period_id === periodId))
@@ -168,6 +173,7 @@ export default function IncomesPage() {
         students={(students.data ?? []).filter((s) => s.is_active)}
         periods={periods.data ?? []}
         paidOf={paidOf}
+        collectors={collectors}
       />
 
       <BatchCollectDialog

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useToast } from '@/app/ToastProvider';
-import { Button, Field, Input, Modal, MoneyInput, Select } from '@/components/ui';
+import { Button, Field, Input, Modal, Select } from '@/components/ui';
+import { AmountField, FundPicker, Section, SummaryBar } from '@/components/form';
 import { useSavePeriod } from '@/data/api';
 import { fmtVnd } from '@/lib/format';
-import { FUNDS, FUND_KEYS, type Fund, type Period, type PeriodStatus } from '@/types/db';
+import { FUNDS, type Fund, type Period, type PeriodStatus } from '@/types/db';
 
 export default function PeriodDialog({
   open, onOpenChange, editing, activeStudents,
@@ -80,38 +81,26 @@ export default function PeriodDialog({
       }
     >
       <Field label="Thu vào quỹ nào?" required>
-        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Chọn quỹ">
-          {FUND_KEYS.map((f) => {
-            const on = fund === f;
-            const tone = f === 'QUY_LOP' ? 'border-lop bg-lopSoft text-lopInk' : 'border-doan bg-doanSoft text-doanInk';
-            return (
-              <button
-                key={f}
-                type="button"
-                role="radio"
-                aria-checked={on}
-                onClick={() => setFund(f)}
-                className={`flex min-h-[48px] flex-1 basis-[130px] items-center justify-center gap-2 rounded-[10px]
-                  border-2 px-3 font-semibold transition-all duration-200 ease-out hover:-translate-y-px
-                  ${on ? tone : 'border-line bg-surface text-ink2'}`}
-              >
-                <span className={`h-2 w-2 rounded-full ${f === 'QUY_LOP' ? 'bg-lop' : 'bg-doan'}`} aria-hidden />
-                {FUNDS[f].label}
-              </button>
-            );
-          })}
-        </div>
+        <FundPicker value={fund} onChange={setFund} />
       </Field>
 
-      <div className={`rounded-[10px] border border-line border-l-4 p-3
-        ${fund === 'QUY_LOP' ? 'border-l-lop' : 'border-l-doan'}`}>
+      <Section title="Chi tiết đợt thu" accent={fund}>
         <Field label="Tên đợt thu" required error={err.name}>
           <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus
             placeholder="VD: Quỹ lớp học kỳ I 2026-2027" />
         </Field>
         <div className="grid gap-3 sm:grid-cols-3">
-          <Field label="Mức thu / SV (₫)" required error={err.amount}>
-            <MoneyInput value={amount} onChange={setAmount} />
+          <Field label="Mức thu mỗi SV" required error={err.amount}>
+            <AmountField
+              id="p-amount"
+              value={amount}
+              onChange={setAmount}
+              quick={[
+                { label: 'Quỹ lớp', value: 50000 },
+                { label: 'Quỹ đoàn', value: 20000 },
+                { label: '100.000', value: 100000 },
+              ]}
+            />
           </Field>
           <Field label="Ngày mở">
             <Input type="date" value={openDate} onChange={(e) => setOpenDate(e.target.value)} />
@@ -133,11 +122,12 @@ export default function PeriodDialog({
             </Field>
           )}
         </div>
-        <p className="text-xs text-ink3">
-          Dự kiến thu: <b>{activeStudents}</b> SV × <b>{fmtVnd(amount)}</b> ={' '}
-          <b className="num">{fmtVnd(activeStudents * amount)}</b>
-        </p>
-      </div>
+        <SummaryBar items={[
+          { label: 'Số sinh viên', value: String(activeStudents) },
+          { label: 'Mức thu mỗi người', value: fmtVnd(amount) },
+          { label: 'Dự kiến thu cả đợt', value: fmtVnd(activeStudents * amount), tone: 'ok' },
+        ]} />
+      </Section>
     </Modal>
   );
 }

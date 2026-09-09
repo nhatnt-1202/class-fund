@@ -236,9 +236,14 @@ export function Modal({
                 initial="hidden"
                 animate="show"
                 exit="exit"
-                className={`fixed left-1/2 top-1/2 z-[101] max-h-[92vh] w-[calc(100vw-2rem)]
-                  -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-[18px] border border-line
-                  bg-surface shadow-s2 ${wide ? 'max-w-[1000px]' : 'max-w-[560px]'}`}
+                /*
+                 * Căn giữa bằng `inset-0 m-auto h-fit`, KHÔNG dùng -translate-x/y-1/2:
+                 * framer-motion ghi transform inline (translateY + scale) nên sẽ đè mất
+                 * transform của Tailwind, làm hộp thoại lệch xuống góc phải màn hình.
+                 */
+                className={`fixed inset-0 z-[101] m-auto h-fit max-h-[92vh] w-[calc(100vw-2rem)]
+                  overflow-auto rounded-[18px] border border-line bg-surface shadow-s2
+                  ${wide ? 'max-w-[1040px]' : 'max-w-[600px]'}`}
               >
                 <header className="flex items-start gap-3 px-4 pb-2 pt-4">
                   <div className="flex-1">

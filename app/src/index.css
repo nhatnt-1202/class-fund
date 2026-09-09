@@ -130,12 +130,24 @@
     outline-offset: 2px;
     border-radius: 4px;
   }
-  /* Ô nhập và select mặc định */
-  input[type='text'], input[type='date'], input[type='search'], input[type='email'],
-  input[type='password'], input[type='number'], select, textarea {
+  /*
+   * Ô nhập và select mặc định.
+   *
+   * Dùng `input:where(...)` chứ KHÔNG dùng `input[type='text']`: React render <input> không
+   * kèm thuộc tính type (type text là mặc định của HTML, không phải thuộc tính có mặt), nên
+   * selector theo [type] không khớp và ô nhập bị trơ về giao diện mặc định của trình duyệt.
+   * :where() còn giữ độ ưu tiên bằng 0 nên class utility (w-auto, h-14, text-right…) vẫn đè được.
+   */
+  /* Viết liền một dòng: xuống dòng giữa các :not() sẽ thành dấu cách, tức quan hệ con cháu,
+     và selector không khớp ô nhập nào cả. */
+  input:where(:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='range']):not([type='submit']):not([type='button'])),
+  select,
+  textarea {
     @apply w-full min-h-[42px] rounded-[10px] border border-lineStrong bg-surface px-3 py-2 text-ink;
     transition: border-color 0.14s, box-shadow 0.14s;
   }
+  input::placeholder, textarea::placeholder { @apply text-ink3; }
+  input:disabled, select:disabled, textarea:disabled { @apply cursor-not-allowed bg-surface2 text-ink3; }
   input:focus, select:focus, textarea:focus {
     outline: none;
     border-color: rgb(var(--c-focus));

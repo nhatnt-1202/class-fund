@@ -1,45 +1,19 @@
-import { QrCode } from 'lucide-react';
+import { QrCode, Users, Wallet } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/app/AuthProvider';
 import { useToast } from '@/app/ToastProvider';
-import { Button, Field, Input, Modal, MoneyInput, Note, Select } from '@/components/ui';
-import { useSaveIncome, type IncomeRow } from '@/data/api';
-import { fmtVnd, noAccent, toInt } from '@/lib/format';
+import { Badge, Button, Field, Input, Modal, Note, Select } from '@/components/ui';
+import {
+  AmountField, FundPicker, PersonField, Section, StudentPicker, SummaryBar,
+} from '@/components/form';
+import { useSaveIncome, useSettings, type IncomeRow } from '@/data/api';
+import { fmtVnd, toInt } from '@/lib/format';
 import { can } from '@/lib/permissions';
-import { FUNDS, FUND_KEYS, METHOD_LABEL, type Fund, type PayMethod, type Period, type Student } from '@/types/db';
-
-/** Chọn quỹ dạng nút lớn — quỹ là thông tin dễ nhầm nhất nên phải nổi bật, không ẩn trong dropdown. */
-function FundPicker({ value, onChange, disabled }: { value: Fund; onChange: (f: Fund) => void; disabled?: boolean }) {
-  return (
-    <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Chọn quỹ">
-      {FUND_KEYS.map((f) => {
-        const on = value === f;
-        const tone = f === 'QUY_LOP'
-          ? 'border-lop bg-lopSoft text-lopInk'
-          : 'border-doan bg-doanSoft text-doanInk';
-        return (
-          <button
-            key={f}
-            type="button"
-            role="radio"
-            aria-checked={on}
-            disabled={disabled}
-            onClick={() => onChange(f)}
-            className={`flex min-h-[48px] flex-1 basis-[130px] items-center justify-center gap-2 rounded-[10px]
-              border-2 px-3 font-semibold transition-all duration-200 ease-out hover:-translate-y-px
-              disabled:opacity-60 ${on ? tone : 'border-line bg-surface text-ink2'}`}
-          >
-            <span className={`h-2 w-2 rounded-full ${f === 'QUY_LOP' ? 'bg-lop' : 'bg-doan'}`} aria-hidden />
-            {FUNDS[f].label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+import { FUNDS, METHOD_LABEL, type Fund, type PayMethod, type Period, type Student } from '@/types/db';
 
 export default function IncomeDialog({
-  open, onOpenChange, editing, students, periods, paidOf, presetStudentId, presetPeriodId, onShowQr,
+  open, onOpenChange, editing, students, periods, paidOf, presetStudentId, presetPeriodId,
+  onShowQr, collectors = [],
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -50,12 +24,14 @@ export default function IncomeDialog({
   presetStudentId?: string;
   presetPeriodId?: string;
   onShowQr?: (studentId: string, periodId: string, amount: number) => void;
+  /** Những người đã từng đứng tên thu, để gợi ý trong ô "người thu". */
+  collectors?: string[];
 }) {
-  const { role } = useAuth();
+  const { role, profile } = useAuth();
   const toast = useToast();
   const save = useSaveIncome();
+  const { data: settings } = useSettings(role);
 
-  const openPeriods = periods.filter((p) => p.status !== 'CLOSED');
   const [periodId, setPeriodId] = useState('');
   const [fund, setFund] = useState<Fund>('QUY_LOP');
   const [payerMode, setPayerMode] = useState<'student' | 'other'>('student');
@@ -67,9 +43,9 @@ export default function IncomeDialog({
   const [collectedBy, setCollectedBy] = useState('');
   const [note, setNote] = useState('');
   const [err, setErr] = useState<Record<string, string>>({});
-  const [query, setQuery] = useState('');
 
-  // Nạp lại giá trị mỗi lần mở hộp thoại
+  const openPeriods = useMemo(() => periods.filter((p) => p.status !== 'CLOSED'), [periods]);
+
   useEffect(() => {
     if (!open) return;
     setErr({});
@@ -78,18 +54,15 @@ export default function IncomeDialog({
       setFund(editing.fund);
       setPayerMode(editing.student_id ? 'student' : 'other');
       setStudentId(editing.student_id ?? '');
-      setPayerName(editing.payer_name ?? '');
+      setPayerName(editing.student_id ? '' : (editing.payer_name ?? ''));
       setDate(editing.date);
       setAmount(toInt(editing.amount));
       setMethod(editing.method);
       setCollectedBy(editing.collected_by ?? '');
       setNote(editing.note ?? '');
-      setQuery('');
       return;
     }
-    const p = presetPeriodId
-      ? periods.find((x) => x.id === presetPeriodId)
-      : openPeriods[0] ?? periods[0];
+    const p = presetPeriodId ? periods.find((x) => x.id === presetPeriodId) : (openPeriods[0] ?? periods[0]);
     setPeriodId(p?.id ?? '');
     setFund(p?.fund ?? 'QUY_LOP');
     setPayerMode('student');
@@ -97,9 +70,8 @@ export default function IncomeDialog({
     setPayerName('');
     setDate(new Date().toISOString().slice(0, 10));
     setMethod('CASH');
-    setCollectedBy('');
+    setCollectedBy(profile?.full_name || '');
     setNote('');
-    setQuery('');
     const remaining = presetStudentId && p
       ? Math.max(toInt(p.amount_per_student) - paidOf(presetStudentId, p.id), 0)
       : 0;
@@ -110,34 +82,39 @@ export default function IncomeDialog({
   const period = periods.find((p) => p.id === periodId) ?? null;
   const student = students.find((s) => s.id === studentId) ?? null;
 
-  // Đổi đợt thu ⇒ quỹ đi theo đợt (DB cũng chặn nếu lệch, đây chỉ là để đỡ sai từ đầu)
+  const statusOf = (id: string) => {
+    if (!period) return null;
+    const must = toInt(period.amount_per_student);
+    const paid = paidOf(id, period.id);
+    return { paid, must, remaining: Math.max(must - paid, 0) };
+  };
+
   const changePeriod = (id: string) => {
     setPeriodId(id);
     const p = periods.find((x) => x.id === id);
-    if (p) {
-      setFund(p.fund);
-      if (!editing) {
-        const remaining = studentId ? Math.max(toInt(p.amount_per_student) - paidOf(studentId, p.id), 0) : 0;
-        setAmount(remaining || toInt(p.amount_per_student));
-      }
+    if (!p) return;
+    setFund(p.fund);                              // quỹ luôn đi theo đợt thu, DB cũng chặn nếu lệch
+    if (!editing) {
+      const remaining = studentId ? Math.max(toInt(p.amount_per_student) - paidOf(studentId, p.id), 0) : 0;
+      setAmount(remaining || toInt(p.amount_per_student));
     }
   };
 
-  const filtered = useMemo(() => {
-    const q = noAccent(query);
-    if (!q) return students.slice(0, 40);
-    return students
-      .filter((s) => noAccent(s.full_name).includes(q) || s.code.includes(query.trim()))
-      .slice(0, 40);
-  }, [query, students]);
+  const pickStudent = (id: string) => {
+    setStudentId(id);
+    if (editing || !period) return;
+    const remaining = Math.max(toInt(period.amount_per_student) - paidOf(id, period.id), 0);
+    setAmount(remaining || toInt(period.amount_per_student));
+  };
 
-  const overpay = useMemo(() => {
-    if (!student || !period) return 0;
-    const already = paidOf(student.id, period.id) - (editing && editing.student_id === student.id && editing.period_id === period.id ? toInt(editing.amount) : 0);
-    const after = already + amount;
-    return after > toInt(period.amount_per_student) ? after - toInt(period.amount_per_student) : 0;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [student?.id, period?.id, amount, editing?.id]);
+  /** Số đã nộp trước khoản này (khi sửa thì trừ chính nó ra để không đếm hai lần). */
+  const paidBefore = student && period
+    ? paidOf(student.id, period.id)
+      - (editing && editing.student_id === student.id && editing.period_id === period.id ? toInt(editing.amount) : 0)
+    : 0;
+  const must = toInt(period?.amount_per_student ?? 0);
+  const after = paidBefore + amount;
+  const overpay = must > 0 && after > must ? after - must : 0;
 
   const submit = async () => {
     const e: Record<string, string> = {};
@@ -150,7 +127,6 @@ export default function IncomeDialog({
     }
     setErr(e);
     if (Object.keys(e).length > 0) return;
-
     try {
       await save.mutateAsync({
         id: editing?.id,
@@ -174,10 +150,17 @@ export default function IncomeDialog({
     }
   };
 
+  const collectorGroups = [
+    ...(profile?.full_name ? [{ label: 'Tôi', names: [profile.full_name] }] : []),
+    { label: 'Đã từng thu', names: collectors },
+    { label: 'Sinh viên trong lớp', names: students.map((s) => s.full_name) },
+  ];
+
   return (
     <Modal
       open={open}
       onOpenChange={onOpenChange}
+      wide
       title={editing ? 'Sửa khoản thu' : 'Thêm khoản thu'}
       sub="Mỗi khoản thu bắt buộc thuộc đúng một quỹ."
       footer={
@@ -199,119 +182,149 @@ export default function IncomeDialog({
         </>
       }
     >
-      <Field label="Thu vào quỹ nào?" required error={err.fund}>
-        <FundPicker value={fund} onChange={setFund} disabled={Boolean(period)} />
-      </Field>
-
-      <div className={`rounded-[10px] border border-line border-l-4 p-3 transition-colors duration-200
-        ${fund === 'QUY_LOP' ? 'border-l-lop' : 'border-l-doan'}`}>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Ngày nộp" required error={err.date}>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          </Field>
-          <Field
-            label="Đợt thu"
-            hint={period
-              ? `Đợt này thuộc ${FUNDS[period.fund].label} · ${fmtVnd(period.amount_per_student)}/SV`
-              : 'Không thuộc đợt nào — chọn quỹ thủ công bên trên'}
-          >
-            <Select value={periodId} onChange={(e) => changePeriod(e.target.value)}>
-              <option value="">— Thu ngoài đợt (tài trợ, nguồn khác) —</option>
-              {periods.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({fmtVnd(p.amount_per_student)}/SV){p.status === 'CLOSED' ? ' · đã đóng' : ''}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        </div>
-
-        <Field label="Người nộp" required error={err.student ?? err.payer}>
-          <div className="mb-2 flex gap-2">
-            {(['student', 'other'] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setPayerMode(m)}
-                className={`rounded-full border px-3 py-1 text-[13px] ${
-                  payerMode === m ? 'border-transparent bg-brand font-semibold text-white' : 'border-lineStrong bg-surface'
-                }`}
-              >
-                {m === 'student' ? 'Sinh viên trong lớp' : 'Nguồn khác'}
-              </button>
-            ))}
-          </div>
-          {payerMode === 'student' ? (
-            <>
-              <Input
-                type="search"
-                placeholder="Tìm theo tên hoặc mã SV (bỏ dấu vẫn tìm được)…"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                aria-label="Tìm sinh viên"
+      <div className="grid gap-3 lg:grid-cols-2">
+        {/* ----- cột trái: tiền và đợt thu ----- */}
+        <div>
+          <Section title="Số tiền" accent={fund}>
+            <Field label="Số tiền nộp" required error={err.amount}>
+              <AmountField
+                id="in-amount"
+                value={amount}
+                onChange={setAmount}
+                autoFocus
+                quick={period ? [
+                  { label: 'Còn thiếu', value: Math.max(must - paidBefore, 0) },
+                  { label: 'Cả đợt', value: must },
+                  { label: 'Một nửa', value: Math.round(must / 2) },
+                ] : []}
               />
-              <Select
-                className="mt-2"
-                value={studentId}
-                size={Math.min(Math.max(filtered.length, 3), 6)}
-                onChange={(e) => {
-                  setStudentId(e.target.value);
-                  const p = period;
-                  if (p && !editing) {
-                    const remaining = Math.max(toInt(p.amount_per_student) - paidOf(e.target.value, p.id), 0);
-                    setAmount(remaining || toInt(p.amount_per_student));
-                  }
-                }}
-                aria-label="Chọn sinh viên"
-              >
-                {filtered.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.full_name} — {s.code}
-                    {period ? ` · đã nộp ${fmtVnd(paidOf(s.id, period.id))}` : ''}
+            </Field>
+            {student && period && (
+              <SummaryBar items={[
+                { label: 'Đã nộp trước đó', value: fmtVnd(paidBefore) },
+                { label: 'Sau khoản này', value: `${fmtVnd(after)} / ${fmtVnd(must)}`,
+                  tone: after >= must ? 'ok' : 'warn' },
+                ...(overpay > 0 ? [{ label: 'Nộp thừa', value: fmtVnd(overpay), tone: 'warn' as const }] : []),
+              ]} />
+            )}
+          </Section>
+
+          <Section title="Thuộc đợt thu nào">
+            <Field
+              label="Đợt thu"
+              hint={period
+                ? `${FUNDS[period.fund].label} · ${fmtVnd(period.amount_per_student)}/SV`
+                : 'Không thuộc đợt nào — chọn quỹ thủ công bên dưới'}
+            >
+              <Select value={periodId} onChange={(e) => changePeriod(e.target.value)}>
+                <option value="">— Thu ngoài đợt (tài trợ, nguồn khác) —</option>
+                {periods.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} · {fmtVnd(p.amount_per_student)}/SV{p.status === 'CLOSED' ? ' · đã đóng' : ''}
                   </option>
                 ))}
               </Select>
-            </>
-          ) : (
-            <Input
-              placeholder="Tên người/đơn vị nộp"
-              value={payerName}
-              onChange={(e) => setPayerName(e.target.value)}
-            />
+            </Field>
+            <Field label="Thu vào quỹ nào?" required error={err.fund}>
+              <FundPicker
+                value={fund}
+                onChange={setFund}
+                disabled={Boolean(period)}
+                disabledHint="Quỹ đi theo đợt thu đã chọn — muốn đổi quỹ thì chọn đợt khác hoặc “Thu ngoài đợt”."
+              />
+            </Field>
+          </Section>
+        </div>
+
+        {/* ----- cột phải: ai nộp, ai thu ----- */}
+        <div>
+          <Section title="Ai nộp">
+            <div className="mb-2 flex gap-2">
+              {([['student', 'Sinh viên trong lớp', Users], ['other', 'Nguồn khác', Wallet]] as const).map(
+                ([m, label, Icon]) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setPayerMode(m)}
+                    className={`flex flex-1 items-center justify-center gap-1.5 rounded-[10px] border px-3 py-2
+                      text-[13px] transition-colors ${payerMode === m
+                        ? 'border-transparent bg-brand font-semibold text-white'
+                        : 'border-lineStrong bg-surface hover:bg-surface2'}`}
+                  >
+                    <Icon className="h-4 w-4" aria-hidden /> {label}
+                  </button>
+                ),
+              )}
+            </div>
+            {payerMode === 'student' ? (
+              <Field label="Sinh viên" required error={err.student}>
+                <StudentPicker
+                  students={students}
+                  value={studentId}
+                  onChange={pickStudent}
+                  statusOf={statusOf}
+                />
+              </Field>
+            ) : (
+              <Field label="Người / đơn vị nộp" required error={err.payer}>
+                <Input value={payerName} onChange={(e) => setPayerName(e.target.value)}
+                  placeholder="VD: Hội phụ huynh, thầy chủ nhiệm…" />
+              </Field>
+            )}
+          </Section>
+
+          <Section title="Chi tiết ghi nhận">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Ngày nộp" required error={err.date}>
+                <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              </Field>
+              <Field label="Hình thức">
+                <Select value={method} onChange={(e) => setMethod(e.target.value as PayMethod)}>
+                  {Object.entries(METHOD_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </Select>
+              </Field>
+            </div>
+            <Field label="Người thu" hint="Chọn từ danh sách hoặc bấm “Nhập tay” để gõ tên khác.">
+              <PersonField
+                id="in-collector"
+                value={collectedBy}
+                onChange={setCollectedBy}
+                groups={collectorGroups}
+                placeholder="Tên người thu tiền"
+              />
+            </Field>
+            <Field label="Ghi chú">
+              <Input value={note} onChange={(e) => setNote(e.target.value)}
+                placeholder="VD: nộp bù đợt trước" />
+            </Field>
+          </Section>
+
+          {method === 'TRANSFER' && !editing && (
+            <Note tone="info">
+              <span>
+                Chọn <b>Chuyển khoản</b> nghĩa là bạn đã thấy tiền về tài khoản
+                {settings?.account_no ? ` ${settings.account_no}` : ''}. Nếu chưa, hãy dùng
+                {' '}<b>Xem QR chuyển khoản</b> để gửi mã cho sinh viên trước.
+              </span>
+            </Note>
           )}
-        </Field>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Số tiền (₫)" required error={err.amount}>
-            <MoneyInput value={amount} onChange={setAmount} autoFocus />
-          </Field>
-          <Field label="Hình thức">
-            <Select value={method} onChange={(e) => setMethod(e.target.value as PayMethod)}>
-              {Object.entries(METHOD_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </Select>
-          </Field>
+          {overpay > 0 && student && period && (
+            <Note tone="warn">
+              <span>
+                Sau khoản này {student.full_name} nộp thừa <b>{fmtVnd(overpay)}</b> so với mức
+                {' '}<b>{fmtVnd(must)}</b> của đợt. Vẫn lưu được nếu đây là nộp hộ người khác.
+              </span>
+            </Note>
+          )}
+          {!can.writeIncome(role) && (
+            <Note tone="warn"><span>Bạn không có quyền ghi khoản thu — hãy nhờ thủ quỹ hoặc quản trị.</span></Note>
+          )}
+          {editing && (
+            <p className="mt-2 text-xs text-ink3">
+              Mọi thay đổi đều được ghi vào <Badge>Lịch sử thao tác</Badge> kèm giá trị trước và sau.
+            </p>
+          )}
         </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Người thu">
-            <Input value={collectedBy} onChange={(e) => setCollectedBy(e.target.value)} placeholder="Thủ quỹ" />
-          </Field>
-          <Field label="Ghi chú">
-            <Input value={note} onChange={(e) => setNote(e.target.value)} />
-          </Field>
-        </div>
-
-        {overpay > 0 && period && student && (
-          <Note tone="warn">
-            <span>
-              Sau khoản này, {student.full_name} sẽ nộp thừa <b>{fmtVnd(overpay)}</b> so với mức
-              {' '}<b>{fmtVnd(period.amount_per_student)}</b> của đợt. Vẫn lưu được nếu đây là nộp hộ người khác.
-            </span>
-          </Note>
-        )}
-        {!can.writeIncome(role) && (
-          <Note tone="warn"><span>Bạn không có quyền ghi khoản thu — hãy nhờ thủ quỹ hoặc quản trị.</span></Note>
-        )}
       </div>
     </Modal>
   );
