@@ -117,6 +117,8 @@ export function studentCodeFromEmail(email: string, domain: string, pattern: str
 export function SignupPage() {
   const { signUp } = useAuth();
   const { data: config } = useAppConfig();
+  const nav = useNavigate();
+  const toast = useToast();
   const [err, setErr] = useState('');
   const [done, setDone] = useState<{ email: string; code: string | null } | null>(null);
   const form = useForm<z.infer<typeof signupSchema>>({ resolver: zodResolver(signupSchema) });
@@ -134,7 +136,12 @@ export function SignupPage() {
             ? `Tài khoản ${done.email} đã tạo. Hệ thống tự đưa bạn vào lớp có mã sinh viên ${done.code} trong danh sách. Nếu lớp chưa nhập danh sách thì bạn sẽ vào lớp ngay sau khi lớp nhập.`
             : `Tài khoản ${done.email} đã tạo. Bạn sẽ thấy lớp mà quản trị lớp đã thêm bạn vào.`}
         </Note>
-        <Button variant="primary" className="mt-4 w-full" onClick={() => { window.location.href = '/login'; }}>
+        {/*
+          * Điều hướng trong app (useNavigate), KHÔNG dùng window.location: gán location là một
+          * request thật tới máy chủ, và khi người dùng bấm Back thì /signup cũng bị hỏi lại từ
+          * máy chủ — nơi nào không có SPA fallback là ra 404 ngay.
+          */}
+        <Button variant="primary" className="mt-4 w-full" onClick={() => nav('/login', { replace: true })}>
           Tới trang đăng nhập
         </Button>
       </Shell>
@@ -151,7 +158,13 @@ export function SignupPage() {
         onSubmit={form.handleSubmit(async (v) => {
           setErr('');
           try {
-            await signUp(v.email, v.password, v.fullName);
+            const { signedIn } = await signUp(v.email, v.password, v.fullName);
+            // Không cần xác nhận email ⇒ đã có phiên thì vào thẳng app, khỏi bắt đăng nhập lại
+            if (signedIn) {
+              toast.ok('Tạo tài khoản xong', code ? `Đã vào lớp có mã sinh viên ${code}` : undefined);
+              nav('/', { replace: true });
+              return;
+            }
             setDone({ email: v.email.trim().toLowerCase(), code });
           } catch (e) {
             setErr(e instanceof Error ? e.message : 'Không đăng ký được');

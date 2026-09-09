@@ -130,7 +130,9 @@ npm run build     # ra thư mục dist/
 
 Đưa `dist/` lên Netlify / Vercel / Cloudflare Pages. Nhớ:
 - khai `VITE_SUPABASE_URL` và `VITE_SUPABASE_ANON_KEY` trong phần environment variables,
-- bật **SPA fallback** (mọi đường dẫn trả về `index.html`) để `/incomes`, `/students`… không bị 404,
+- **SPA fallback** đã có sẵn: `public/_redirects` (Netlify, Cloudflare Pages) và `vercel.json`
+  đi kèm repo. Host khác thì phải tự trả `index.html` cho mọi đường dẫn, nếu không thì mở
+  thẳng `/incomes`, `/students`… hoặc bấm F5 giữa trang sẽ ra **404**,
 - thêm domain thật vào *Redirect URLs* của Supabase.
 
 ---
@@ -244,7 +246,7 @@ npm run build         # tsc strict + vite build
 bash ../tests/db/run.sh   # 141 phép kiểm tra RLS/nghiệp vụ trên Postgres 17 thật (cần Docker)
 ```
 
-E2E bằng Playwright — 57 phép kiểm tra × 3 cấu hình (desktop sáng, desktop tối, Pixel 7):
+E2E bằng Playwright — 59 phép kiểm tra × 3 cấu hình (desktop sáng, desktop tối, Pixel 7):
 
 ```bash
 npx playwright install chromium     # một lần
@@ -264,6 +266,7 @@ chặn và trả dữ liệu mẫu. Nhờ vậy test chạy offline, không ph�
 | `thu-chi.spec.ts` | Quỹ âm vì có người ứng tiền mua trước: tổng quan nói rõ đang âm bao nhiêu, khoản chi mang dấu ⚠ vượt quỹ, chi tiếp thì cảnh báo tính từ tồn quỹ âm · ghi thu/chi gửi lên đúng dữ liệu · chọn đợt Quỹ Đoàn thì quỹ đi theo đợt và bị khoá · cảnh báo nộp thừa · chi vượt tồn quỹ phải xác nhận rồi mới ghi kèm cờ vượt quỹ · thiếu người nộp/người mua thì không gửi gì lên · người thu chọn từ danh sách hoặc nhập tay |
 | `quyen.spec.ts` | Khách xem được số liệu nhưng không có nút ghi chép, không thấy menu quản trị, không thấy cột ngày sinh, che tên khi bật công tắc · danh sách lớp đánh dấu thủ quỹ / quản trị lớp · thành viên chỉ xem QR của chính mình · thủ quỹ không tạo được đợt thu · quản trị tạo được |
 | `qr.spec.ts` | Khách chưa đăng nhập cũng quét được QR và chuyển khoản (lớp bật che tên thì không, vì nội dung chuyển khoản sẽ vô danh) · QR mang đúng số còn thiếu, số tài khoản và mã SV · xác nhận đã nhận tiền ghi khoản thu dạng chuyển khoản · QR cả lớp đúng số người còn nợ |
+| `dang-ky.spec.ts` | Đăng ký xong rồi bấm Back vẫn ở trong app và không có request nào ra máy chủ (phát hiện điều hướng bằng `window.location`, thứ chỉ nhìn URL sẽ không thấy) · mọi liên kết ở khu đăng nhập/đăng ký đều là điều hướng trong app |
 | `giao-dien.spec.ts` | Đường dẫn tiếng Anh và link tiếng Việt cũ vẫn mở đúng trang (giữ cả hash của link đặt lại mật khẩu) · hộp thoại đúng tâm màn hình · mọi ô nhập cao bằng nhau · không cuộn ngang · Esc đóng hộp thoại · bảng có `<caption>` · đổi sáng/tối |
 | `nhieu-lop.spec.ts` | Gắn tài khoản với sinh viên trong danh sách (bỏ gắn gửi `null`, không phải chuỗi rỗng) · quản trị lớp không thấy menu *Quản lý lớp* và vào thẳng URL cũng bị từ chối · mọi truy vấn số liệu đều kèm `class_id` của lớp đang xem · tài khoản gốc thấy mọi lớp, đổi lớp thì dữ liệu hỏi theo lớp mới · mở lớp mới gửi đúng `create_class` (email hạ chữ thường) · giao quản trị gửi đúng `grant_class_role` · chưa có lớp thì được dẫn đi mở lớp / được nói rõ vì sao chưa thấy gì |
 | `mobile.spec.ts` | Khách thấy nút đăng nhập trên thanh tiêu đề · menu hamburger điều hướng được · không trang nào cuộn ngang · bảng cuộn trong khung riêng · hộp thoại vừa màn hình · form xếp một cột · vùng bấm ≥ 32px · mã QR ≥ 140px để quét được |

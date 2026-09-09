@@ -9,7 +9,8 @@ interface AuthCtx {
   profile: Profile | null;
   configured: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, fullName: string) => Promise<void>;
+  /** Trả về signedIn=true khi GoTrue tạo phiên ngay (không bắt xác nhận email). */
+  signUp: (email: string, password: string, fullName: string) => Promise<{ signedIn: boolean }>;
   signOut: () => Promise<void>;
   sendReset: (email: string) => Promise<void>;
   updatePassword: (password: string) => Promise<void>;
@@ -73,12 +74,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signUp = useCallback(async (email: string, password: string, fullName: string) => {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
       options: { data: { full_name: fullName.trim() } },
     });
     if (error) throw new Error(friendlyError(error));
+    // Hệ thống không dùng xác nhận email (0008) nên GoTrue thường trả phiên ngay ⇒ vào
+    // được app luôn, không phải đăng nhập lại.
+    return { signedIn: Boolean(data.session) };
   }, []);
 
   const signOut = useCallback(async () => {
