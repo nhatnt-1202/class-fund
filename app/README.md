@@ -130,10 +130,35 @@ npm run build     # ra thư mục dist/
 
 Đưa `dist/` lên Netlify / Vercel / Cloudflare Pages. Nhớ:
 - khai `VITE_SUPABASE_URL` và `VITE_SUPABASE_ANON_KEY` trong phần environment variables,
-- **SPA fallback** đã có sẵn: `public/_redirects` (Netlify, Cloudflare Pages) và `vercel.json`
-  đi kèm repo. Host khác thì phải tự trả `index.html` cho mọi đường dẫn, nếu không thì mở
-  thẳng `/incomes`, `/students`… hoặc bấm F5 giữa trang sẽ ra **404**,
-- thêm domain thật vào *Redirect URLs* của Supabase.
+- thêm domain thật vào *Redirect URLs* của Supabase (`https://…/reset-password`).
+
+### SPA fallback — thiếu là ra 404
+
+App là single-page: chỉ có đúng một file `index.html`, còn `/students`, `/login`… là đường
+dẫn do router trong trình duyệt xử lý. Máy chủ tĩnh không biết điều đó, nên nếu không cấu
+hình thì **mọi đường dẫn khác `/` đều trả 404**: bấm F5 giữa trang, mở link đã gửi cho sinh
+viên, hay bấm Back sau một lần tải trang thật.
+
+```
+/            200
+/students    404   ← không có file nào tên students
+/login       404
+```
+
+Cấu hình đã đi kèm repo, không phải làm gì thêm:
+
+| Host | File | Ghi chú |
+|---|---|---|
+| Vercel | `vercel.json` (có ở cả `app/` và gốc repo) | `rewrites` mọi đường dẫn về `/index.html` |
+| Netlify · Cloudflare Pages | `app/public/_redirects` | Vite copy sang `dist/` khi build |
+| Host khác | — | tự trả `index.html` cho mọi đường dẫn không khớp file |
+
+**Vercel đọc `vercel.json` trong đúng "Root Directory" của project**, nên có hai bản: một ở
+`app/` (khi Root Directory = `app`) và một ở gốc repo (khi để trống). Kiểm tra sau khi deploy:
+
+```bash
+curl -o /dev/null -w '%{http_code}\n' https://<domain>/students   # phải là 200, không phải 404
+```
 
 ---
 
