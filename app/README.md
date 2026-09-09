@@ -190,6 +190,29 @@ npm run build         # tsc strict + vite build
 bash ../tests/db/run.sh   # 89 phép kiểm tra RLS/nghiệp vụ trên Postgres 17 thật (cần Docker)
 ```
 
+E2E bằng Playwright — 37 phép kiểm tra × 3 cấu hình (desktop sáng, desktop tối, Pixel 7):
+
+```bash
+npx playwright install chromium     # một lần
+npm run test:e2e                    # tự build và tự chạy server
+npm run test:e2e:ui                 # chế độ có giao diện để soi từng bước
+npm run test:all                    # build + vitest + e2e
+```
+
+E2E chạy trên bản build thật nhưng **Supabase bị giả lập hoàn toàn ở tầng network**
+(`e2e/fixtures.ts`): phiên đăng nhập được bơm vào localStorage, mọi request `/rest/v1` bị
+chặn và trả dữ liệu mẫu. Nhờ vậy test chạy offline, không phụ thuộc dữ liệu của ai, và
+**kiểm tra được đúng những gì app gửi lên** — quỹ nào, số tiền nào, có cờ `overdraft` không,
+`method` có phải `TRANSFER` không.
+
+| Nhóm | Kiểm tra |
+|---|---|
+| `thu-chi.spec.ts` | Ghi thu/chi gửi lên đúng dữ liệu · chọn đợt Quỹ Đoàn thì quỹ đi theo đợt và bị khoá · cảnh báo nộp thừa · chi vượt tồn quỹ phải xác nhận rồi mới ghi kèm cờ vượt quỹ · thiếu người nộp/người mua thì không gửi gì lên · người thu chọn từ danh sách hoặc nhập tay |
+| `quyen.spec.ts` | Khách xem được số liệu nhưng không có nút ghi chép, không thấy menu quản trị, không thấy cột ngày sinh, che tên khi bật công tắc · thành viên chỉ xem QR của chính mình · thủ quỹ không tạo được đợt thu · quản trị tạo được |
+| `qr.spec.ts` | QR mang đúng số còn thiếu, số tài khoản và mã SV · xác nhận đã nhận tiền ghi khoản thu dạng chuyển khoản · QR cả lớp đúng số người còn nợ |
+| `giao-dien.spec.ts` | Hộp thoại đúng tâm màn hình · mọi ô nhập cao bằng nhau · không cuộn ngang · Esc đóng hộp thoại · bảng có `<caption>` · đổi sáng/tối |
+| `mobile.spec.ts` | Khách thấy nút đăng nhập trên thanh tiêu đề · menu hamburger điều hướng được · không trang nào cuộn ngang · bảng cuộn trong khung riêng · hộp thoại vừa màn hình · form xếp một cột · vùng bấm ≥ 32px · mã QR ≥ 140px để quét được |
+
 Soi giao diện bằng ảnh chụp thật, không cần Supabase:
 
 ```bash

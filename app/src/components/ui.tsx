@@ -64,12 +64,28 @@ export function CardHead({ title, sub, actions }: { title: ReactNode; sub?: Reac
 }
 
 /* ============================== Field ============================== */
+/**
+ * Nhãn + ô nhập + gợi ý/lỗi.
+ *
+ * `group` dùng cho cụm nhiều nút (chọn quỹ, chip danh mục, danh sách sinh viên): bọc nút
+ * trong <label> sẽ khiến accessible name của TỪNG nút dính cả chữ của nhãn, làm trình đọc
+ * màn hình đọc sai và locator trong test cũng nhập nhằng. Trường hợp đó render <div
+ * role="group" aria-labelledby> thay vì <label>.
+ */
 export function Field({
-  label, hint, error, required, children,
-}: { label: string; hint?: ReactNode; error?: string; required?: boolean; children: ReactNode }) {
-  return (
-    <label className="mb-3 block">
-      <span className="mb-1 block text-[13px] font-semibold text-ink2">
+  label, hint, error, required, group, children,
+}: {
+  label: string;
+  hint?: ReactNode;
+  error?: string;
+  required?: boolean;
+  group?: boolean;
+  children: ReactNode;
+}) {
+  const id = useId();
+  const body = (
+    <>
+      <span id={group ? id : undefined} className="mb-1 block text-[13px] font-semibold text-ink2">
         {label} {required && <span className="text-expense">*</span>}
       </span>
       {children}
@@ -78,8 +94,12 @@ export function Field({
       ) : hint ? (
         <span className="mt-1 block text-xs text-ink3">{hint}</span>
       ) : null}
-    </label>
+    </>
   );
+  if (group) {
+    return <div role="group" aria-labelledby={id} className="mb-3 block">{body}</div>;
+  }
+  return <label className="mb-3 block">{body}</label>;
 }
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(

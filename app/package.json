@@ -17,7 +17,10 @@
     "db:bundle": "node scripts/bundle-migrations.mjs",
     "create:owner": "node scripts/create-owner.mjs",
     "db:exec": "node scripts/db-exec.mjs",
-    "shot": "node scripts/screenshot.mjs"
+    "shot": "node scripts/screenshot.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:all": "npm run build && vitest run && playwright test"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -36,6 +39,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^26.5.0",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",

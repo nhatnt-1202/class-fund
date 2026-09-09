@@ -230,7 +230,7 @@ export default function IncomeDialog({
               )}
             </div>
             {payerMode === 'student' ? (
-              <Field label="Sinh viên" required error={err.student}>
+              <Field label="Sinh viên" required group error={err.student}>
                 <StudentPicker
                   students={students}
                   value={studentId}
@@ -261,7 +261,7 @@ export default function IncomeDialog({
                 ))}
               </Select>
             </Field>
-            <Field label="Thu vào quỹ nào?" required error={err.fund}>
+            <Field label="Thu vào quỹ nào?" required group error={err.fund}>
               <FundPicker
                 value={fund}
                 onChange={setFund}
@@ -281,7 +281,7 @@ export default function IncomeDialog({
                 </Select>
               </Field>
             </div>
-            <Field label="Người thu" hint="Chọn từ danh sách hoặc bấm “Nhập tay” để gõ tên khác.">
+            <Field label="Người thu" group hint="Chọn từ danh sách hoặc bấm “Nhập tay” để gõ tên khác.">
               <PersonField
                 id="in-collector"
                 value={collectedBy}

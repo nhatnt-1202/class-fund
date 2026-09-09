@@ -273,7 +273,7 @@ export default function ImportExportPage() {
             settings?.bank_bin && settings?.account_no ? ' · QR chuyển khoản' : ''}`}
         />
         <div className="p-4">
-          <Field label="Phạm vi">
+          <Field label="Phạm vi" group>
             <div className="flex flex-wrap gap-2">
               {([['all', 'Tất cả'], ['range', 'Theo khoảng ngày'], ['day', 'Theo một ngày']] as const).map(([v, l]) => (
                 <Chip key={v} on={scopeMode === v} onClick={() => setScopeMode(v)}>{l}</Chip>
@@ -454,7 +454,7 @@ export default function ImportExportPage() {
               </TableWrap>
             </div>
 
-            <Field label="Nếu sinh viên đã có trong hệ thống">
+            <Field label="Nếu sinh viên đã có trong hệ thống" group>
               <div className="flex flex-wrap gap-2">
                 {([['skip', 'Bỏ qua dòng trùng'], ['update', 'Cập nhật thông tin SV đã có'], ['insert', 'Thêm mới hết']] as const)
                   .map(([v, l]) => <Chip key={v} on={dedupe === v} onClick={() => setDedupe(v)}>{l}</Chip>)}

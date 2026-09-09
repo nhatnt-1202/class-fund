@@ -80,7 +80,7 @@ export default function PeriodDialog({
         </>
       }
     >
-      <Field label="Thu vào quỹ nào?" required>
+      <Field label="Thu vào quỹ nào?" required group>
         <FundPicker value={fund} onChange={setFund} />
       </Field>
 

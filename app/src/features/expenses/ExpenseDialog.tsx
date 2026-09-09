@@ -149,14 +149,14 @@ export default function ExpenseDialog({
             </Section>
 
             <Section title="Rút từ quỹ nào">
-              <Field label="Quỹ" required>
+              <Field label="Quỹ" required group>
                 <FundPicker value={fund} onChange={setFund} />
               </Field>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Ngày chi" required error={err.date}>
                   <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
                 </Field>
-                <Field label="Hoá đơn">
+                <Field label="Hoá đơn" group>
                   <Switch
                     id="ex-receipt"
                     checked={hasReceipt}
@@ -175,7 +175,7 @@ export default function ExpenseDialog({
                 <Input value={item} onChange={(e) => setItem(e.target.value)} autoFocus
                   placeholder="VD: Nước + bánh sinh hoạt lớp" />
               </Field>
-              <Field label="Danh mục">
+              <Field label="Danh mục" group>
                 <div className="flex flex-wrap gap-1.5">
                   {categories.map((c) => (
                     <button
@@ -198,6 +198,7 @@ export default function ExpenseDialog({
               <Field
                 label="Người đi mua"
                 required
+                group
                 error={err.buyer}
                 hint="Chọn từ danh sách hoặc bấm “Nhập tay” để gõ tên khác."
               >

@@ -172,6 +172,19 @@ export default function Layout({ children }: { children: ReactNode }) {
             {items.find((i) => i.to === location.pathname)?.label ?? 'Class Fund'}
           </h1>
           <div className="flex-1" />
+          {/*
+            * Nút đăng nhập phải có trên thanh tiêu đề, không chỉ trong sidebar: trên điện
+            * thoại sidebar là drawer bị ẩn, nên khách sẽ không thấy đường nào để đăng nhập.
+            */}
+          {!profile && (
+            <Link
+              to="/dang-nhap"
+              className="flex h-8 items-center gap-1.5 rounded-[10px] bg-brand px-2.5 text-[13px]
+                font-medium text-white shadow-s1 hover:brightness-110"
+            >
+              <LogIn className="h-4 w-4" aria-hidden /> Đăng nhập
+            </Link>
+          )}
           <Button
             variant="ghost" size="sm" aria-label="Đổi giao diện sáng/tối"
             title={`Giao diện: ${prefs.theme === 'auto' ? 'theo hệ thống' : prefs.theme === 'light' ? 'sáng' : 'tối'}`}

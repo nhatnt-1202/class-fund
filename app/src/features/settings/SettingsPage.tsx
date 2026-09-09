@@ -211,14 +211,14 @@ export default function SettingsPage() {
       <Card>
         <CardHead title="Hiển thị & khả năng tiếp cận" sub="Tuỳ chọn này chỉ áp dụng cho máy của bạn." />
         <div className="p-4">
-          <Field label="Giao diện">
+          <Field label="Giao diện" group>
             <div className="flex flex-wrap gap-2">
               {([['light', 'Sáng'], ['dark', 'Tối'], ['auto', 'Theo hệ thống']] as const).map(([v, l]) => (
                 <Chip key={v} on={prefs.theme === v} onClick={() => prefs.set({ theme: v })}>{l}</Chip>
               ))}
             </div>
           </Field>
-          <Field label="Cỡ chữ">
+          <Field label="Cỡ chữ" group>
             <div className="flex flex-wrap gap-2">
               {([[1, 'Vừa'], [1.12, 'Lớn'], [1.25, 'Rất lớn']] as const).map(([v, l]) => (
                 <Chip key={l} on={prefs.fontScale === v} onClick={() => prefs.set({ fontScale: v })}>{l}</Chip>
