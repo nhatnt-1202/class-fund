@@ -86,6 +86,8 @@ export default function DashboardPage() {
     { income: 0, expense: 0, balance: 0 },
   );
   const totalLifetime = FUND_KEYS.reduce((a, f) => a + lifetime(f), 0);
+  // Quỹ nào đang âm — xét trên số luỹ kế, không theo bộ lọc thời gian: đó mới là tiền thật
+  const negativeFunds = FUND_KEYS.filter((f) => lifetime(f) < 0);
 
   const rangeChips: Array<[RangeMode, string]> = [
     ['all', 'Tất cả'], ['month', 'Tháng này'], ['range', 'Khoảng ngày'], ['day', 'Một ngày'],
@@ -129,6 +131,25 @@ export default function DashboardPage() {
           </Link>
         )}
       </div>
+
+      {/*
+        * Quỹ âm là chuyện có thật: ai đó ứng tiền của mình mua trước rồi lớp thu bù sau. App
+        * cho phép (bản ghi chi được đánh dấu ⚠ vượt quỹ) nhưng phải nói to, vì đây là món nợ
+        * lớp đang mắc với một người cụ thể — không phải chỉ là một con số đỏ trên thẻ.
+        */}
+      {negativeFunds.length > 0 && (
+        <Note tone="warn">
+          <span>
+            {negativeFunds.map((f) => (
+              <span key={f} className="mr-3">
+                <b>{FUNDS[f].label}</b> đang âm <b>{fmtVnd(Math.abs(lifetime(f)))}</b>
+              </span>
+            ))}
+            — có người đã ứng tiền mua trước, lớp cần thu bù cho đủ. Xem các khoản chi có dấu
+            {' '}<b>⚠ vượt quỹ</b> ở trang Chi để biết ai đang ứng.
+          </span>
+        </Note>
+      )}
 
       {/* KPI: mỗi quỹ một thẻ + thẻ tổng. Con số chính là tồn quỹ. */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

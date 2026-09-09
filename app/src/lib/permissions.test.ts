@@ -5,13 +5,25 @@ import type { UiRole } from '@/types/db';
 const ALL: UiRole[] = ['guest', 'member', 'treasurer', 'admin', 'owner'];
 
 describe('ma trận quyền của giao diện', () => {
-  it('khách chỉ xem báo cáo, không làm gì khác', () => {
+  it('khách xem báo cáo và quét được QR để chuyển khoản, nhưng không ghi được gì', () => {
     expect(can.viewReports('guest')).toBe(true);
     expect(can.viewStudentDob('guest')).toBe(false);
-    expect(can.showQr('guest')).toBe(false);
     expect(can.exportExcel('guest')).toBe(false);
     expect(can.writeIncome('guest')).toBe(false);
     expect(can.viewAudit('guest')).toBe(false);
+    // Người phải nộp tiền thường không đăng nhập ⇒ khách phải quét được QR
+    expect(can.showQr('guest')).toBe(true);
+    expect(can.showQrFor('guest', null, 's1', true)).toBe(true);
+    // …nhưng tiền chỉ vào quỹ khi thủ quỹ xác nhận
+    expect(can.confirmTransfer('guest')).toBe(false);
+  });
+
+  it('lớp bật che tên thì khách không tạo được QR (nội dung chuyển khoản sẽ vô danh)', () => {
+    expect(can.showQrFor('guest', null, 's1', false)).toBe(false);
+    // cờ này không nới quyền cho người đã đăng nhập: thành viên vẫn chỉ xem QR của mình
+    expect(can.showQrFor('member', 's2', 's1', true)).toBe(false);
+    expect(can.showQrFor('member', 's1', 's1', false)).toBe(true);
+    expect(can.showQrFor('treasurer', null, 's1', false)).toBe(true);
   });
 
   it('thành viên đọc được nhưng không ghi', () => {
@@ -57,6 +69,7 @@ describe('ma trận quyền của giao diện', () => {
     expect(can.showQrFor('member', 's1', 's1')).toBe(true);
     expect(can.showQrFor('member', 's1', 's2')).toBe(false);
     expect(can.showQrFor('member', null, 's1')).toBe(false);
+    // không truyền cờ ⇒ mặc định đóng với khách (fail closed)
     expect(can.showQrFor('guest', 's1', 's1')).toBe(false);
     // thủ quỹ trở lên xem được của mọi người vì chính họ đi thu
     expect(can.showQrFor('treasurer', null, 's2')).toBe(true);

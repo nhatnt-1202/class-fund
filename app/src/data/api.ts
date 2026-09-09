@@ -150,11 +150,15 @@ export function useKlass(classId: string | null, role: UiRole) {
         if (error) throw new Error(friendlyError(error.message));
         const p = data as KlassPublic | null;
         if (!p) return null;
-        // Khách không được biết số tài khoản: điền chuỗi rỗng để phần còn lại của app dùng chung một kiểu
+        /*
+         * Khách nhận đủ tài khoản NHẬN tiền để tự sinh QR (0009); những thứ riêng tư
+         * (danh mục chi, ngày sinh, email…) vẫn không có trong view công khai.
+         */
         return {
           id: p.class_id, code: p.code, name: p.name, faculty: p.faculty, term: p.term,
           school_year: p.school_year, categories: [], hide_student_names_from_guest: p.hide_student_names_from_guest,
-          bank_bin: '', bank_name: '', account_no: '', account_name: '', note_template: '',
+          bank_bin: p.bank_bin, bank_name: p.bank_name, account_no: p.account_no,
+          account_name: p.account_name, note_template: p.note_template,
           is_active: true, created_at: '',
         };
       }
@@ -745,6 +749,9 @@ export async function logEvent(
   classId: string | null,
   meta?: unknown,
 ) {
+  // Khách không có gì để ghi log (RPC đòi đăng nhập) — bỏ qua cho im lặng, không báo lỗi giả
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return;
   const { error } = await supabase.rpc('log_event', {
     p_action: action, p_summary: summary, p_meta: meta ?? null, p_class: classId,
   });

@@ -191,6 +191,26 @@ describe('xuất Excel', () => {
     expect(rows[9]).toEqual(['Tồn quỹ', 20000, 0, 20000]);
   });
 
+  it('quỹ âm xuất ra số âm, không bị kẹp về 0 và không lệch với DB', () => {
+    // Có người ứng tiền mua trước: chi 80.000 khi mới thu 50.000 ⇒ tồn quỹ −30.000
+    const owed: ExportData = {
+      ...data,
+      balances: [
+        { fund: 'QUY_LOP', total_income: 50000, total_expense: 80000, balance: -30000 },
+        { fund: 'QUY_DOAN', total_income: 0, total_expense: 0, balance: 0 },
+      ],
+      expenses: [{ ...data.expenses[0]!, amount: 80000, overdraft: true }],
+    };
+    const wb = buildWorkbook(owed, { mode: 'all' });
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets['Tong quan']!, { header: 1 });
+    expect(rows[9]).toEqual(['Tồn quỹ', -30000, 0, -30000]);
+    // và vì khớp với tồn quỹ của DB thì KHÔNG được cảnh báo lệch số liệu
+    expect(rows.flat().join(' | ')).not.toMatch(/LỆCH SỐ LIỆU/);
+    // khoản chi vượt quỹ phải mang dấu trong sheet Chi để biết ai đang ứng tiền
+    const chi = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets['Chi']!, { header: 1 });
+    expect(chi[1]!.join(' | ')).toMatch(/CÓ/);
+  });
+
   it('cảnh báo ngay trong file nếu số liệu xuất ra lệch với tồn quỹ trong DB', () => {
     // giả lập trường hợp dữ liệu tải về bị thiếu (ví dụ bị giới hạn phân trang)
     const wb = buildWorkbook({ ...data, incomes: [] }, { mode: 'all' });

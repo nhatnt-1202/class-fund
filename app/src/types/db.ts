@@ -55,6 +55,15 @@ export interface KlassPublic {
   hide_student_names_from_guest: boolean;
   bank_configured: boolean;
   student_count: number;
+  /*
+   * Tài khoản NHẬN tiền của lớp: có trong view công khai để khách tự sinh mã QR chuyển
+   * khoản mà không cần đăng nhập (0009_guest_qr.sql).
+   */
+  bank_bin: string;
+  bank_name: string;
+  account_no: string;
+  account_name: string;
+  note_template: string;
 }
 
 /** Ai thuộc lớp nào với vai trò gì. */

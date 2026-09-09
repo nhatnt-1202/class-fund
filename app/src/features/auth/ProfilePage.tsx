@@ -106,7 +106,7 @@ export default function ProfilePage() {
               <span>
                 Tài khoản của bạn chưa được gắn với sinh viên nào trong lớp đang xem, nên chưa xem được công nợ
                 riêng. Nếu bạn đăng ký bằng email trường thì hệ thống tự gắn khi lớp nhập danh sách; nếu không,
-                hãy nhờ quản trị lớp gắn giúp trong trang Tài khoản.
+                hãy nhờ quản trị lớp gắn giúp trong trang Thành viên & quyền.
               </span>
             </Note>
           </div>

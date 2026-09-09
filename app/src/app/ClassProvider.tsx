@@ -10,7 +10,7 @@
  */
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useAuth } from './AuthProvider';
-import { useMyClasses, usePublicClasses, type MyClass } from '@/data/api';
+import { useKlass, useMyClasses, usePublicClasses, type MyClass } from '@/data/api';
 import type { Klass, UiRole } from '@/types/db';
 
 export interface ClassOption {
@@ -90,6 +90,13 @@ export function ClassProvider({ children }: { children: ReactNode }) {
       ? 'owner'
       : current?.myRole ?? 'member';
 
+  /*
+   * Khách không đọc được bảng classes (RLS), nên thông tin lớp của họ phải lấy từ view công
+   * khai — trong đó có tài khoản nhận tiền để tự sinh QR chuyển khoản. Thiếu bước này thì
+   * `klass` luôn null với khách và mọi mã QR đều không vẽ được.
+   */
+  const publicKlass = useKlass(signedIn ? null : classId, 'guest');
+
   const loading = authLoading || (signedIn ? mine.isLoading : publicList.isLoading);
 
   const value = useMemo<Ctx>(() => ({
@@ -97,7 +104,7 @@ export function ClassProvider({ children }: { children: ReactNode }) {
     classId: options.some((o) => o.id === classId) ? classId : options[0]?.id ?? null,
     setClassId,
     options,
-    klass: current ?? null,
+    klass: (signedIn ? current : publicKlass.data) ?? null,
     role,
     isSystemOwner: Boolean(isSystemOwner),
     myStudentId: current?.myStudentId ?? null,
@@ -107,7 +114,7 @@ export function ClassProvider({ children }: { children: ReactNode }) {
       void publicList.refetch();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [loading, classId, options, current, role, isSystemOwner]);
+  }), [loading, classId, options, current, publicKlass.data, role, isSystemOwner]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

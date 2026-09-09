@@ -24,14 +24,27 @@ export const can = {
   writeExpense: (r: UiRole) => atLeast(r, 'treasurer'),
   writeStudent: (r: UiRole) => atLeast(r, 'treasurer'),
   importStudents: (r: UiRole) => atLeast(r, 'treasurer'),
-  showQr: (r: UiRole) => atLeast(r, 'member'),
+  showQr: (r: UiRole) => atLeast(r, 'guest'),
   /**
-   * Thành viên chỉ được xem QR chuyển khoản CỦA CHÍNH MÌNH — QR mang số tiền và mã SV của
-   * người khác thì không việc gì phải cho họ thấy. Thủ quỹ trở lên xem được của mọi người
-   * vì chính họ đi thu.
+   * Ai xem được QR chuyển khoản của một sinh viên.
+   *
+   * - Thủ quỹ trở lên: của mọi người, vì chính họ đi thu.
+   * - Thành viên: chỉ của CHÍNH MÌNH — QR mang số tiền và mã SV của người khác thì không
+   *   việc gì phải cho họ thấy.
+   * - Khách: được, nhưng chỉ khi lớp KHÔNG bật che tên sinh viên (`guestQrAllowed`). Người
+   *   phải nộp tiền thường không đăng nhập, nên chặn khách là chặn đúng người cần trả tiền.
+   *   Còn khi lớp đã bật che tên thì mã SV trong nội dung chuyển khoản cũng bị che, tiền về
+   *   sẽ không đối chiếu được với ai — thà không cho tạo mã còn hơn tạo mã vô danh.
    */
-  showQrFor: (r: UiRole, myStudentId: string | null | undefined, studentId: string) =>
-    atLeast(r, 'treasurer') || (r === 'member' && Boolean(myStudentId) && myStudentId === studentId),
+  showQrFor: (
+    r: UiRole,
+    myStudentId: string | null | undefined,
+    studentId: string,
+    guestQrAllowed = false,
+  ) =>
+    atLeast(r, 'treasurer')
+    || (r === 'member' && Boolean(myStudentId) && myStudentId === studentId)
+    || (r === 'guest' && guestQrAllowed),
   confirmTransfer: (r: UiRole) => atLeast(r, 'treasurer'),
   writePeriod: (r: UiRole) => atLeast(r, 'admin'),
   manageUsers: (r: UiRole) => atLeast(r, 'admin'),

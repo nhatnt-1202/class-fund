@@ -106,4 +106,30 @@ test.describe('Thu tiền bằng QR', () => {
     await expect(dialog.getByText('40.000 ₫', { exact: false }).first()).toBeVisible();
     await expect(dialog.getByText('2 đợt').first()).toBeVisible();
   });
+
+  test('khách chưa đăng nhập cũng quét được QR và chuyển khoản', async ({ page }) => {
+    // Người phải nộp tiền thường không đăng nhập: chặn khách là chặn đúng người cần trả tiền
+    await stubSupabase(page);
+    await page.goto('/lop');
+    await page.getByRole('row', { name: /Phạm Minh Ví/ })
+      .getByTitle(/Mở QR chuyển khoản cho đợt/).first().click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.locator('svg').first()).toBeVisible();
+    // đủ thông tin để chuyển khoản: số tài khoản của lớp và số tiền còn thiếu
+    await expect(dialog.getByText('1021234567')).toBeVisible();
+    // số tiền hiện trong ô "Số tiền chuyển", không phải chỉ trong danh sách chọn đợt
+    await expect(dialog.getByText(/50\.000/).filter({ visible: true }).first()).toBeVisible();
+    // nhưng khách không xác nhận được tiền đã về — đó là việc của thủ quỹ
+    await expect(dialog.getByRole('button', { name: /Đã nhận được tiền/ })).toHaveCount(0);
+    await expect(dialog.getByText(/thủ quỹ.*xác nhận|xác nhận.*thủ quỹ/i).first()).toBeVisible();
+  });
+
+  test('lớp bật che tên thì khách không tạo được QR vô danh', async ({ page }) => {
+    // mã SV bị che ⇒ nội dung chuyển khoản không đối chiếu được với ai, thà không cho tạo
+    await stubSupabase(page, { hideNamesFromGuest: true });
+    await page.goto('/lop');
+    await expect(page.getByTitle(/Mở QR chuyển khoản cho đợt/)).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /QR chuyển khoản của/ })).toHaveCount(0);
+  });
 });

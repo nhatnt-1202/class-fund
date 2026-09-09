@@ -286,7 +286,7 @@ begin;
   select assert_blocked($q$select count(*) from memberships$q$,'Khách KHÔNG đọc được danh sách thành viên lớp');
   select assert_blocked($q$select account_no from classes$q$,  'Khách KHÔNG đọc được số tài khoản của lớp');
   select assert((select bank_configured from v_classes_public where code = 'DCXDXD69_03B') is not null,
-    'Khách chỉ biết lớp đã cấu hình QR hay chưa');
+    'Khách biết lớp đã cấu hình QR hay chưa');
 commit;
 select assert((select count(*) = 0 from information_schema.columns
                where table_name = 'v_students_public' and column_name = 'dob'),
@@ -447,6 +447,14 @@ begin;
     'Bật che tên ⇒ khách chỉ thấy tên viết tắt');
   select assert((select count(*) from v_students_public where class_id = :'class_b' and full_name like '%.%') = 0,
     'Che tên chỉ áp dụng cho lớp bật công tắc, không ảnh hưởng lớp khác');
+  -- 0009: khách phải tự sinh được mã QR ⇒ view công khai có tài khoản NHẬN tiền của lớp,
+  -- trong khi bảng gốc classes vẫn chặn (phép kiểm tra ngay trên).
+  select assert((select account_no from v_classes_public where code = 'DCXDXD69_03B') = '1021234567',
+    'Khách lấy được số tài khoản nhận tiền qua view công khai để tự sinh QR');
+  select assert((select bank_bin from v_classes_public where code = 'DCXDXD69_03B') = '970436',
+    'Khách lấy được mã ngân hàng (BIN) — bắt buộc có trong payload VietQR');
+  select assert_blocked($q$select dob from v_classes_public$q$,
+    'View công khai vẫn không có thứ gì riêng tư của sinh viên');
 commit;
 
 \echo ''
@@ -624,6 +632,67 @@ begin;
   select assert_blocked(format($q$update memberships set student_id = '%s'
                                  where class_id = '%s'$q$, :'sa1', :'class_c'),
     'Vẫn không gắn được sinh viên của lớp khác');
+commit;
+
+\echo ''
+\echo '=== 20. Không bao giờ phải xác nhận email (0008) ==='
+insert into auth.users (email, raw_user_meta_data)
+  values ('2421078888@student.humg.edu.vn', '{"full_name":"Hoàng Không Cần Xác Nhận"}');
+select assert((select email_confirmed_at is not null from auth.users
+               where email = '2421078888@student.humg.edu.vn'),
+  'Tài khoản mới tự có email_confirmed_at ⇒ đăng nhập được ngay, không cần mở hộp thư');
+select assert((select count(*) from auth.users where email_confirmed_at is null) = 0,
+  'Không còn tài khoản nào treo ở trạng thái chờ xác nhận');
+-- Bỏ xác nhận email KHÔNG mở thêm cửa: email lạ vẫn bị chặn ngay lúc đăng ký
+select assert_blocked($q$insert into auth.users (email) values ('nguoila@gmail.com')$q$,
+  'Email không đúng dạng và chưa được mời thì vẫn không đăng ký được');
+
+\echo ''
+\echo '=== 21. Chi vượt tồn quỹ: quỹ âm được, nhưng phải để lại dấu ==='
+-- Có người ứng tiền mua trước rồi lớp thu bù sau ⇒ tồn quỹ âm là hợp lệ. Việc DB phải làm là
+-- KHÔNG chặn, KHÔNG kẹp về 0, và giữ đúng đẳng thức thu − chi kể cả khi kết quả âm.
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'owner_jwt';
+  select assert((select balance from v_fund_balance where class_id = :'class_b' and fund = 'QUY_LOP') = 0,
+    'Lớp B chưa thu gì nên Quỹ Lớp đang bằng 0');
+commit;
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'qtb_jwt';
+  insert into expenses (class_id, date, fund, item, category, buyer, amount, overdraft)
+    values (:'class_b', '2026-09-07', 'QUY_LOP', 'Ứng tiền mua nước cho lớp', 'Sinh hoạt',
+            'Quản trị B', 120000, true);
+  select assert((select balance from v_fund_balance where class_id = :'class_b' and fund = 'QUY_LOP') = -120000,
+    'Chi 120.000 khi quỹ rỗng ⇒ tồn quỹ âm 120.000, không bị kẹp về 0');
+  select assert((select total_income = 0 and total_expense = 120000
+                 from v_fund_balance where class_id = :'class_b' and fund = 'QUY_LOP'),
+    'Tổng thu và tổng chi vẫn tách riêng, đẳng thức thu − chi giữ nguyên');
+  select assert((select overdraft from expenses where class_id = :'class_b' and amount = 120000),
+    'Bản ghi chi được đánh dấu vượt quỹ để biết ai đang ứng tiền');
+  select assert((select balance from v_fund_balance where class_id = :'class_a' and fund = 'QUY_LOP') <> -120000,
+    'Quỹ âm của lớp B không lây sang lớp A');
+  select assert((select balance from v_fund_balance where class_id = :'class_b' and fund = 'QUY_DOAN') = 0,
+    'Quỹ âm của Quỹ Lớp không lây sang Quỹ Đoàn của cùng lớp');
+
+  -- Thu bù về đúng số 0, không phải một con số lệch
+  insert into periods (class_id, name, fund, amount_per_student, open_date)
+    values (:'class_b', 'Bù tiền ứng trước', 'QUY_LOP', 60000, '2026-09-08');
+  insert into incomes (class_id, date, fund, period_id, student_id, amount, method)
+  select :'class_b', '2026-09-09', 'QUY_LOP',
+         (select id from periods where class_id = :'class_b' and name = 'Bù tiền ứng trước'),
+         s.id, 60000, 'CASH'
+    from students s where s.class_id = :'class_b';
+  select assert((select balance from v_fund_balance where class_id = :'class_b' and fund = 'QUY_LOP') = 0,
+    'Thu bù 2 × 60.000 ⇒ quỹ về đúng 0');
+commit;
+-- Xoá mềm khoản chi ứng trước thì tồn quỹ phải tính lại, không giữ lại vết tiền đã trừ
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'qtb_jwt';
+  update expenses set deleted_at = now() where class_id = :'class_b' and amount = 120000;
+  select assert((select balance from v_fund_balance where class_id = :'class_b' and fund = 'QUY_LOP') = 120000,
+    'Xoá mềm khoản ứng trước ⇒ tồn quỹ tính lại ngay');
 commit;
 
 \echo ''

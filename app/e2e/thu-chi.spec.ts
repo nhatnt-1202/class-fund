@@ -181,3 +181,34 @@ test.describe('Ghi khoản chi', () => {
     expect(sent.filter((s) => s.method === 'POST')).toHaveLength(0);
   });
 });
+
+test.describe('Quỹ âm vì có người ứng tiền mua trước', () => {
+  test('tổng quan nói to là quỹ đang âm, kèm số tiền', async ({ page }) => {
+    await stubSupabase(page, { role: 'treasurer', negativeFund: true });
+    await page.goto('/');
+    // con số tồn quỹ mang dấu trừ (− U+2212, không phải dấu gạch nối)
+    await expect(page.getByText('−150.000 ₫').first()).toBeVisible();
+    // và có cảnh báo nói rõ vì sao âm, không chỉ là một con số đỏ
+    await expect(page.getByText(/đang âm/).first()).toBeVisible();
+    await expect(page.getByText(/ứng tiền mua trước/).first()).toBeVisible();
+  });
+
+  test('khoản chi làm âm quỹ mang dấu vượt quỹ ở trang Chi', async ({ page }) => {
+    await stubSupabase(page, { role: 'treasurer', negativeFund: true });
+    await page.goto('/chi');
+    const row = page.getByRole('row', { name: /Ứng tiền mua nước/ });
+    await expect(row).toBeVisible();
+    await expect(row.getByText(/vượt quỹ/i)).toBeVisible();
+  });
+
+  test('chi tiếp khi quỹ đã âm: cảnh báo tính từ tồn quỹ âm', async ({ page }) => {
+    await stubSupabase(page, { role: 'treasurer', negativeFund: true });
+    await page.goto('/chi');
+    await page.getByRole('button', { name: 'Thêm chi' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByLabel(/Số tiền/).fill('10.000');
+    await expect(dialog.getByText(/vượt tồn/)).toBeVisible();
+    // tồn quỹ hiện tại là số âm, phải hiện đúng dấu trừ chứ không phải 0
+    await expect(dialog.getByText(/−150\.000/).first()).toBeVisible();
+  });
+});

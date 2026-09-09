@@ -38,7 +38,9 @@ export default function Layout({ children }: { children: ReactNode }) {
     { to: '/chi', label: 'Chi', icon: <ArrowDownCircle className="h-5 w-5" />, show: true },
     { to: '/dot-thu', label: 'Đợt thu', icon: <CalendarRange className="h-5 w-5" />, show: true },
     { to: '/nhap-xuat', label: 'Nhập / Xuất', icon: <FileSpreadsheet className="h-5 w-5" />, show: can.exportExcel(role) },
-    { to: '/tai-khoan', label: 'Tài khoản', icon: <ShieldCheck className="h-5 w-5" />, show: can.manageUsers(role) },
+    // "Thành viên & quyền", không phải "Tài khoản": trong app có tới ba thứ mang chữ tài khoản
+    // (tài khoản của tôi, tài khoản nhận chuyển khoản), nên tên này nói rõ trang làm gì.
+    { to: '/tai-khoan', label: 'Thành viên & quyền', icon: <ShieldCheck className="h-5 w-5" />, show: can.manageUsers(role) },
     { to: '/lop-hoc', label: 'Quản lý lớp', icon: <Building2 className="h-5 w-5" />, show: can.manageClasses(role) },
     { to: '/lich-su', label: 'Lịch sử thao tác', icon: <ScrollText className="h-5 w-5" />, show: can.viewAudit(role) },
     { to: '/cai-dat', label: 'Cài đặt', icon: <Settings className="h-5 w-5" />, show: role !== 'guest' },

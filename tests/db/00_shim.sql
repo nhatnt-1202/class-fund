@@ -9,6 +9,8 @@ create table if not exists auth.users (
   id                 uuid primary key default gen_random_uuid(),
   email              text unique not null,
   raw_user_meta_data jsonb not null default '{}'::jsonb,
+  -- GoTrue chỉ cho đăng nhập khi cột này có giá trị; 0008 tự điền để không phải xác nhận email
+  email_confirmed_at timestamptz,
   created_at         timestamptz not null default now()
 );
 

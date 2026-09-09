@@ -77,6 +77,8 @@ export interface StubOptions {
   twoClasses?: boolean;
   /** Hệ thống chưa có lớp nào — trạng thái ngay sau khi cài đặt. */
   noClasses?: boolean;
+  /** Quỹ Lớp đang âm vì có người ứng tiền mua trước. */
+  negativeFund?: boolean;
 }
 
 /**
@@ -130,6 +132,9 @@ export async function stubSupabase(page: Page, opts: StubOptions = {}): Promise<
     hide_student_names_from_guest: Boolean(opts.hideNamesFromGuest),
     bank_configured: true,
     student_count: k.id === CLASS_ID ? students.length : 2,
+    // 0009: view công khai có tài khoản nhận tiền để khách tự sinh QR
+    bank_bin: k.bank_bin, bank_name: k.bank_name, account_no: k.account_no,
+    account_name: k.account_name, note_template: k.note_template,
   });
   const publicClasses = opts.noClasses
     ? []
@@ -164,14 +169,20 @@ export async function stubSupabase(page: Page, opts: StubOptions = {}): Promise<
     profiles: [profile],
     students,
     periods,
-    v_fund_balance: balances,
+    v_fund_balance: opts.negativeFund
+      // Khớp với danh sách thu/chi bên dưới: thu 50.000, chi 200.000 ⇒ Quỹ Lớp âm 150.000
+      ? [{ class_id: CLASS_ID, fund: 'QUY_LOP', total_income: 50000, total_expense: 200000, balance: -150000 },
+         balances[1]!]
+      : balances,
     v_student_debt: debts,
     v_period_progress: [
       { class_id: CLASS_ID, period_id: 'p1', name: periods[0]!.name, fund: 'QUY_LOP', amount_per_student: 50000, status: 'OPEN', open_date: '2026-09-01', due_date: '2026-09-30', student_count: 3, collected: 80000, expected: 150000, remaining: 70000, paid_count: 1, partial_count: 1, unpaid_count: 1 },
       { class_id: CLASS_ID, period_id: 'p2', name: periods[1]!.name, fund: 'QUY_DOAN', amount_per_student: 20000, status: 'OPEN', open_date: '2026-09-01', due_date: null, student_count: 3, collected: 20000, expected: 60000, remaining: 40000, paid_count: 1, partial_count: 0, unpaid_count: 2 },
     ],
     incomes: [{ id: 'i1', class_id: CLASS_ID, date: '2026-09-03', fund: 'QUY_LOP', period_id: 'p1', student_id: 's1', payer_name: 'Trần Văn Mẫu', amount: 50000, method: 'TRANSFER', collected_by: 'Lê Thủ Quỹ', note: 'Chuyển khoản QR', batch_id: null, deleted_at: null, created_at: '', created_by: 'u1', students: { code: '2400000001', full_name: 'Trần Văn Mẫu' }, periods: { name: 'Quỹ lớp học kỳ I' } }],
-    expenses: [{ id: 'e1', class_id: CLASS_ID, date: '2026-09-05', fund: 'QUY_LOP', item: 'Nước + bánh sinh hoạt lớp', category: 'Sinh hoạt', buyer: 'Phạm Minh Ví', amount: 30000, has_receipt: false, receipt_url: null, overdraft: false, note: '', deleted_at: null, created_at: '', created_by: 'u1' }],
+    expenses: opts.negativeFund
+      ? [{ id: 'e1', class_id: CLASS_ID, date: '2026-09-05', fund: 'QUY_LOP', item: 'Ứng tiền mua nước cho lớp', category: 'Sinh hoạt', buyer: 'Phạm Minh Ví', amount: 200000, has_receipt: false, receipt_url: null, overdraft: true, note: '', deleted_at: null, created_at: '', created_by: 'u1' }]
+      : [{ id: 'e1', class_id: CLASS_ID, date: '2026-09-05', fund: 'QUY_LOP', item: 'Nước + bánh sinh hoạt lớp', category: 'Sinh hoạt', buyer: 'Phạm Minh Ví', amount: 30000, has_receipt: false, receipt_url: null, overdraft: false, note: '', deleted_at: null, created_at: '', created_by: 'u1' }],
     v_daily_ledger: [],
     audit_logs: [{ id: 1, class_id: CLASS_ID, at: new Date().toISOString(), actor_id: 'u1', actor_email: 'nguoidung@lop.vn', actor_name: 'Lê Thủ Quỹ', action: 'INSERT', table_name: 'incomes', record_id: 'i1', summary: 'Lê Thủ Quỹ đã ghi nhận thu 50.000 ₫ từ Trần Văn Mẫu vào Quỹ Lớp (chuyển khoản)', before_data: null, after_data: null, changed_fields: null, meta: null }],
     invites: [],

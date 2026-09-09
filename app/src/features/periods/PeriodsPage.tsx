@@ -17,7 +17,7 @@ import { QrDialog, QrSheetDialog } from '@/features/qr/QrDialogs';
 import PeriodDialog from './PeriodDialog';
 
 export default function PeriodsPage() {
-  const { role, classId, myStudentId } = useKlassContext();
+  const { role, classId, myStudentId, klass } = useKlassContext();
   const toast = useToast();
   const periods = usePeriods(classId);
   const progress = usePeriodProgress(classId);
@@ -42,6 +42,8 @@ export default function PeriodsPage() {
     return m;
   }, [debts.data]);
   const paidOf = (s: string, p: string) => paidMap.get(`${s}|${p}`) ?? 0;
+  // Khách chuyển khoản được, trừ khi lớp che tên sinh viên (xem can.showQrFor)
+  const guestQr = Boolean(klass?.account_no) && !klass?.hide_student_names_from_guest;
   const remainingOf = (studentId: string, periodId: string) => {
     const p = (periods.data ?? []).find((x) => x.id === periodId);
     if (!p) return 0;
@@ -219,7 +221,7 @@ export default function PeriodsPage() {
                             </td>
                             <td className="text-right">
                               <div className="flex justify-end gap-1">
-                                {can.showQrFor(role, myStudentId, r.student.id) && r.remaining > 0 && (
+                                {can.showQrFor(role, myStudentId, r.student.id, guestQr) && r.remaining > 0 && (
                                   <Button size="sm" variant="primary"
                                     onClick={() => { setDetail(null); setQr({ open: true, student: r.student, periodId: detail.id }); }}>
                                     QR

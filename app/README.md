@@ -40,10 +40,10 @@ VITE_SUPABASE_ANON_KEY=sb_publishable_xxxxxxxxxxxxxxxxxxxx
 
 Không đặt dấu ngoặc kép, không có dấu `/` ở cuối URL. File `.env` đã được `.gitignore`.
 
-### 3. Chạy 7 migration
+### 3. Chạy 9 migration
 
 **Cách A — không cài gì thêm** (nhanh nhất): Dashboard → **SQL Editor** → *New query* → dán
-**toàn bộ** file `supabase/setup_all.sql` → *Run*. File này là bản gộp của cả 7 migration nên
+**toàn bộ** file `supabase/setup_all.sql` → *Run*. File này là bản gộp của cả 9 migration nên
 chỉ phải dán một lần; thành công thì SQL Editor báo *“Success. No rows returned”*.
 
 Muốn dán từng file (dễ soi lỗi hơn) thì theo **đúng thứ tự** này, mỗi file *Run* một lần:
@@ -55,6 +55,8 @@ Muốn dán từng file (dễ soi lỗi hơn) thì theo **đúng thứ tự** n�
 5. `supabase/migrations/0005_multiclass_rls.sql` — RLS theo từng lớp
 6. `supabase/migrations/0006_root_governance.sql` — chỉ tài khoản gốc mở lớp và giao quản trị lớp
 7. `supabase/migrations/0007_class_officers.sql` — công bố ban quản lý lớp để đánh dấu trong danh sách
+8. `supabase/migrations/0008_no_email_confirm.sql` — không bao giờ phải xác nhận email
+9. `supabase/migrations/0009_guest_qr.sql` — khách cũng quét được QR để chuyển khoản
 
 Sửa migration thì chạy `npm run db:bundle` để sinh lại `setup_all.sql`.
 
@@ -72,9 +74,10 @@ Muốn có sẵn vài bản ghi để xem giao diện thì chạy thêm `supabas
 Dashboard → **Authentication**:
 
 - **Sign In / Providers → Email**: để bật (mặc định đã bật).
-- **Confirm email**: **TẮT** (Sign In / Providers → Email → tắt *Confirm email*). Nếu trước đó
-  đã tạo tài khoản lúc còn bật thì tắt công tắc không cứu được số cũ — chạy
-  `supabase/tools/confirm_all_emails.sql` một lần trong SQL Editor. Sinh viên đăng ký bằng email trường dạng
+- **Confirm email**: không cần quan tâm. `0008_no_email_confirm.sql` tự điền
+  `email_confirmed_at` ngay khi tài khoản được tạo, nên bật hay tắt công tắc kia cũng không
+  còn ảnh hưởng: tài khoản đúng định dạng là đăng nhập được ngay. Ai không được phép đăng ký
+  thì `handle_new_user()` đã chặn từ trước, không phải nhờ email xác nhận. Sinh viên đăng ký bằng email trường dạng
   `<mã SV>@student.humg.edu.vn` và đăng nhập được ngay, không phải mở hộp thư. Rủi ro thấp vì
   trigger `handle_new_user()` chỉ nhận đúng hai loại email: đúng định dạng mã sinh viên của
   trường, hoặc email đã được quản trị lớp thêm sẵn — email lạ bị chặn ngay khi đăng ký.
@@ -87,7 +90,7 @@ Dashboard → **Authentication**:
 
 ```bash
 npm install
-npm run check     # xác nhận URL/khoá đúng, đã chạy đủ 7 migration, và RLS đang chặn đúng chỗ
+npm run check     # xác nhận URL/khoá đúng, đã chạy đủ 9 migration, và RLS đang chặn đúng chỗ
 npm run dev
 ```
 
@@ -113,7 +116,7 @@ Mở `http://localhost:5173/dang-ky` — **người đăng ký đầu tiên tự
 | Báo *anon ĐỌC ĐƯỢC bảng students* | Chưa chạy `0003_rls.sql` |
 | Đăng ký báo *Database error saving new user* | Email không đúng dạng `<mã SV>@student.humg.edu.vn` và cũng chưa được quản trị lớp thêm sẵn. Đây là trigger `handle_new_user()` chặn đúng thiết kế, nhưng Supabase đôi khi che câu tiếng Việt gốc. Người đầu tiên của hệ thống thì vào được bằng email nào cũng được. |
 | Đăng nhập được nhưng *chưa thuộc lớp nào* | Lớp chưa nhập danh sách nên chưa khớp được mã sinh viên trong email, hoặc cần quản trị lớp thêm bạn vào lớp. Nhập danh sách xong là tài khoản tự vào lớp. |
-| Đăng nhập được nhưng không thấy nút thêm thu/chi | Tài khoản đang là *thành viên* của lớp. Nhờ quản trị lớp nâng lên *thủ quỹ* ở trang Tài khoản. |
+| Đăng nhập được nhưng không thấy nút thêm thu/chi | Tài khoản đang là *thành viên* của lớp. Nhờ quản trị lớp nâng lên *thủ quỹ* ở trang Thành viên & quyền. |
 | Không thấy menu *Quản lý lớp* | Menu đó chỉ dành cho tài khoản gốc. Quản trị lớp không mở được lớp mới — đúng thiết kế. |
 | Trang trắng sau khi deploy | Thiếu SPA fallback về `index.html`, hoặc chưa khai 2 biến môi trường ở nhà cung cấp hosting |
 
@@ -153,7 +156,7 @@ Cách vận hành:
 
 | Vai trò | Làm được gì |
 |---|---|
-| **Khách** (chưa đăng nhập) | Chọn một lớp công khai và xem tổng thu / tổng chi / tồn quỹ từng quỹ, danh sách thu chi, tiến độ đợt thu, công nợ. **Không** thấy ngày sinh, số tài khoản, lịch sử thao tác, danh sách tài khoản. |
+| **Khách** (chưa đăng nhập) | Chọn một lớp công khai và xem tổng thu / tổng chi / tồn quỹ từng quỹ, danh sách thu chi, tiến độ đợt thu, công nợ; **quét QR để chuyển khoản**. **Không** thấy ngày sinh, email, lịch sử thao tác, danh sách thành viên — và không ghi được gì. |
 | **Thành viên** của lớp | Xem đầy đủ dữ liệu lớp mình + công nợ của chính mình + xuất Excel + xem QR của chính mình |
 | **Thủ quỹ** của lớp | + thêm/sửa thu, chi, sinh viên, nhập danh sách lớp, xác nhận đã nhận chuyển khoản. Chỉ xoá được bản ghi **do chính mình tạo, trong 24 giờ** |
 | **Quản trị lớp** | + đợt thu, cấu hình lớp và tài khoản nhận tiền, thêm/rút thành viên của lớp, phục hồi bản ghi đã xoá — **chỉ trong lớp của mình** |
@@ -182,6 +185,12 @@ cùng `0006_root_governance.sql`.
    còn thiếu** và nội dung chứa **mã SV**. In cả lớp một trang hoặc chụp từng ô gửi nhóm.
 3. Sinh viên quét → chuyển khoản. Thủ quỹ đối chiếu sao kê rồi bấm **“Đã nhận được tiền”**;
    bản ghi được lưu với hình thức *Chuyển khoản* và ghi chú *Chuyển khoản QR*.
+
+**Khách chưa đăng nhập cũng quét được QR** (`0009_guest_qr.sql`): người phải nộp tiền thường
+không đăng nhập, nên chặn khách là chặn đúng người cần trả tiền. Vì thế view công khai công bố
+luôn tài khoản **nhận** tiền của lớp — thứ thủ quỹ vẫn dán vào nhóm chat lớp. Ngoại lệ: lớp bật
+**che tên sinh viên với khách** thì khách không tạo được mã, vì mã SV trong nội dung chuyển khoản
+cũng bị che ⇒ tiền về sẽ không đối chiếu được với ai. Xác nhận đã nhận tiền vẫn là việc của thủ quỹ.
 
 Payload dựng theo chuẩn **VietQR (Napas 247) / EMVCo**, CRC16/CCITT-FALSE, và được **vẽ ngay trên
 máy người dùng** — số tài khoản không gửi tới dịch vụ sinh QR bên ngoài nào.
@@ -228,12 +237,12 @@ Hai chi tiết dễ sai đã được xử lý:
 ## Kiểm thử
 
 ```bash
-npm test              # 47 phép kiểm tra logic + smoke test mount App (vitest)
+npm test              # 49 phép kiểm tra logic + smoke test mount App (vitest)
 npm run build         # tsc strict + vite build
-bash ../tests/db/run.sh   # 127 phép kiểm tra RLS/nghiệp vụ trên Postgres 17 thật (cần Docker)
+bash ../tests/db/run.sh   # 141 phép kiểm tra RLS/nghiệp vụ trên Postgres 17 thật (cần Docker)
 ```
 
-E2E bằng Playwright — 50 phép kiểm tra × 3 cấu hình (desktop sáng, desktop tối, Pixel 7):
+E2E bằng Playwright — 55 phép kiểm tra × 3 cấu hình (desktop sáng, desktop tối, Pixel 7):
 
 ```bash
 npx playwright install chromium     # một lần
@@ -250,9 +259,9 @@ chặn và trả dữ liệu mẫu. Nhờ vậy test chạy offline, không ph�
 
 | Nhóm | Kiểm tra |
 |---|---|
-| `thu-chi.spec.ts` | Ghi thu/chi gửi lên đúng dữ liệu · chọn đợt Quỹ Đoàn thì quỹ đi theo đợt và bị khoá · cảnh báo nộp thừa · chi vượt tồn quỹ phải xác nhận rồi mới ghi kèm cờ vượt quỹ · thiếu người nộp/người mua thì không gửi gì lên · người thu chọn từ danh sách hoặc nhập tay |
+| `thu-chi.spec.ts` | Quỹ âm vì có người ứng tiền mua trước: tổng quan nói rõ đang âm bao nhiêu, khoản chi mang dấu ⚠ vượt quỹ, chi tiếp thì cảnh báo tính từ tồn quỹ âm · ghi thu/chi gửi lên đúng dữ liệu · chọn đợt Quỹ Đoàn thì quỹ đi theo đợt và bị khoá · cảnh báo nộp thừa · chi vượt tồn quỹ phải xác nhận rồi mới ghi kèm cờ vượt quỹ · thiếu người nộp/người mua thì không gửi gì lên · người thu chọn từ danh sách hoặc nhập tay |
 | `quyen.spec.ts` | Khách xem được số liệu nhưng không có nút ghi chép, không thấy menu quản trị, không thấy cột ngày sinh, che tên khi bật công tắc · danh sách lớp đánh dấu thủ quỹ / quản trị lớp · thành viên chỉ xem QR của chính mình · thủ quỹ không tạo được đợt thu · quản trị tạo được |
-| `qr.spec.ts` | QR mang đúng số còn thiếu, số tài khoản và mã SV · xác nhận đã nhận tiền ghi khoản thu dạng chuyển khoản · QR cả lớp đúng số người còn nợ |
+| `qr.spec.ts` | Khách chưa đăng nhập cũng quét được QR và chuyển khoản (lớp bật che tên thì không, vì nội dung chuyển khoản sẽ vô danh) · QR mang đúng số còn thiếu, số tài khoản và mã SV · xác nhận đã nhận tiền ghi khoản thu dạng chuyển khoản · QR cả lớp đúng số người còn nợ |
 | `giao-dien.spec.ts` | Hộp thoại đúng tâm màn hình · mọi ô nhập cao bằng nhau · không cuộn ngang · Esc đóng hộp thoại · bảng có `<caption>` · đổi sáng/tối |
 | `nhieu-lop.spec.ts` | Gắn tài khoản với sinh viên trong danh sách (bỏ gắn gửi `null`, không phải chuỗi rỗng) · quản trị lớp không thấy menu *Quản lý lớp* và vào thẳng URL cũng bị từ chối · mọi truy vấn số liệu đều kèm `class_id` của lớp đang xem · tài khoản gốc thấy mọi lớp, đổi lớp thì dữ liệu hỏi theo lớp mới · mở lớp mới gửi đúng `create_class` (email hạ chữ thường) · giao quản trị gửi đúng `grant_class_role` · chưa có lớp thì được dẫn đi mở lớp / được nói rõ vì sao chưa thấy gì |
 | `mobile.spec.ts` | Khách thấy nút đăng nhập trên thanh tiêu đề · menu hamburger điều hướng được · không trang nào cuộn ngang · bảng cuộn trong khung riêng · hộp thoại vừa màn hình · form xếp một cột · vùng bấm ≥ 32px · mã QR ≥ 140px để quét được |
@@ -271,7 +280,7 @@ của hộp thoại — hai thứ từng sai mà đọc code không thấy: fram
 làm hỏng cách căn giữa bằng `-translate-x/y-1/2`, và CSS chọn `input[type='text']` không khớp
 `<input>` không có thuộc tính `type`.
 
-Bộ DB dựng một Postgres sạch trong Docker, chạy cả 7 migration, rồi kiểm tra ma trận quyền của
+Bộ DB dựng một Postgres sạch trong Docker, chạy cả 9 migration, rồi kiểm tra ma trận quyền của
 mọi vai trò (kể cả `anon`), **cách ly dữ liệu giữa các lớp**, việc chỉ tài khoản gốc mở được lớp,
 đẳng thức tồn quỹ, tách biệt hai quỹ, quy tắc xoá mềm, bảo vệ tài khoản, nội dung audit log và
 RPC import. Đây là chỗ chứng minh phân quyền, chứ không phải giao diện.

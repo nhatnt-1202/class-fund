@@ -18,12 +18,11 @@ import StudentDialog from './StudentDialog';
 type SortKey = 'stt' | 'code' | 'full_name' | 'dob' | 'paid' | 'remaining';
 
 export default function StudentsPage() {
-  const { role, classId, myStudentId } = useKlassContext();
+  const { role, classId, myStudentId, klass } = useKlassContext();
   const students = useStudents(classId, role);
   const periods = usePeriods(classId);
   const debts = useDebts(classId, role);
   const officers = useClassOfficers(classId);
-  const { klass } = useKlassContext();
 
   const [q, setQ] = useState('');
   const [fundFilter, setFundFilter] = useState<Fund | ''>('');
@@ -49,6 +48,12 @@ export default function StudentsPage() {
     return m;
   }, [officers.data]);
   const officersOutside = (officers.data ?? []).filter((o) => !o.in_student_list);
+  /*
+   * Khách được quét QR để chuyển khoản (họ chính là người phải nộp tiền), trừ khi lớp bật
+   * che tên: lúc đó mã SV trong nội dung chuyển khoản cũng bị che nên tiền về không đối
+   * chiếu được với ai.
+   */
+  const guestQr = Boolean(klass?.account_no) && !klass?.hide_student_names_from_guest;
 
   const paidMap = useMemo(() => {
     const m = new Map<string, number>();
@@ -242,7 +247,7 @@ export default function StudentsPage() {
                       const label = remaining === 0 ? 'Đã đóng' : paid > 0 ? `Thiếu ${fmtNum(remaining)}` : 'Chưa đóng';
                       return (
                         <td key={p.id}>
-                          {can.showQrFor(role, myStudentId, r.s.id) ? (
+                          {can.showQrFor(role, myStudentId, r.s.id, guestQr) ? (
                             <button
                               type="button"
                               title={`Mở QR chuyển khoản cho đợt ${p.name}`}
@@ -263,7 +268,7 @@ export default function StudentsPage() {
                     </td>
                     <td>
                       <div className="flex justify-end gap-1 opacity-40 transition-opacity hover:opacity-100 focus-within:opacity-100">
-                        {can.showQrFor(role, myStudentId, r.s.id) && (
+                        {can.showQrFor(role, myStudentId, r.s.id, guestQr) && (
                           <Button size="sm" variant="ghost" aria-label={`QR chuyển khoản của ${r.s.full_name}`}
                             // Không truyền đợt cụ thể: hộp thoại sẽ mặc định gộp tất cả đợt
                             // còn nợ. Bấm vào ô công nợ của một đợt thì mới chọn đúng đợt đó.

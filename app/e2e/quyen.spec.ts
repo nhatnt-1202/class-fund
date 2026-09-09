@@ -24,11 +24,11 @@ test.describe('Khách chưa đăng nhập', () => {
     await expect(page.getByRole('button', { name: 'Thêm chi' })).toHaveCount(0);
   });
 
-  test('không thấy menu Tài khoản, Lịch sử thao tác và Nhập/Xuất', async ({ page }) => {
+  test('không thấy menu Thành viên & quyền, Lịch sử thao tác và Nhập/Xuất', async ({ page }) => {
     await stubSupabase(page);
     await page.goto('/');
     const nav = page.getByRole('navigation').first();
-    await expect(nav.getByRole('link', { name: 'Tài khoản' })).toHaveCount(0);
+    await expect(nav.getByRole('link', { name: 'Thành viên & quyền' })).toHaveCount(0);
     await expect(nav.getByRole('link', { name: 'Lịch sử thao tác' })).toHaveCount(0);
     await expect(nav.getByRole('link', { name: 'Nhập / Xuất' })).toHaveCount(0);
   });
@@ -84,7 +84,7 @@ test.describe('Thành viên', () => {
     await expect(rowOther.getByRole('button', { name: /QR chuyển khoản/ })).toHaveCount(0);
   });
 
-  test('không vào được trang Tài khoản', async ({ page }) => {
+  test('không vào được trang Thành viên & quyền', async ({ page }) => {
     await stubSupabase(page, { role: 'member' });
     await page.goto('/tai-khoan');
     await expect(page.getByText(/chỉ dành cho quản trị lớp/)).toBeVisible();
