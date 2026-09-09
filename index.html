@@ -21,6 +21,7 @@
     COMPUTE   — tính tổng thu/chi/tồn quỹ, công nợ (nguồn sự thật duy nhất)
     RENDER    — vẽ từng trang
     EVENTS    — form, modal, phím tắt
+    QR        — dựng payload VietQR (Napas 247) + vẽ QR cho từng sinh viên
     IMPORT    — đọc file Excel danh sách lớp (5 bẫy của file thật, xem §IMPORT)
     EXPORT    — xuất workbook nhiều sheet
     SELFTEST  — bộ tự kiểm tra
@@ -36,6 +37,9 @@
     1. Hai quỹ QUY_LOP / QUY_DOAN tách biệt tuyệt đối. Mọi bản ghi phải gắn đúng 1 quỹ.
     2. Tiền là số nguyên VND. Không float, không chia 1000, không âm.
     3. Tồn quỹ LUÔN tính lại từ bản ghi: Tồn(X) = Σ Thu(X) − Σ Chi(X). Không có ô nhập tay.
+    4. Tiền vào quỹ chỉ được ghi nhận khi có người xác nhận đã nhận: chuyển khoản QR hoặc thu tay.
+       KHÔNG lấy cột "Số tiền"/"Trạng thái" trong file Excel để tự tạo khoản thu — file chỉ dùng
+       để nhập DANH SÁCH lớp.
 
   MUỐN THÊM QUỸ THỨ 3?
     Sửa duy nhất hằng số FUNDS ở đầu khối STATE (thêm 1 entry: mã, nhãn, biến màu CSS)
@@ -47,6 +51,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Lexend:wght@500;600;700&display=swap">
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<!-- Vẽ QR ngay trên máy: payload VietQR do app tự dựng, KHÔNG gửi số tài khoản ra dịch vụ ngoài -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <style>
 /* ============================== TOKENS ============================== */
 :root{
@@ -421,6 +427,23 @@ form.fund-lop{--form-accent:var(--fund-lop)} form.fund-doan{--form-accent:var(--
 .testline .st{font-weight:700;flex:0 0 auto}
 .testline.p .st{color:var(--income)} .testline.f .st{color:var(--expense)}
 
+/* ============================== QR ============================== */
+.qrbox{display:grid;grid-template-columns:190px 1fr;gap:1rem;align-items:start}
+@media (max-width:560px){ .qrbox{grid-template-columns:1fr} }
+.qrwrap{background:#fff;border:1px solid var(--border-strong);border-radius:var(--radius-sm);padding:.6rem;
+  animation:pop var(--dur) var(--ease-out)}
+.qrimg svg{display:block;width:100%;height:auto}
+.qrtbl{font-size:.875rem} .qrtbl td{padding:.25rem .4rem;border-bottom:1px dashed var(--border)}
+.qrtbl td:first-child{color:var(--text-3);white-space:nowrap}
+.qrgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:.7rem;
+  max-height:58vh;overflow:auto;padding:.2rem}
+.qrcell{border:1px solid var(--border);border-radius:var(--radius-sm);padding:.55rem;text-align:center;
+  background:var(--surface);animation:rowIn var(--dur) var(--ease-out) backwards;animation-delay:calc(var(--i,0)*18ms)}
+.qrcell-img{background:#fff;border-radius:6px;padding:.3rem}
+.qrcell-img svg{display:block;width:100%;height:auto}
+.qrcell-name{font-weight:600;font-size:.8125rem;margin-top:.35rem;line-height:1.3}
+.qrcell-sub{font-size:.75rem;color:var(--text-3)}
+
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;
     transition-duration:.09s!important;scroll-behavior:auto!important}
@@ -508,7 +531,9 @@ let ui = {
 
 function emptyState(){
   return {
-    meta:{ className:'', faculty:'', term:'', schoolYear:'', version:1, updatedAt:new Date().toISOString(), demo:false },
+    meta:{ className:'', faculty:'', term:'', schoolYear:'', version:1, updatedAt:new Date().toISOString(), demo:false,
+           // Tài khoản nhận chuyển khoản — dùng để sinh QR VietQR cho từng sinh viên
+           bank:{ bin:'', bankName:'', accountNo:'', accountName:'', template:'{ma} {dot}' } },
     students:[], periods:[], incomes:[], expenses:[],
   };
 }
@@ -534,6 +559,8 @@ function migrate(d){
   const base = emptyState();
   const out = Object.assign(base, d||{});
   out.meta = Object.assign(base.meta, d && d.meta || {});
+  out.meta.bank = Object.assign({ bin:'', bankName:'', accountNo:'', accountName:'', template:'{ma} {dot}' },
+                                (d && d.meta && d.meta.bank) || {});
   ['students','periods','incomes','expenses'].forEach(k=>{ if(!Array.isArray(out[k])) out[k]=[]; });
   // chuẩn hoá: mã SV luôn là string, tiền luôn là số nguyên
   out.students.forEach(s=>{ s.code = String(s.code==null?'':s.code); s.fullName = s.fullName || fullNameOf(s); });
@@ -630,8 +657,11 @@ function excelSerialToISO(serial){
 function parseDateFlexible(v){
   if (v == null || v === '') return '';
   if (v instanceof Date && !isNaN(v)) {
-    const p = n => String(n).padStart(2,'0');
-    return `${v.getFullYear()}-${p(v.getMonth()+1)}-${p(v.getDate())}`;
+    // SheetJS có thể trả về Date lệch vài giây so với nửa đêm (VD 2006-07-19T16:59:56Z ở TZ+7
+    // đại diện cho ngày 20/07/2006). Lấy ngày theo giờ địa phương thẳng sẽ bị lùi 1 ngày,
+    // nên phải làm tròn về mốc nửa đêm gần nhất trước khi cắt lấy ngày.
+    const localMs = v.getTime() - v.getTimezoneOffset() * 60000;
+    return new Date(Math.round(localMs / 86400000) * 86400000).toISOString().slice(0,10);
   }
   if (typeof v === 'number') return excelSerialToISO(v);
   const s = String(v).trim();
@@ -656,6 +686,90 @@ function fundBadge(fund){
   const f = FUNDS[fund];
   return f ? `<span class="badge ${f.cls}"><span class="dot" style="background:currentColor"></span>${esc(f.label)}</span>`
            : `<span class="badge no">?</span>`;
+}
+
+/* ==========================================================================
+   QR — VietQR (Napas 247) để sinh mã chuyển khoản cho từng sinh viên
+   Payload theo chuẩn EMVCo: TLV (tag + độ dài 2 chữ số + giá trị), kết thúc bằng CRC16.
+   App tự dựng payload và tự vẽ QR trên máy — số tài khoản KHÔNG bị gửi ra dịch vụ nào.
+   ========================================================================== */
+const BANKS = [
+  { bin:'970436', name:'Vietcombank' }, { bin:'970415', name:'VietinBank' },
+  { bin:'970418', name:'BIDV' },        { bin:'970405', name:'Agribank' },
+  { bin:'970407', name:'Techcombank' }, { bin:'970422', name:'MB Bank' },
+  { bin:'970416', name:'ACB' },         { bin:'970432', name:'VPBank' },
+  { bin:'970423', name:'TPBank' },      { bin:'970403', name:'Sacombank' },
+  { bin:'970441', name:'VIB' },         { bin:'970443', name:'SHB' },
+  { bin:'970437', name:'HDBank' },      { bin:'970448', name:'OCB' },
+  { bin:'970426', name:'MSB' },         { bin:'970440', name:'SeABank' },
+  { bin:'970449', name:'LPBank' },      { bin:'970431', name:'Eximbank' },
+  { bin:'970454', name:'BVBank' },      { bin:'970425', name:'ABBank' },
+  { bin:'970412', name:'PVcomBank' },   { bin:'970409', name:'BacA Bank' },
+  { bin:'970428', name:'Nam A Bank' },  { bin:'970433', name:'VietBank' },
+  { bin:'970452', name:'KienlongBank' },{ bin:'970400', name:'SaigonBank' },
+];
+/** CRC16/CCITT-FALSE — chuẩn CRC của EMVCo. Kiểm chứng: crc16('123456789') === '29B1'. */
+function crc16(str){
+  let crc = 0xFFFF;
+  for (let i = 0; i < str.length; i++){
+    crc ^= (str.charCodeAt(i) & 0xFF) << 8;
+    for (let j = 0; j < 8; j++)
+      crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) & 0xFFFF : (crc << 1) & 0xFFFF;
+  }
+  return crc.toString(16).toUpperCase().padStart(4, '0');
+}
+const tlv = (id, val) => id + String(String(val).length).padStart(2, '0') + val;
+/** Nội dung chuyển khoản: chỉ chữ/số/khoảng trắng, không dấu, in hoa, tối đa 25 ký tự. */
+function cleanTransferNote(str){
+  return noAccent(str).toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 25).trim();
+}
+/**
+ * Dựng payload VietQR chuyển khoản tới tài khoản.
+ *   00 phiên bản · 01 kiểu (11 tĩnh / 12 có sẵn số tiền) · 38 thông tin thụ hưởng
+ *   53 tiền tệ (704 = VND) · 54 số tiền · 58 quốc gia · 62.08 nội dung · 63 CRC
+ */
+function buildVietQR(o){
+  const bin = String(o.bin || '').trim(), acc = String(o.accountNo || '').trim();
+  if (!/^\d{6}$/.test(bin) || !acc) return '';
+  const amount = int(o.amount);
+  const merchant = tlv('00', 'A000000727')
+    + tlv('01', tlv('00', bin) + tlv('01', acc))
+    + tlv('02', 'QRIBFTTA');
+  let p = tlv('00', '01') + tlv('01', amount > 0 ? '12' : '11') + tlv('38', merchant) + tlv('53', '704');
+  if (amount > 0) p += tlv('54', String(amount));
+  p += tlv('58', 'VN');
+  const note = cleanTransferNote(o.description || '');
+  if (note) p += tlv('62', tlv('08', note));
+  p += '6304';
+  return p + crc16(p);
+}
+/** Nội dung chuyển khoản theo mẫu trong Cài đặt: {ma} {ten} {dot} {quy} {lop} */
+function transferNote(student, period){
+  const tpl = (S.meta.bank && S.meta.bank.template) || '{ma} {dot}';
+  return cleanTransferNote(tpl
+    .replace(/\{ma\}/g,   student ? student.code : '')
+    .replace(/\{ten\}/g,  student ? student.fullName : '')
+    .replace(/\{dot\}/g,  period ? period.name : '')
+    .replace(/\{quy\}/g,  period ? FUNDS[period.fund].label : '')
+    .replace(/\{lop\}/g,  S.meta.className || ''));
+}
+const bankConfigured = () => {
+  const b = S.meta.bank || {};
+  return /^\d{6}$/.test(String(b.bin||'')) && !!String(b.accountNo||'').trim();
+};
+/** Vẽ QR vào một phần tử. Trả về false nếu thư viện QR chưa tải được. */
+function renderQR(el, payload, cellSize){
+  if (typeof qrcode === 'undefined' || !payload) return false;
+  try {
+    const qr = qrcode(0, 'M');            // tự chọn phiên bản, mức sửa lỗi M
+    qr.addData(payload);
+    qr.make();
+    el.innerHTML = qr.createSvgTag({ cellSize: cellSize || 4, margin: 2, scalable: true });
+    const svg = el.querySelector('svg');
+    if (svg){ svg.style.width = '100%'; svg.style.height = 'auto'; svg.setAttribute('role','img');
+      svg.setAttribute('aria-label','Mã QR chuyển khoản'); }
+    return true;
+  } catch(e){ console.error(e); return false; }
 }
 
 /* ==========================================================================
@@ -818,7 +932,8 @@ function confirmDialog({ title, message, okLabel, danger, onOk }){
     onMount(m){ m.el('[data-ok]').onclick = () => { m.close(); onOk(); }; }
   });
 }
-const reduceMotion = () => P.noMotion || matchMedia('(prefers-reduced-motion: reduce)').matches;
+const reduceMotion = () => P.noMotion ||
+  (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
 /** Số liệu chạy từ 0 → giá trị thật (700ms, easeOutExpo). Tôn trọng "giảm chuyển động". */
 function countUp(el, to, suffix){
   const end = int(to), sfx = suffix===undefined ? ' ₫' : suffix;
@@ -836,7 +951,7 @@ function flashRow(id){
   const tr = document.querySelector(`tr[data-id="${id}"]`);
   if (!tr) return;
   tr.classList.add('flash');
-  if (!reduceMotion()) tr.scrollIntoView({ behavior:'smooth', block:'center' });
+  if (!reduceMotion() && typeof tr.scrollIntoView === 'function') tr.scrollIntoView({ behavior:'smooth', block:'center' });
   setTimeout(()=>tr.classList.remove('flash'), 1900);
 }
 function emptyBox(text, hint, actionHtml){
@@ -1020,3 +1135,2350 @@ function postDashboard(){
   stagger(document.querySelectorAll('tbody tr'));
   const b = byId('dashExport'); if (b) b.onclick = () => openExportModal();
 }
+
+/* ============================== TRANG: DANH SÁCH LỚP ============================== */
+function sortRows(rows, cfg, getters){
+  const g = getters[cfg.k];
+  if (!g) return rows;
+  return [...rows].sort((a,b)=>{
+    const x = g(a), y = g(b);
+    if (typeof x === 'number' && typeof y === 'number') return (x-y)*cfg.d;
+    return String(x).localeCompare(String(y),'vi') * cfg.d;
+  });
+}
+function th(view, key, label, extraCls){
+  const c = ui.sort[view];
+  const on = c.k === key;
+  return `<th class="sortable ${on?'sorted':''} ${extraCls||''}" data-sort="${key}" tabindex="0" role="button"
+    aria-label="Sắp xếp theo ${esc(label)}">${esc(label)}<span class="arr">${on ? (c.d>0?'▲':'▼') : '↕'}</span></th>`;
+}
+function wireSort(view){
+  document.querySelectorAll('th[data-sort]').forEach(el => {
+    const act = () => {
+      const k = el.dataset.sort, c = ui.sort[view];
+      if (c.k === k) c.d = -c.d; else { c.k = k; c.d = 1; }
+      render();
+    };
+    el.onclick = act;
+    el.onkeydown = e => { if (e.key==='Enter'||e.key===' '){ e.preventDefault(); act(); } };
+  });
+}
+function viewStudents(){
+  const fl = ui.studentFilter;
+  const cols = S.periods.filter(p => !fl.fund || p.fund === fl.fund)
+                        .filter(p => !fl.periodId || p.id === fl.periodId);
+  let rows = debtMatrix();
+  if (ui.q){
+    const q = noAccent(ui.q);
+    rows = rows.filter(r => noAccent(r.student.fullName).includes(q) || String(r.student.code).includes(ui.q.trim()));
+  }
+  if (fl.status === 'debt') rows = rows.filter(r => r.totalRemaining > 0);
+  if (fl.status === 'paid') rows = rows.filter(r => r.totalRemaining === 0 && r.totalMust > 0);
+  rows = sortRows(rows, ui.sort.students, {
+    stt: r => int(r.student.stt), code: r => r.student.code, fullName: r => r.student.fullName,
+    dob: r => r.student.dob || '', totalPaid: r => r.totalPaid, totalRemaining: r => r.totalRemaining,
+  });
+
+  const cell = (c, sid) => {
+    if (int(c.must) === 0) return `<span class="muted small">—</span>`;
+    const cls = c.status==='paid' ? 'ok' : c.status==='partial' ? 'part' : 'no';
+    const txt = c.status==='paid' ? 'Đã đóng' : c.status==='partial' ? 'Thiếu ' + fmtNum(c.remaining) : 'Chưa đóng';
+    return `<button class="cellbtn" data-qr="${sid}" data-period="${c.period.id}"
+      title="Mở QR chuyển khoản cho đợt ${esc(c.period.name)}"><span class="badge ${cls}">${txt}</span></button>`;
+  };
+  const totalPaidAll = rows.reduce((a,r)=>a+r.totalPaid,0);
+  const totalRemAll  = rows.reduce((a,r)=>a+r.totalRemaining,0);
+
+  return `<div class="grid" style="gap:1rem">
+    <div class="card"><div class="card-h">
+      <div class="row" style="flex:1;gap:.5rem">
+        <div style="position:relative;flex:1 1 230px;max-width:340px">
+          <input type="search" id="q" placeholder="Tìm tên hoặc mã SV (bỏ dấu vẫn tìm được)…" value="${esc(ui.q)}" aria-label="Tìm sinh viên">
+        </div>
+        <select id="fFund" aria-label="Lọc theo quỹ" style="width:auto">
+          <option value="">Mọi quỹ</option>
+          ${FUND_KEYS.map(k=>`<option value="${k}" ${fl.fund===k?'selected':''}>${esc(FUNDS[k].label)}</option>`).join('')}
+        </select>
+        <select id="fPeriod" aria-label="Lọc theo đợt thu" style="width:auto">
+          <option value="">Mọi đợt thu</option>
+          ${S.periods.map(p=>`<option value="${p.id}" ${fl.periodId===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}
+        </select>
+        <select id="fStatus" aria-label="Lọc theo tình trạng nộp" style="width:auto">
+          <option value="" ${!fl.status?'selected':''}>Tất cả SV</option>
+          <option value="debt" ${fl.status==='debt'?'selected':''}>Chỉ SV còn nợ</option>
+          <option value="paid" ${fl.status==='paid'?'selected':''}>Chỉ SV đã đủ</option>
+        </select>
+      </div>
+      <button class="btn sm" id="btnImport">Nhập từ Excel</button>
+      <button class="btn primary sm" id="btnAddStudent">Thêm sinh viên</button>
+    </div>
+    ${rows.length ? `<div class="tablewrap"><table>
+      <caption class="sr-only">Danh sách sinh viên và tình trạng nộp quỹ từng đợt</caption>
+      <thead><tr>
+        ${th('students','stt','STT')}${th('students','code','Mã SV')}${th('students','fullName','Họ và tên')}
+        ${th('students','dob','Ngày sinh')}<th>Lớp</th>
+        ${cols.map(p=>`<th title="${esc(FUNDS[p.fund].label)} · ${fmtVND(p.amountPerStudent)}/SV">
+            ${esc(p.name)}<div class="small" style="font-weight:500;text-transform:none;letter-spacing:0">
+            ${esc(FUNDS[p.fund].short)} · ${fmtNum(p.amountPerStudent)}</div></th>`).join('')}
+        ${th('students','totalPaid','Đã nộp','r')}${th('students','totalRemaining','Còn nợ','r')}<th></th>
+      </tr></thead>
+      <tbody>${rows.map(r=>`<tr data-id="${r.student.id}">
+        <td class="num muted">${esc(r.student.stt||'')}</td>
+        <td class="num">${esc(r.student.code)}</td>
+        <td><b>${esc(r.student.fullName)}</b></td>
+        <td class="num muted small">${fmtDate(r.student.dob)}</td>
+        <td class="small muted">${esc(r.student.classCode||'')}</td>
+        ${cols.map(p=>`<td>${cell(r.cells.find(c=>c.period.id===p.id) || {must:0}, r.student.id)}</td>`).join('')}
+        <td class="money in">${fmtVND(r.totalPaid)}</td>
+        <td class="money ${r.totalRemaining?'out':''}">${r.totalRemaining?fmtVND(r.totalRemaining):'—'}</td>
+        <td><div class="rowacts">
+          <button class="btn icon sm ghost" data-qr-student="${r.student.id}" aria-label="QR chuyển khoản" title="QR chuyển khoản">⬚</button>
+          <button class="btn icon sm ghost" data-edit-student="${r.student.id}" aria-label="Sửa sinh viên">✎</button>
+          <button class="btn icon sm ghost" data-del-student="${r.student.id}" aria-label="Ẩn sinh viên">🗑</button>
+        </div></td></tr>`).join('')}</tbody>
+      <tfoot><tr>
+        <td colspan="${5+cols.length}">Tổng ${rows.length} sinh viên</td>
+        <td class="money in">${fmtVND(totalPaidAll)}</td>
+        <td class="money out">${fmtVND(totalRemAll)}</td><td></td>
+      </tr></tfoot></table></div>`
+    : emptyBox('Chưa có sinh viên nào','Nhập danh sách lớp từ file Excel hoặc thêm tay từng người.',
+        `<div class="row" style="justify-content:center;margin-top:.4rem">
+          <button class="btn primary" id="btnImport2">Nhập từ Excel</button>
+          <button class="btn" id="btnAddStudent2">Thêm tay</button></div>`)}
+    </div></div>`;
+}
+function postStudents(){
+  const q = byId('q');
+  if (q) q.oninput = debounce(() => { ui.q = q.value; render(); byId('q')?.focus(); }, 220);
+  const bind = (id, fn) => { const el = byId(id); if (el) el.onchange = fn; };
+  bind('fFund',   e => { ui.studentFilter.fund = e.target.value; render(); });
+  bind('fPeriod', e => { ui.studentFilter.periodId = e.target.value; render(); });
+  bind('fStatus', e => { ui.studentFilter.status = e.target.value; render(); });
+  ['btnImport','btnImport2'].forEach(id => { const b = byId(id); if (b) b.onclick = () => openImportModal(); });
+  ['btnAddStudent','btnAddStudent2'].forEach(id => { const b = byId(id); if (b) b.onclick = () => openStudentModal(); });
+  document.querySelectorAll('[data-qr]').forEach(b => b.onclick = () =>
+    openQRModal({ studentId: b.dataset.qr, periodId: b.dataset.period }));
+  document.querySelectorAll('[data-qr-student]').forEach(b => b.onclick = () => {
+    const id = b.dataset.qrStudent;
+    // chọn đợt còn nợ nhiều nhất của sinh viên này để gợi ý sẵn
+    const best = S.periods.map(p => ({ p, rem: Math.max(int(p.amountPerStudent) - paidOf(id, p.id), 0) }))
+      .sort((a,b2) => b2.rem - a.rem)[0];
+    openQRModal({ studentId:id, periodId: best ? best.p.id : '' });
+  });
+  document.querySelectorAll('[data-edit-student]').forEach(b => b.onclick = () =>
+    openStudentModal(b.dataset.editStudent));
+  document.querySelectorAll('[data-del-student]').forEach(b => b.onclick = () =>
+    removeStudent(b.dataset.delStudent));
+  wireSort('students');
+  stagger(document.querySelectorAll('tbody tr'));
+}
+function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t = setTimeout(()=>fn(...a), ms); }; }
+
+/* ============================== TRANG: THU ============================== */
+function viewIncomes(){
+  const fl = ui.incFilter;
+  let rows = S.incomes.filter(i =>
+    (!fl.fund || i.fund === fl.fund) &&
+    (!fl.periodId || (fl.periodId === '__none' ? !i.periodId : i.periodId === fl.periodId)) &&
+    (!fl.studentId || i.studentId === fl.studentId) &&
+    (!fl.from || i.date >= fl.from) && (!fl.to || i.date <= fl.to));
+  rows = sortRows(rows, ui.sort.incomes, {
+    date: r => r.date, amount: r => int(r.amount),
+    payer: r => r.studentId ? (studentById(r.studentId)?.fullName||'') : (r.payerName||''),
+  });
+  const byFund = {}; FUND_KEYS.forEach(k => byFund[k] = 0);
+  rows.forEach(r => byFund[r.fund] = (byFund[r.fund]||0) + int(r.amount));
+  const total = rows.reduce((a,r)=>a+int(r.amount),0);
+
+  return `<div class="grid" style="gap:1rem">
+    <div class="card"><div class="card-h">
+      <div class="row" style="flex:1;gap:.45rem">
+        <select id="iFund" aria-label="Lọc quỹ" style="width:auto"><option value="">Mọi quỹ</option>
+          ${FUND_KEYS.map(k=>`<option value="${k}" ${fl.fund===k?'selected':''}>${esc(FUNDS[k].label)}</option>`).join('')}</select>
+        <select id="iPeriod" aria-label="Lọc đợt thu" style="width:auto"><option value="">Mọi đợt</option>
+          ${S.periods.map(p=>`<option value="${p.id}" ${fl.periodId===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}
+          <option value="__none" ${fl.periodId==='__none'?'selected':''}>Thu ngoài đợt</option></select>
+        <label class="sr-only" for="iFrom">Từ ngày</label><input type="date" id="iFrom" value="${esc(fl.from)}" style="width:auto">
+        <label class="sr-only" for="iTo">Đến ngày</label><input type="date" id="iTo" value="${esc(fl.to)}" style="width:auto">
+        ${(fl.fund||fl.periodId||fl.from||fl.to||fl.studentId)?'<button class="btn sm ghost" id="iClear">Xoá lọc</button>':''}
+      </div>
+      <button class="btn sm" id="iBatch">Thu theo lô</button>
+      <button class="btn income sm" id="iAdd">Thêm thu</button>
+    </div>
+    ${rows.length ? `<div class="tablewrap"><table>
+      <caption class="sr-only">Lịch sử các khoản thu</caption>
+      <thead><tr>${th('incomes','date','Ngày')}<th>Quỹ</th><th>Đợt thu</th>${th('incomes','payer','Người nộp')}
+        ${th('incomes','amount','Số tiền','r')}<th>Hình thức</th><th>Người thu</th><th>Ghi chú</th><th></th></tr></thead>
+      <tbody>${rows.map(r=>{
+        const st = r.studentId ? studentById(r.studentId) : null;
+        return `<tr data-id="${r.id}">
+        <td class="num" style="white-space:nowrap">${fmtDate(r.date)}</td>
+        <td>${fundBadge(r.fund)}</td>
+        <td class="small">${esc(periodById(r.periodId)?.name || 'Ngoài đợt')}</td>
+        <td>${st ? `<b>${esc(st.fullName)}</b><div class="small muted num">${esc(st.code)}</div>`
+                 : `${esc(r.payerName||'Nguồn khác')}<div class="small muted">Nguồn khác</div>`}</td>
+        <td class="money in">+${fmtVND(r.amount)}</td>
+        <td class="small">${esc(METHODS[r.method]||'')}</td>
+        <td class="small">${esc(r.collectedBy||'')}</td>
+        <td class="small muted">${esc(r.note||'')}</td>
+        <td><div class="rowacts">
+          <button class="btn icon sm ghost" data-edit-income="${r.id}" aria-label="Sửa khoản thu">✎</button>
+          <button class="btn icon sm ghost" data-del-income="${r.id}" aria-label="Xoá khoản thu">🗑</button>
+        </div></td></tr>`;}).join('')}</tbody>
+      <tfoot><tr><td colspan="4">Tổng ${rows.length} khoản thu</td>
+        <td class="money in">${fmtVND(total)}</td><td colspan="4"></td></tr></tfoot></table></div>
+      <div class="tblfoot">${FUND_KEYS.map(k=>`<span>${fundBadge(k)} <b class="num">${fmtVND(byFund[k])}</b></span>`).join('')}
+        <span style="margin-left:auto">Tổng cộng <b class="num">${fmtVND(total)}</b></span></div>`
+    : emptyBox('Chưa có khoản thu nào trong phạm vi lọc','Bấm “Thêm thu” hoặc dùng “Thu theo lô” để ghi nhận cả đợt.')}
+    </div></div>`;
+}
+function postIncomes(){
+  const b = (id, ev, fn) => { const el = byId(id); if (el) el[ev] = fn; };
+  b('iFund','onchange', e => { ui.incFilter.fund = e.target.value; render(); });
+  b('iPeriod','onchange', e => { ui.incFilter.periodId = e.target.value; render(); });
+  b('iFrom','onchange', e => { ui.incFilter.from = e.target.value; render(); });
+  b('iTo','onchange', e => { ui.incFilter.to = e.target.value; render(); });
+  b('iClear','onclick', () => { ui.incFilter = { fund:'', periodId:'', studentId:'', from:'', to:'' }; render(); });
+  b('iAdd','onclick', () => openIncomeModal());
+  b('iBatch','onclick', () => openBatchModal());
+  document.querySelectorAll('[data-edit-income]').forEach(x => x.onclick = () => openIncomeModal({ id:x.dataset.editIncome }));
+  document.querySelectorAll('[data-del-income]').forEach(x => x.onclick = () => removeRecord('incomes', x.dataset.delIncome));
+  wireSort('incomes');
+  stagger(document.querySelectorAll('tbody tr'));
+}
+
+/* ============================== TRANG: CHI ============================== */
+function viewExpenses(){
+  const fl = ui.expFilter;
+  let rows = S.expenses.filter(e =>
+    (!fl.fund || e.fund === fl.fund) &&
+    (!fl.category || e.category === fl.category) &&
+    (!fl.buyer || noAccent(e.buyer).includes(noAccent(fl.buyer))) &&
+    (!fl.from || e.date >= fl.from) && (!fl.to || e.date <= fl.to));
+  rows = sortRows(rows, ui.sort.expenses, {
+    date: r => r.date, amount: r => int(r.amount), item: r => r.item, buyer: r => r.buyer,
+  });
+  const byFund = {}; FUND_KEYS.forEach(k => byFund[k] = 0);
+  rows.forEach(r => byFund[r.fund] = (byFund[r.fund]||0) + int(r.amount));
+  const total = rows.reduce((a,r)=>a+int(r.amount),0);
+  const buyers = [...new Set(S.expenses.map(e=>e.buyer).filter(Boolean))];
+
+  return `<div class="grid" style="gap:1rem">
+    <div class="card"><div class="card-h">
+      <div class="row" style="flex:1;gap:.45rem">
+        <select id="eFund" aria-label="Lọc quỹ" style="width:auto"><option value="">Mọi quỹ</option>
+          ${FUND_KEYS.map(k=>`<option value="${k}" ${fl.fund===k?'selected':''}>${esc(FUNDS[k].label)}</option>`).join('')}</select>
+        <select id="eCat" aria-label="Lọc danh mục" style="width:auto"><option value="">Mọi danh mục</option>
+          ${CATEGORIES.map(c=>`<option value="${esc(c)}" ${fl.category===c?'selected':''}>${esc(c)}</option>`).join('')}</select>
+        <select id="eBuyer" aria-label="Lọc người đi mua" style="width:auto"><option value="">Mọi người mua</option>
+          ${buyers.map(bn=>`<option value="${esc(bn)}" ${fl.buyer===bn?'selected':''}>${esc(bn)}</option>`).join('')}</select>
+        <label class="sr-only" for="eFrom">Từ ngày</label><input type="date" id="eFrom" value="${esc(fl.from)}" style="width:auto">
+        <label class="sr-only" for="eTo">Đến ngày</label><input type="date" id="eTo" value="${esc(fl.to)}" style="width:auto">
+        ${(fl.fund||fl.category||fl.buyer||fl.from||fl.to)?'<button class="btn sm ghost" id="eClear">Xoá lọc</button>':''}
+      </div>
+      <button class="btn expense sm" id="eAdd">Thêm chi</button>
+    </div>
+    ${rows.length ? `<div class="tablewrap"><table>
+      <caption class="sr-only">Nhật ký mua sắm — các khoản chi</caption>
+      <thead><tr>${th('expenses','date','Ngày')}<th>Rút từ quỹ</th>${th('expenses','item','Nội dung / Mua món gì')}
+        <th>Danh mục</th>${th('expenses','buyer','Người đi mua')}${th('expenses','amount','Số tiền','r')}
+        <th>HĐ</th><th>Ghi chú</th><th></th></tr></thead>
+      <tbody>${rows.map(r=>`<tr data-id="${r.id}">
+        <td class="num" style="white-space:nowrap">${fmtDate(r.date)}</td>
+        <td>${fundBadge(r.fund)}</td>
+        <td><b>${esc(r.item)}</b>${r.overdraft?' <span class="badge warn" title="Lúc ghi nhận, khoản chi này vượt tồn quỹ">⚠ vượt quỹ</span>':''}</td>
+        <td class="small">${esc(r.category||'')}</td>
+        <td>${esc(r.buyer||'')}</td>
+        <td class="money out">−${fmtVND(r.amount)}</td>
+        <td class="small">${r.hasReceipt?'✓':'—'}</td>
+        <td class="small muted">${esc(r.note||'')}</td>
+        <td><div class="rowacts">
+          <button class="btn icon sm ghost" data-edit-expense="${r.id}" aria-label="Sửa khoản chi">✎</button>
+          <button class="btn icon sm ghost" data-del-expense="${r.id}" aria-label="Xoá khoản chi">🗑</button>
+        </div></td></tr>`).join('')}</tbody>
+      <tfoot><tr><td colspan="5">Tổng ${rows.length} khoản chi</td>
+        <td class="money out">${fmtVND(total)}</td><td colspan="3"></td></tr></tfoot></table></div>
+      <div class="tblfoot">${FUND_KEYS.map(k=>`<span>${fundBadge(k)} <b class="num">${fmtVND(byFund[k])}</b></span>`).join('')}
+        <span style="margin-left:auto">Tổng cộng <b class="num">${fmtVND(total)}</b></span></div>`
+    : emptyBox('Chưa có khoản chi nào trong phạm vi lọc','Mỗi lần mua gì cho lớp, ghi lại ngay để cuối kỳ không phải nhớ.')}
+    </div></div>`;
+}
+function postExpenses(){
+  const b = (id, ev, fn) => { const el = byId(id); if (el) el[ev] = fn; };
+  b('eFund','onchange', e => { ui.expFilter.fund = e.target.value; render(); });
+  b('eCat','onchange', e => { ui.expFilter.category = e.target.value; render(); });
+  b('eBuyer','onchange', e => { ui.expFilter.buyer = e.target.value; render(); });
+  b('eFrom','onchange', e => { ui.expFilter.from = e.target.value; render(); });
+  b('eTo','onchange', e => { ui.expFilter.to = e.target.value; render(); });
+  b('eClear','onclick', () => { ui.expFilter = { fund:'', category:'', buyer:'', from:'', to:'' }; render(); });
+  b('eAdd','onclick', () => openExpenseModal());
+  document.querySelectorAll('[data-edit-expense]').forEach(x => x.onclick = () => openExpenseModal({ id:x.dataset.editExpense }));
+  document.querySelectorAll('[data-del-expense]').forEach(x => x.onclick = () => removeRecord('expenses', x.dataset.delExpense));
+  wireSort('expenses');
+  stagger(document.querySelectorAll('tbody tr'));
+}
+
+/* ============================== TRANG: ĐỢT THU ============================== */
+function viewPeriods(){
+  if (!S.periods.length) return `<div class="card"><div class="card-h"><h2>Đợt thu</h2>
+      <button class="btn primary sm" id="pAdd">Tạo đợt thu</button></div>
+      ${emptyBox('Chưa có đợt thu nào','Một đợt thu = một lần cả lớp phải nộp một khoản, thuộc đúng 1 quỹ.')}</div>`;
+  return `<div class="grid" style="gap:1rem">
+    <div class="row"><div class="grow" style="flex:1"></div><button class="btn primary sm" id="pAdd">Tạo đợt thu</button></div>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
+    ${S.periods.map(p=>{
+      const st = periodStats(p), f = FUNDS[p.fund];
+      return `<div class="card" style="--accent:var(--fund-${f.cls})"><div class="card-b">
+        <div class="row" style="align-items:flex-start">
+          <div style="flex:1">
+            <div class="row" style="gap:.4rem"><h3>${esc(p.name)}</h3>${fundBadge(p.fund)}
+              ${p.status==='CLOSED'?'<span class="badge no">Đã đóng</span>':'<span class="badge ok">Đang mở</span>'}</div>
+            <div class="small muted">${fmtVND(p.amountPerStudent)}/SV · mở ${fmtDate(p.openDate)}${p.dueDate?` · hạn ${fmtDate(p.dueDate)}`:''}</div>
+          </div>
+          <div class="rowacts" style="opacity:1">
+            <button class="btn icon sm ghost" data-edit-period="${p.id}" aria-label="Sửa đợt thu">✎</button>
+            <button class="btn icon sm ghost" data-dup-period="${p.id}" aria-label="Nhân bản đợt thu">⧉</button>
+            <button class="btn icon sm ghost" data-toggle-period="${p.id}" aria-label="Đóng hoặc mở đợt thu">${p.status==='CLOSED'?'↻':'⛔'}</button>
+            <button class="btn icon sm ghost" data-del-period="${p.id}" aria-label="Xoá đợt thu">🗑</button>
+          </div>
+        </div>
+        <div style="margin:.8rem 0 .35rem" class="row small">
+          <b class="num">${fmtVND(st.collected)}</b><span class="muted">/ ${fmtVND(st.expected)}</span>
+          <span style="margin-left:auto" class="muted">${Math.round(st.pct*100)}%</span></div>
+        <div class="prog ${st.pct>=1?'full':''}"><span data-scale="${st.pct}"></span></div>
+        <div class="row small" style="margin-top:.6rem;gap:.7rem">
+          <span class="badge ok">${st.paidCount} đã đóng</span>
+          <span class="badge part">${st.partialCount} thiếu</span>
+          <span class="badge no">${st.unpaidCount} chưa</span>
+        </div>
+        <div class="row" style="margin-top:.75rem">
+          <button class="btn sm" data-detail-period="${p.id}">Xem chi tiết</button>
+          <button class="btn sm primary" data-qr-period="${p.id}">QR cả lớp</button>
+          <button class="btn sm ghost" data-batch-period="${p.id}">Thu tay theo lô</button>
+        </div>
+      </div></div>`;
+    }).join('')}</div></div>`;
+}
+function postPeriods(){
+  const b = byId('pAdd'); if (b) b.onclick = () => openPeriodModal();
+  requestAnimationFrame(()=>document.querySelectorAll('[data-scale]').forEach(el =>
+    el.style.transform = `scaleX(${Number(el.dataset.scale)||0})`));
+  document.querySelectorAll('[data-edit-period]').forEach(x => x.onclick = () => openPeriodModal(x.dataset.editPeriod));
+  document.querySelectorAll('[data-dup-period]').forEach(x => x.onclick = () => duplicatePeriod(x.dataset.dupPeriod));
+  document.querySelectorAll('[data-toggle-period]').forEach(x => x.onclick = () => togglePeriod(x.dataset.togglePeriod));
+  document.querySelectorAll('[data-del-period]').forEach(x => x.onclick = () => removePeriod(x.dataset.delPeriod));
+  document.querySelectorAll('[data-detail-period]').forEach(x => x.onclick = () => openPeriodDetail(x.dataset.detailPeriod));
+  document.querySelectorAll('[data-batch-period]').forEach(x => x.onclick = () => openBatchModal(x.dataset.batchPeriod));
+  document.querySelectorAll('[data-qr-period]').forEach(x => x.onclick = () => openQRSheetModal(x.dataset.qrPeriod));
+}
+function openPeriodDetail(id){
+  const p = periodById(id); if (!p) return;
+  const st = periodStats(p);
+  const rows = S.students.filter(s=>s.active!==false).map(s=>{
+    const paid = paidOf(s.id, p.id), must = int(p.amountPerStudent);
+    return { s, paid, must, remaining: Math.max(must-paid,0),
+             status: paid>=must&&must>0 ? 'paid' : paid>0 ? 'partial' : 'none' };
+  });
+  const group = (k, label, cls) => {
+    const g = rows.filter(r=>r.status===k);
+    if (!g.length) return '';
+    return `<h3 style="margin-top:.9rem">${label} <span class="badge ${cls}">${g.length}</span></h3>
+      <div class="tablewrap"><table><tbody>${g.map(r=>`<tr>
+        <td class="num small muted">${esc(r.s.code)}</td><td>${esc(r.s.fullName)}</td>
+        <td class="money in">${r.paid?fmtVND(r.paid):'—'}</td>
+        <td class="money out">${r.remaining?fmtVND(r.remaining):''}</td>
+        <td class="r"><button class="btn sm primary" data-qr2="${r.s.id}">QR</button>
+          <button class="btn sm" data-pay2="${r.s.id}">Thu tay</button></td></tr>`).join('')}</tbody></table></div>`;
+  };
+  openModal({
+    title: esc(p.name), wide:true,
+    sub: `${FUNDS[p.fund].label} · ${fmtVND(p.amountPerStudent)}/SV · thu được ${fmtVND(st.collected)} / dự kiến ${fmtVND(st.expected)}`,
+    body: `<div class="prog ${st.pct>=1?'full':''}" style="--accent:var(--fund-${FUNDS[p.fund].cls})">
+             <span style="transform:scaleX(${st.pct})"></span></div>
+           ${group('none','Chưa đóng','no')}${group('partial','Đóng thiếu','part')}${group('paid','Đã đóng đủ','ok')}`,
+    footer: `<button class="btn" data-close>Đóng</button>`,
+    onMount(m){
+      m.all('[data-pay2]').forEach(x => x.onclick = () => {
+        m.close(); openIncomeModal({ studentId:x.dataset.pay2, periodId:p.id });
+      });
+      m.all('[data-qr2]').forEach(x => x.onclick = () => {
+        m.close(); openQRModal({ studentId:x.dataset.qr2, periodId:p.id });
+      });
+    }
+  });
+}
+
+/* ============================== TRANG: NHẬP / XUẤT ============================== */
+function viewIO(){
+  const last = ui.lastImport;
+  return `<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:1rem">
+    <div class="card"><div class="card-h"><h2>Nhập danh sách lớp</h2></div><div class="card-b">
+      <div class="drop" id="drop" tabindex="0" role="button" aria-label="Chọn hoặc kéo thả file Excel danh sách lớp">
+        <svg class="dropico" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"
+          style="color:var(--brand)"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5-5 5 5"/><path d="M12 5v12"/></svg>
+        <div style="margin-top:.5rem"><b>Kéo file vào đây</b> hoặc bấm để chọn</div>
+        <div class="small muted">Hỗ trợ .xlsx · .xls · .csv — tự dò dòng tiêu đề, tự tách họ/tên, tự đổi ngày sinh</div>
+      </div>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" hidden>
+      <div class="row" style="margin-top:.8rem">
+        <button class="btn sm" id="btnTemplate">Tải file mẫu import</button>
+        ${last ? `<button class="btn sm danger" id="btnUndoImport">Hoàn tác lần nhập trước
+          (${last.studentIds.length} SV${last.incomeIds.length?` + ${last.incomeIds.length} khoản thu`:''})</button>` : ''}
+      </div>
+      <div class="small muted" style="margin-top:.7rem">Dữ liệu chỉ được ghi sau khi bạn xem trước và bấm “Xác nhận import”.</div>
+    </div></div>
+
+    <div class="card"><div class="card-h"><h2>Xuất Excel</h2></div><div class="card-b">
+      <p class="small muted">Xuất workbook nhiều sheet: Tổng quan · Thu · Chi · Công nợ · Ma trận đợt thu ·
+        Danh sách lớp · Nhật ký theo ngày${bankConfigured()?' · QR chuyển khoản (để đối chiếu sao kê)':''}.</p>
+      <div class="row" style="margin-top:.6rem">
+        <button class="btn primary" id="exAll">Xuất tất cả</button>
+        <button class="btn" id="exRange">Xuất theo khoảng ngày</button>
+        <button class="btn" id="exDay">Xuất theo một ngày</button>
+      </div>
+      <div class="row" style="margin-top:.8rem"><button class="btn sm ghost" id="btnPrint">In / Xuất PDF báo cáo</button></div>
+    </div></div>
+
+    <div class="card"><div class="card-h"><h2>Sao lưu &amp; phục hồi</h2></div><div class="card-b">
+      <p class="small muted">Dữ liệu nằm trong localStorage của trình duyệt này. Xoá cache hoặc đổi máy là mất —
+        hãy tải file sao lưu JSON định kỳ.</p>
+      <div class="row" style="margin-top:.6rem">
+        <button class="btn" id="btnBackup">Tải sao lưu JSON</button>
+        <button class="btn" id="btnRestore">Phục hồi từ JSON</button>
+        <input type="file" id="restoreInput" accept=".json" hidden>
+      </div>
+      <div class="small muted" style="margin-top:.7rem">Cập nhật gần nhất: ${esc(new Date(S.meta.updatedAt).toLocaleString('vi-VN'))}</div>
+    </div></div>
+  </div>`;
+}
+function postIO(){
+  const drop = byId('drop'), fi = byId('fileInput');
+  if (drop){
+    drop.onclick = () => fi.click();
+    drop.onkeydown = e => { if (e.key==='Enter'||e.key===' '){ e.preventDefault(); fi.click(); } };
+    ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+    ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+    drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) openImportModal(f); });
+    fi.onchange = () => { if (fi.files[0]) openImportModal(fi.files[0]); fi.value = ''; };
+  }
+  const b = (id, fn) => { const el = byId(id); if (el) el.onclick = fn; };
+  b('btnTemplate', downloadTemplate);
+  b('btnUndoImport', undoImport);
+  b('exAll',   () => openExportModal('all'));
+  b('exRange', () => openExportModal('range'));
+  b('exDay',   () => openExportModal('day'));
+  b('btnPrint', () => window.print());
+  b('btnBackup', backupJSON);
+  b('btnRestore', () => byId('restoreInput').click());
+  const ri = byId('restoreInput');
+  if (ri) ri.onchange = () => { if (ri.files[0]) restoreJSON(ri.files[0]); ri.value = ''; };
+}
+
+/* ============================== TRANG: CÀI ĐẶT ============================== */
+function viewSettings(){
+  const m = S.meta;
+  return `<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:1rem">
+    <div class="card"><div class="card-h"><h2>Thông tin lớp</h2></div><div class="card-b">
+      <div class="f2">
+        <div class="field"><label for="mClass">Mã lớp</label><input id="mClass" type="text" value="${esc(m.className)}" placeholder="DCXDXD69_03B"></div>
+        <div class="field"><label for="mFaculty">Khoa</label><input id="mFaculty" type="text" value="${esc(m.faculty)}" placeholder="Xây dựng"></div>
+        <div class="field"><label for="mTerm">Học kỳ</label><input id="mTerm" type="text" value="${esc(m.term)}" placeholder="Học kỳ I"></div>
+        <div class="field"><label for="mYear">Năm học</label><input id="mYear" type="text" value="${esc(m.schoolYear)}" placeholder="2026-2027"></div>
+      </div>
+      <button class="btn primary sm" id="mSave">Lưu thông tin lớp</button>
+    </div></div>
+
+    <div class="card"><div class="card-h"><h2>Tài khoản nhận chuyển khoản (VietQR)</h2>
+      ${bankConfigured()?'<span class="badge ok">Đã cấu hình</span>':'<span class="badge part">Chưa cấu hình</span>'}</div>
+      <div class="card-b">
+      <p class="small muted">Nhập tài khoản của thủ quỹ. App tự sinh mã QR riêng cho từng sinh viên —
+        quét là chuyển đúng số tiền, đúng nội dung, không ai chuyển nhầm.
+        Mã QR được vẽ ngay trên máy, số tài khoản <b>không</b> bị gửi ra dịch vụ nào.</p>
+      <div class="f2" style="margin-top:.6rem">
+        <div class="field"><label for="bkBank">Ngân hàng</label>
+          <select id="bkBank">
+            <option value="">— Chọn ngân hàng —</option>
+            ${BANKS.map(b=>`<option value="${b.bin}" ${m.bank.bin===b.bin?'selected':''}>${esc(b.name)} (${b.bin})</option>`).join('')}
+            <option value="__other" ${m.bank.bin && !BANKS.some(b=>b.bin===m.bank.bin)?'selected':''}>Khác — tự nhập mã BIN</option>
+          </select></div>
+        <div class="field"><label for="bkAccount">Số tài khoản</label>
+          <input type="text" id="bkAccount" value="${esc(m.bank.accountNo)}" inputmode="numeric" placeholder="1021234567"></div>
+      </div>
+      <div class="f2">
+        <div class="field" id="bkBinBox" ${m.bank.bin && !BANKS.some(b=>b.bin===m.bank.bin)?'':'hidden'}>
+          <label for="bkBin">Mã BIN ngân hàng (6 số)</label>
+          <input type="text" id="bkBin" value="${esc(m.bank.bin)}" inputmode="numeric" maxlength="6"></div>
+        <div class="field"><label for="bkName">Tên chủ tài khoản</label>
+          <input type="text" id="bkName" value="${esc(m.bank.accountName)}" placeholder="NGUYEN VAN A"></div>
+      </div>
+      <div class="field"><label for="bkTpl">Mẫu nội dung chuyển khoản</label>
+        <input type="text" id="bkTpl" value="${esc(m.bank.template)}" placeholder="{ma} {dot}">
+        <div class="hint">Dùng được: <code>{ma}</code> mã SV · <code>{ten}</code> họ tên · <code>{dot}</code> tên đợt ·
+          <code>{quy}</code> tên quỹ · <code>{lop}</code> mã lớp. Tự bỏ dấu, in hoa, tối đa 25 ký tự.
+          Xem trước: <b id="bkPreview"></b></div></div>
+      <div class="row">
+        <button class="btn primary sm" id="bkSave">Lưu tài khoản</button>
+        <button class="btn sm" id="bkTest">Xem thử mã QR</button>
+      </div>
+    </div></div>
+
+    <div class="card"><div class="card-h"><h2>Hiển thị &amp; khả năng tiếp cận</h2></div><div class="card-b">
+      <div class="field"><label>Giao diện</label><div class="chips">
+        ${[['light','Sáng'],['dark','Tối'],['auto','Theo hệ thống']].map(([v,l])=>
+          `<button class="chip ${P.theme===v?'on':''}" data-set-theme="${v}">${l}</button>`).join('')}</div></div>
+      <div class="field"><label>Cỡ chữ</label><div class="chips">
+        ${[[1,'Vừa'],[1.12,'Lớn'],[1.25,'Rất lớn']].map(([v,l])=>
+          `<button class="chip ${P.fontScale==v?'on':''}" data-fs="${v}">${l}</button>`).join('')}</div></div>
+      <label class="check"><input type="checkbox" id="pReading" ${P.reading?'checked':''}>
+        <span>Chế độ dễ đọc <span class="small muted">(giãn dòng, giãn chữ, chữ to hơn)</span></span></label>
+      <label class="check"><input type="checkbox" id="pMotion" ${P.noMotion?'checked':''}>
+        <span>Giảm chuyển động <span class="small muted">(tắt hiệu ứng trượt, count-up)</span></span></label>
+    </div></div>
+
+    <div class="card"><div class="card-h"><h2>Kiểm tra &amp; dữ liệu</h2></div><div class="card-b">
+      <p class="small muted">Bộ tự kiểm tra chạy các phép tính nghiệp vụ trên dữ liệu giả, không ảnh hưởng dữ liệu thật.</p>
+      <div class="row" style="margin-top:.5rem">
+        <button class="btn" id="btnSelfTest">Chạy tự kiểm tra</button>
+        <button class="btn sm ghost" id="btnDemo">Nạp dữ liệu demo</button>
+      </div>
+      <div id="testOut" style="margin-top:.8rem"></div>
+      <div class="nav-sep"></div>
+      <p class="small" style="color:var(--expense)"><b>Vùng nguy hiểm</b> — không thể hoàn tác, hãy sao lưu trước.</p>
+      <div class="row">
+        <button class="btn sm danger" id="btnClearDemo">Xoá dữ liệu demo</button>
+        <button class="btn sm danger" id="btnClearAll">Xoá toàn bộ dữ liệu</button>
+      </div>
+    </div></div>
+
+    <div class="card"><div class="card-h"><h2>Về ứng dụng</h2></div><div class="card-b small muted">
+      <p><b>Quỹ Lớp</b> — bản all-in-one 1 file, không cần cài đặt, chạy offline sau lần mở đầu.</p>
+      <p>Tồn quỹ luôn được tính lại từ bản ghi thu/chi: <b>Tồn(quỹ) = Σ Thu − Σ Chi</b>. Không có ô nhập tồn quỹ tay,
+         nên số liệu không thể bị sửa ngầm.</p>
+      <p>Phím tắt: <span class="kbd">T</span> thêm thu · <span class="kbd">C</span> thêm chi ·
+         <span class="kbd">/</span> tìm kiếm · <span class="kbd">Esc</span> đóng hộp thoại.</p>
+      <p>Số bản ghi: ${S.students.length} SV · ${S.periods.length} đợt thu · ${S.incomes.length} khoản thu · ${S.expenses.length} khoản chi.</p>
+    </div></div>
+  </div>`;
+}
+function postSettings(){
+  const b = (id, fn) => { const el = byId(id); if (el) el.onclick = fn; };
+  b('mSave', () => {
+    S.meta.className  = byId('mClass').value.trim();
+    S.meta.faculty    = byId('mFaculty').value.trim();
+    S.meta.term       = byId('mTerm').value.trim();
+    S.meta.schoolYear = byId('mYear').value.trim();
+    save(); render(); toast('ok','Đã lưu thông tin lớp');
+  });
+  // CHÚ Ý: phải giới hạn trong #main. `[data-theme]` cũng khớp thẻ <html data-theme="...">,
+  // gán onclick lên <html> sẽ khiến mọi click trong app bubble lên và render lại cả trang.
+  // --- tài khoản nhận chuyển khoản ---
+  const bkBank = byId('bkBank'), bkBin = byId('bkBin'), bkTpl = byId('bkTpl');
+  const previewNote = () => {
+    const el = byId('bkPreview'); if (!el) return;
+    const stu = S.students.find(x=>x.active!==false) || { code:'2400000001', fullName:'Trần Văn Mẫu' };
+    const per = S.periods[0] || { name:'Quỹ lớp đợt 1', fund:FUND_KEYS[0] };
+    const saved = S.meta.bank.template;
+    S.meta.bank.template = bkTpl ? bkTpl.value : saved;
+    el.textContent = transferNote(stu, per) || '(trống)';
+    S.meta.bank.template = saved;
+  };
+  if (bkBank) bkBank.onchange = () => {
+    const other = bkBank.value === '__other';
+    byId('bkBinBox').hidden = !other;
+    if (other) byId('bkBin').focus();
+  };
+  if (bkTpl) bkTpl.oninput = previewNote;
+  previewNote();
+  const readBank = () => {
+    const sel = bkBank ? bkBank.value : '';
+    const bin = sel === '__other' ? (bkBin ? bkBin.value.trim() : '') : sel;
+    const hit = BANKS.find(x => x.bin === bin);
+    return { bin, bankName: hit ? hit.name : (bin ? 'BIN ' + bin : ''),
+      accountNo: (byId('bkAccount')||{value:''}).value.trim().replace(/\s+/g,''),
+      accountName: (byId('bkName')||{value:''}).value.trim(),
+      template: (bkTpl||{value:'{ma} {dot}'}).value.trim() || '{ma} {dot}' };
+  };
+  const validateBank = () => {
+    const nb = readBank();
+    if (!/^\d{6}$/.test(nb.bin)){ toast('err','Chưa chọn ngân hàng','Mã BIN phải gồm 6 chữ số.'); return null; }
+    if (!/^\d{6,20}$/.test(nb.accountNo)){ toast('err','Số tài khoản không hợp lệ','Chỉ gồm chữ số, 6–20 ký tự.'); return null; }
+    return nb;
+  };
+  b('bkSave', () => {
+    const nb = validateBank(); if (!nb) return;
+    S.meta.bank = nb; save(); render();
+    toast('ok','Đã lưu tài khoản nhận tiền', `${nb.bankName} · ${nb.accountNo}`);
+  });
+  b('bkTest', () => {
+    const nb = validateBank(); if (!nb) return;
+    S.meta.bank = nb; save();
+    openQRModal({ studentId:(S.students.find(x=>x.active!==false)||{}).id, periodId:(S.periods[0]||{}).id });
+  });
+  document.querySelectorAll('#main [data-set-theme]').forEach(x =>
+    x.onclick = () => { P.theme = x.dataset.setTheme; applyPrefs(); render(); });
+  document.querySelectorAll('#main [data-fs]').forEach(x =>
+    x.onclick = () => { P.fontScale = Number(x.dataset.fs); applyPrefs(); render(); });
+  const r = byId('pReading'); if (r) r.onchange = () => { P.reading = r.checked; applyPrefs(); };
+  const mo = byId('pMotion'); if (mo) mo.onchange = () => { P.noMotion = mo.checked; applyPrefs(); };
+  b('btnSelfTest', () => byId('testOut').innerHTML = runSelfTest());
+  b('btnDemo', loadDemo);
+  b('btnClearDemo', () => confirmDialog({
+    title:'Xoá dữ liệu demo?', danger:true, okLabel:'Xoá demo',
+    message:'Chỉ xoá các bản ghi được đánh dấu demo. Dữ liệu bạn tự nhập được giữ nguyên.',
+    onOk(){
+      ['students','periods','incomes','expenses'].forEach(k => S[k] = S[k].filter(x => !x.demo));
+      S.meta.demo = false; save(); render(); toast('ok','Đã xoá dữ liệu demo');
+    }}));
+  b('btnClearAll', () => confirmDialog({
+    title:'Xoá toàn bộ dữ liệu?', danger:true, okLabel:'Tôi hiểu, xoá hết',
+    message:'Toàn bộ sinh viên, đợt thu, khoản thu và khoản chi sẽ bị xoá khỏi trình duyệt này. <b>Không thể hoàn tác.</b>',
+    onOk(){ S = emptyState(); save(); render(); toast('warn','Đã xoá toàn bộ dữ liệu'); }}));
+}
+function applyPrefs(){
+  document.documentElement.dataset.theme = P.theme;
+  document.body.classList.toggle('reading', !!P.reading);
+  document.body.classList.toggle('no-motion', !!P.noMotion);
+  document.documentElement.style.setProperty('--fs-scale', P.fontScale || 1);
+  savePrefs();
+}
+
+/* ==========================================================================
+   EVENTS — form thêm/sửa/xoá cho từng loại bản ghi
+   ========================================================================== */
+function toastAction(kind, title, msg, label, fn){
+  const box = byId('toasts');
+  const t = document.createElement('div');
+  t.className = 'toast ' + kind;
+  t.style.setProperty('--tdur','8s');
+  t.innerHTML = `<div class="msg"><b>${esc(title)}</b>${esc(msg||'')}</div>
+    <button class="btn sm" data-act>${esc(label)}</button>`;
+  const kill = () => { t.classList.add('out'); setTimeout(()=>t.remove(),200); };
+  t.querySelector('[data-act]').onclick = () => { kill(); fn(); };
+  box.appendChild(t);
+  let timer = setTimeout(kill, 8000);
+  t.onmouseenter = () => clearTimeout(timer);
+  t.onmouseleave = () => { timer = setTimeout(kill, 2500); };
+}
+function fieldErr(input, msg){
+  const f = input.closest('.field') || input.parentElement;
+  f.querySelectorAll('.err').forEach(e=>e.remove());
+  if (msg){
+    input.setAttribute('aria-invalid','true');
+    const d = document.createElement('div'); d.className = 'err'; d.textContent = msg;
+    f.appendChild(d);
+    input.closest('.modal')?.classList.add('shake');
+    setTimeout(()=>input.closest('.modal')?.classList.remove('shake'), 360);
+    input.focus();
+  } else input.removeAttribute('aria-invalid');
+  return !msg;
+}
+/** Ô nhập tiền: gõ 50000 hoặc 50.000 đều được, tự chèn dấu nhóm nghìn khi gõ. */
+function wireMoney(input){
+  input.classList.add('money-in');
+  input.setAttribute('inputmode','numeric');
+  const fmt = () => { const v = parseMoney(input.value); input.value = v ? fmtNum(v) : ''; };
+  input.addEventListener('input', fmt);
+  input.addEventListener('blur', fmt);
+  fmt();
+}
+function fundSegs(name, value){
+  return `<div class="segs">${FUND_KEYS.map(k=>`
+    <label class="seg ${value===k?'on':''}" data-fund="${k}">
+      <input type="radio" name="${name}" value="${k}" ${value===k?'checked':''} required>
+      <span class="dot" style="background:var(--fund-${FUNDS[k].cls})"></span>${esc(FUNDS[k].label)}
+    </label>`).join('')}</div>`;
+}
+function wireFundSegs(m, onChange){
+  m.all('.seg input').forEach(r => r.onchange = () => {
+    m.all('.seg').forEach(s => s.classList.toggle('on', s.querySelector('input').checked));
+    const form = m.el('form');
+    if (form){ form.classList.remove('fund-lop','fund-doan');
+      form.classList.add('fund-' + (FUNDS[r.value] ? FUNDS[r.value].cls : '')); }
+    if (onChange) onChange(r.value);
+  });
+}
+const currentFund = m => (m.el('.seg input:checked') || {}).value || '';
+const studentOptionLabel = s => `${s.fullName} — ${s.code}`;
+function resolveStudent(text){
+  const t = String(text||'').trim();
+  if (!t) return null;
+  let hit = S.students.find(s => studentOptionLabel(s) === t);
+  if (hit) return hit;
+  const code = t.replace(/\D/g,'');
+  if (code) hit = S.students.find(s => s.code === code);
+  if (hit) return hit;
+  const q = noAccent(t);
+  const matches = S.students.filter(s => noAccent(s.fullName) === q);
+  return matches.length === 1 ? matches[0] : null;
+}
+function studentDatalist(){
+  return `<datalist id="dlStudents">${S.students.filter(s=>s.active!==false)
+    .map(s=>`<option value="${esc(studentOptionLabel(s))}"></option>`).join('')}</datalist>`;
+}
+
+/* ---------- THU ---------- */
+function openIncomeModal(opt){
+  opt = opt || {};
+  const editing = opt.id ? S.incomes.find(i=>i.id===opt.id) : null;
+  if (!S.periods.length && !editing){
+    return confirmDialog({ title:'Chưa có đợt thu', okLabel:'Tạo đợt thu ngay',
+      message:'Tiền thu cần thuộc về một đợt thu để hệ thống biết ai đã nộp đủ. Bạn muốn tạo đợt thu trước không?',
+      onOk(){ openPeriodModal(); }});
+  }
+  const st = editing ? editing : {};
+  const initPeriodId = opt.periodId || st.periodId || (S.periods.find(p=>p.status!=='CLOSED')||S.periods[0]||{}).id || '';
+  const initPeriod = periodById(initPeriodId);
+  const initFund = st.fund || (initPeriod ? initPeriod.fund : FUND_KEYS[0]);
+  const initStudentId = opt.studentId || st.studentId || '';
+  const initStudent = initStudentId ? studentById(initStudentId) : null;
+  const remaining = (initStudent && initPeriod) ? Math.max(int(initPeriod.amountPerStudent) - paidOf(initStudent.id, initPeriod.id), 0) : 0;
+  const initAmount = editing ? int(editing.amount) : (remaining || (initPeriod ? int(initPeriod.amountPerStudent) : 0));
+
+  openModal({
+    title: editing ? 'Sửa khoản thu' : 'Thêm khoản thu',
+    sub: 'Mỗi khoản thu bắt buộc thuộc đúng một quỹ.',
+    body: `<form id="fIncome" class="fund-${FUNDS[initFund]?FUNDS[initFund].cls:''}">
+      <div class="field"><label>Rút vào quỹ nào? <span style="color:var(--expense)">*</span></label>
+        ${fundSegs('iFundR', initFund)}</div>
+      <div class="fundframe">
+        <div class="f2">
+          <div class="field"><label for="inDate">Ngày nộp <span style="color:var(--expense)">*</span></label>
+            <input type="date" id="inDate" value="${esc(st.date || todayISO())}" required></div>
+          <div class="field"><label for="inPeriod">Đợt thu</label>
+            <select id="inPeriod"><option value="">— Thu ngoài đợt (tài trợ, nguồn khác) —</option>
+              ${S.periods.map(p=>`<option value="${p.id}" data-fund="${p.fund}" data-amt="${p.amountPerStudent}"
+                ${p.id===initPeriodId?'selected':''}>${esc(p.name)} (${fmtNum(p.amountPerStudent)}/SV)${p.status==='CLOSED'?' · đã đóng':''}</option>`).join('')}
+            </select><div class="hint" id="periodHint"></div></div>
+        </div>
+        <div class="field"><label>Người nộp <span style="color:var(--expense)">*</span></label>
+          <div class="chips" style="margin-bottom:.4rem">
+            <button type="button" class="chip ${!st.payerName||initStudent?'on':''}" data-payer="student">Sinh viên trong lớp</button>
+            <button type="button" class="chip ${(st.payerName&&!st.studentId)?'on':''}" data-payer="other">Nguồn khác</button>
+          </div>
+          <input type="text" id="inStudent" list="dlStudents" autocomplete="off"
+            placeholder="Gõ tên hoặc mã SV…" value="${esc(initStudent?studentOptionLabel(initStudent):'')}"
+            ${(st.payerName&&!st.studentId)?'hidden':''}>
+          <input type="text" id="inPayer" placeholder="Tên người/đơn vị nộp" value="${esc(st.payerName||'')}"
+            ${(st.payerName&&!st.studentId)?'':'hidden'}>
+          ${studentDatalist()}
+          <div class="hint" id="payHint"></div></div>
+        <div class="f2">
+          <div class="field"><label for="inAmount">Số tiền (₫) <span style="color:var(--expense)">*</span></label>
+            <input type="text" id="inAmount" value="${initAmount||''}" data-autofocus></div>
+          <div class="field"><label for="inMethod">Hình thức</label>
+            <select id="inMethod">${Object.entries(METHODS).map(([k,v])=>
+              `<option value="${k}" ${st.method===k?'selected':''}>${esc(v)}</option>`).join('')}</select></div>
+        </div>
+        <div class="f2">
+          <div class="field"><label for="inBy">Người thu</label>
+            <input type="text" id="inBy" value="${esc(st.collectedBy || 'Thủ quỹ')}"></div>
+          <div class="field"><label for="inNote">Ghi chú</label>
+            <input type="text" id="inNote" value="${esc(st.note||'')}"></div>
+        </div>
+        <div id="inWarn"></div>
+      </div></form>`,
+    footer: `${editing?'<button class="btn danger left" id="inDel">Xoá khoản thu này</button>':'<button class="btn ghost left" id="inQR">Xem QR chuyển khoản</button>'}
+      <button class="btn" data-close>Huỷ</button>
+      <button class="btn income" id="inSave">${editing?'Lưu thay đổi':'Ghi nhận thu'}</button>`,
+    onMount(m){
+      const amount = m.el('#inAmount'); wireMoney(amount);
+      const selP = m.el('#inPeriod'), sInp = m.el('#inStudent'), pInp = m.el('#inPayer');
+      let payerMode = (st.payerName && !st.studentId) ? 'other' : 'student';
+      const syncPayerMode = () => {
+        m.all('[data-payer]').forEach(c => c.classList.toggle('on', c.dataset.payer === payerMode));
+        sInp.hidden = payerMode !== 'student';
+        pInp.hidden = payerMode === 'student';
+      };
+      m.all('[data-payer]').forEach(c => c.onclick = () => { payerMode = c.dataset.payer; syncPayerMode(); });
+      syncPayerMode();
+
+      // đổi đợt thu ⇒ quỹ và số tiền gợi ý đi theo đợt (không cho lệch quỹ)
+      const syncPeriod = () => {
+        const o = selP.selectedOptions[0];
+        const hint = m.el('#periodHint');
+        if (o && o.dataset.fund){
+          const r = m.el(`.seg input[value="${o.dataset.fund}"]`);
+          if (r && !r.checked){ r.checked = true; r.dispatchEvent(new Event('change')); }
+          hint.textContent = `Đợt này thuộc ${FUNDS[o.dataset.fund].label} · ${fmtVND(o.dataset.amt)}/SV`;
+          const sObj = resolveStudent(sInp.value);
+          if (sObj && !editing){
+            const rem = Math.max(int(o.dataset.amt) - paidOf(sObj.id, selP.value), 0);
+            amount.value = fmtNum(rem || int(o.dataset.amt));
+          }
+        } else hint.textContent = 'Không thuộc đợt nào — chọn quỹ thủ công bên trên.';
+        checkOver();
+      };
+      selP.onchange = syncPeriod; syncPeriod();
+      sInp.oninput = () => {
+        const sObj = resolveStudent(sInp.value);
+        const h = m.el('#payHint');
+        if (!sInp.value.trim()) { h.textContent = ''; return; }
+        if (!sObj){ h.textContent = 'Chưa khớp sinh viên nào — chọn từ danh sách gợi ý.'; return; }
+        const p = periodById(selP.value);
+        const paid = p ? paidOf(sObj.id, p.id) : 0;
+        h.textContent = p ? `${sObj.fullName} · đã nộp ${fmtVND(paid)} / ${fmtVND(p.amountPerStudent)} ở đợt này` : sObj.fullName;
+        if (p && !editing) amount.value = fmtNum(Math.max(int(p.amountPerStudent) - paid, 0) || int(p.amountPerStudent));
+        checkOver();
+      };
+      function checkOver(){
+        const w = m.el('#inWarn'), p = periodById(selP.value), sObj = resolveStudent(sInp.value);
+        w.innerHTML = '';
+        if (!p || !sObj) return;
+        const paid = paidOf(sObj.id, p.id) - (editing && editing.periodId===p.id && editing.studentId===sObj.id ? int(editing.amount) : 0);
+        const after = paid + parseMoney(amount.value);
+        if (after > int(p.amountPerStudent))
+          w.innerHTML = `<div class="warnbox">Sau khoản này, ${esc(sObj.fullName)} sẽ nộp <b>${fmtVND(after)}</b>
+            trong khi đợt chỉ yêu cầu <b>${fmtVND(p.amountPerStudent)}</b> (thừa ${fmtVND(after - int(p.amountPerStudent))}).
+            Vẫn lưu được nếu đây là nộp bù hộ người khác.</div>`;
+      }
+      amount.addEventListener('input', checkOver);
+      wireFundSegs(m, () => {
+        // giữ ràng buộc: quỹ của bản ghi phải trùng quỹ của đợt
+        const p = periodById(selP.value);
+        if (p && p.fund !== currentFund(m)) selP.value = '';
+        checkOver();
+      });
+      if (editing) m.el('#inDel').onclick = () => { m.close(); removeRecord('incomes', editing.id); };
+      if (!editing) m.el('#inQR').onclick = () => {
+        const sObj = resolveStudent(sInp.value);
+        if (!sObj) return toast('err','Chọn sinh viên trước','Mã QR cần biết nộp cho ai để ghi đúng nội dung chuyển khoản.');
+        m.close();
+        openQRModal({ studentId:sObj.id, periodId:selP.value, amount:parseMoney(amount.value) });
+      };
+
+      m.el('#inSave').onclick = () => {
+        const fund = currentFund(m);
+        if (!fund) return toast('err','Chưa chọn quỹ','Mỗi khoản thu phải thuộc đúng một quỹ.');
+        const date = m.el('#inDate').value;
+        if (!fieldErr(m.el('#inDate'), date ? '' : 'Chọn ngày nộp')) return;
+        const amt = parseMoney(amount.value);
+        if (!fieldErr(amount, amt > 0 ? '' : 'Số tiền phải lớn hơn 0')) return;
+        let studentId = null, payerName = '';
+        if (payerMode === 'student'){
+          const sObj = resolveStudent(sInp.value);
+          if (!fieldErr(sInp, sObj ? '' : 'Chọn một sinh viên trong danh sách')) return;
+          studentId = sObj.id; payerName = sObj.fullName;
+        } else {
+          payerName = pInp.value.trim();
+          if (!fieldErr(pInp, payerName ? '' : 'Nhập tên người/đơn vị nộp')) return;
+        }
+        const periodId = m.el('#inPeriod').value || null;
+        const p = periodById(periodId);
+        if (p && p.fund !== fund)
+          return toast('err','Lệch quỹ', `Đợt “${p.name}” thuộc ${FUNDS[p.fund].label}, không thể ghi vào ${FUNDS[fund].label}.`);
+        const rec = { id: editing ? editing.id : uid(), date, fund, periodId, studentId, payerName,
+          amount: amt, method: m.el('#inMethod').value, collectedBy: m.el('#inBy').value.trim(),
+          note: m.el('#inNote').value.trim() };
+        if (editing) Object.assign(editing, rec); else S.incomes.push(rec);
+        save(); m.close(); ui.flashIds = [rec.id];
+        if (ui.view !== 'incomes' && ui.view !== 'students') go('incomes'); else render();
+        toast('ok', editing ? 'Đã lưu thay đổi' : 'Đã ghi nhận thu ' + fmtVND(amt),
+          `${FUNDS[fund].label} · ${payerName}`);
+      };
+    }
+  });
+}
+
+/* ---------- CHI ---------- */
+function openExpenseModal(opt){
+  opt = opt || {};
+  const editing = opt.id ? S.expenses.find(e=>e.id===opt.id) : null;
+  const st = editing || {};
+  const initFund = st.fund || FUND_KEYS[0];
+  const buyers = [...new Set(S.expenses.map(e=>e.buyer).filter(Boolean))];
+  openModal({
+    title: editing ? 'Sửa khoản chi' : 'Thêm khoản chi',
+    sub: 'Ghi rõ mua gì, ai đi mua, và rút từ quỹ nào.',
+    body: `<form id="fExp" class="fund-${FUNDS[initFund]?FUNDS[initFund].cls:''}">
+      <div class="field"><label>Rút từ quỹ nào? <span style="color:var(--expense)">*</span></label>
+        ${fundSegs('eFundR', initFund)}
+        <div class="hint" id="balHint"></div></div>
+      <div class="fundframe">
+        <div class="f2">
+          <div class="field"><label for="exDate">Ngày chi <span style="color:var(--expense)">*</span></label>
+            <input type="date" id="exDate" value="${esc(st.date || todayISO())}" required></div>
+          <div class="field"><label for="exAmount">Số tiền (₫) <span style="color:var(--expense)">*</span></label>
+            <input type="text" id="exAmount" value="${st.amount||''}"></div>
+        </div>
+        <div class="field"><label for="exItem">Nội dung / Mua món gì <span style="color:var(--expense)">*</span></label>
+          <input type="text" id="exItem" value="${esc(st.item||'')}" placeholder="VD: Nước + bánh sinh hoạt lớp" data-autofocus></div>
+        <div class="f2">
+          <div class="field"><label for="exCat">Danh mục</label>
+            <select id="exCat">${CATEGORIES.map(c=>`<option value="${esc(c)}" ${st.category===c?'selected':''}>${esc(c)}</option>`).join('')}</select></div>
+          <div class="field"><label for="exBuyer">Người đi mua <span style="color:var(--expense)">*</span></label>
+            <input type="text" id="exBuyer" list="dlBuyers" value="${esc(st.buyer||'')}" placeholder="Ai đi mua khoản này?">
+            <datalist id="dlBuyers">${buyers.map(b=>`<option value="${esc(b)}"></option>`).join('')}</datalist></div>
+        </div>
+        <div class="f2">
+          <div class="field"><label for="exNote">Ghi chú</label><input type="text" id="exNote" value="${esc(st.note||'')}"></div>
+          <div class="field"><label>Hoá đơn</label>
+            <label class="check"><input type="checkbox" id="exRcp" ${st.hasReceipt?'checked':''}><span>Có hoá đơn / ảnh chụp</span></label></div>
+        </div>
+        <div id="exWarn"></div>
+      </div></form>`,
+    footer: `${editing?'<button class="btn danger left" id="exDel">Xoá khoản chi này</button>':''}
+      <button class="btn" data-close>Huỷ</button>
+      <button class="btn expense" id="exSave">${editing?'Lưu thay đổi':'Ghi nhận chi'}</button>`,
+    onMount(m){
+      const amount = m.el('#exAmount'); wireMoney(amount);
+      const refresh = () => {
+        const fund = currentFund(m);
+        const bal = lifetimeBalance(fund) + (editing && editing.fund===fund ? int(editing.amount) : 0);
+        m.el('#balHint').innerHTML = fund
+          ? `Tồn quỹ hiện tại của <b>${esc(FUNDS[fund].label)}</b>: <b class="num">${fmtVNDs(bal)}</b>` : '';
+        const amt = parseMoney(amount.value), w = m.el('#exWarn');
+        w.innerHTML = (fund && amt > bal)
+          ? `<div class="warnbox"><span>⚠</span><span>Khoản chi <b>${fmtVND(amt)}</b> vượt tồn quỹ
+             <b>${esc(FUNDS[fund].label)}</b> (${fmtVNDs(bal)}) — thiếu <b>${fmtVND(amt-bal)}</b>.
+             Vẫn lưu được nếu bạn ứng trước, bản ghi sẽ được đánh dấu ⚠ vượt quỹ.</span></div>` : '';
+      };
+      amount.addEventListener('input', refresh);
+      wireFundSegs(m, refresh); refresh();
+      if (editing) m.el('#exDel').onclick = () => { m.close(); removeRecord('expenses', editing.id); };
+      m.el('#exSave').onclick = () => {
+        const fund = currentFund(m);
+        if (!fund) return toast('err','Chưa chọn quỹ','Phải chỉ rõ rút từ Quỹ Lớp hay Quỹ Đoàn.');
+        const date = m.el('#exDate').value;
+        if (!fieldErr(m.el('#exDate'), date ? '' : 'Chọn ngày chi')) return;
+        const amt = parseMoney(amount.value);
+        if (!fieldErr(amount, amt > 0 ? '' : 'Số tiền phải lớn hơn 0')) return;
+        const item = m.el('#exItem').value.trim();
+        if (!fieldErr(m.el('#exItem'), item ? '' : 'Nhập nội dung đã mua')) return;
+        const buyer = m.el('#exBuyer').value.trim();
+        if (!fieldErr(m.el('#exBuyer'), buyer ? '' : 'Nhập tên người đi mua')) return;
+        const bal = lifetimeBalance(fund) + (editing && editing.fund===fund ? int(editing.amount) : 0);
+        const commit = (over) => {
+          const rec = { id: editing?editing.id:uid(), date, fund, item, category:m.el('#exCat').value,
+            buyer, amount:amt, hasReceipt:m.el('#exRcp').checked, note:m.el('#exNote').value.trim(),
+            overdraft: over };
+          if (editing) Object.assign(editing, rec); else S.expenses.push(rec);
+          save(); m.close(); ui.flashIds = [rec.id];
+          if (ui.view !== 'expenses') go('expenses'); else render();
+          toast(over?'warn':'ok', editing?'Đã lưu thay đổi':'Đã ghi nhận chi ' + fmtVND(amt),
+            `${FUNDS[fund].label} · ${item}${over?' · vượt quỹ':''}`);
+        };
+        if (amt > bal) confirmDialog({
+          title:'Chi vượt tồn quỹ', danger:true, okLabel:'Vẫn ghi nhận',
+          message:`Tồn quỹ <b>${esc(FUNDS[fund].label)}</b> chỉ còn <b>${fmtVNDs(bal)}</b> nhưng khoản chi là
+                   <b>${fmtVND(amt)}</b> (thiếu <b>${fmtVND(amt-bal)}</b>).<br>Bản ghi sẽ được đánh dấu ⚠ vượt quỹ.`,
+          onOk(){ commit(true); }});
+        else commit(false);
+      };
+    }
+  });
+}
+
+/* ---------- SINH VIÊN ---------- */
+function openStudentModal(id){
+  const editing = id ? studentById(id) : null;
+  const st = editing || {};
+  openModal({
+    title: editing ? 'Sửa sinh viên' : 'Thêm sinh viên',
+    body: `<form id="fStu">
+      <div class="f3">
+        <div class="field"><label for="sStt">STT</label><input type="text" id="sStt" value="${esc(st.stt||'')}"></div>
+        <div class="field"><label for="sCode">Mã SV <span style="color:var(--expense)">*</span></label>
+          <input type="text" id="sCode" value="${esc(st.code||'')}" data-autofocus inputmode="numeric"></div>
+        <div class="field"><label for="sClass">Lớp</label>
+          <input type="text" id="sClass" value="${esc(st.classCode || S.meta.className || '')}"></div>
+      </div>
+      <div class="f2">
+        <div class="field"><label for="sLast">Họ và tên đệm <span style="color:var(--expense)">*</span></label>
+          <input type="text" id="sLast" value="${esc(st.lastName||'')}" placeholder="Trần Văn"></div>
+        <div class="field"><label for="sFirst">Tên <span style="color:var(--expense)">*</span></label>
+          <input type="text" id="sFirst" value="${esc(st.firstName||'')}" placeholder="An"></div>
+      </div>
+      <div class="f2">
+        <div class="field"><label for="sDob">Ngày sinh</label><input type="date" id="sDob" value="${esc(st.dob||'')}"></div>
+        <div class="field"><label for="sNote">Ghi chú</label><input type="text" id="sNote" value="${esc(st.note||'')}"></div>
+      </div>
+      ${editing?`<label class="check"><input type="checkbox" id="sActive" ${st.active!==false?'checked':''}>
+        <span>Còn học trong lớp <span class="small muted">(bỏ tick = ẩn khỏi danh sách thu)</span></span></label>`:''}
+      </form>`,
+    footer: `<button class="btn" data-close>Huỷ</button>
+             <button class="btn primary" id="sSave">${editing?'Lưu':'Thêm sinh viên'}</button>`,
+    onMount(m){
+      m.el('#sSave').onclick = () => {
+        const code = normCode(m.el('#sCode').value);
+        if (!fieldErr(m.el('#sCode'), code ? '' : 'Nhập mã sinh viên')) return;
+        const dup = S.students.find(s => s.code === code && s.id !== (editing&&editing.id));
+        if (!fieldErr(m.el('#sCode'), dup ? `Mã này đã có: ${dup.fullName}` : '')) return;
+        const lastName = m.el('#sLast').value.trim(), firstName = m.el('#sFirst').value.trim();
+        if (!fieldErr(m.el('#sFirst'), (lastName||firstName) ? '' : 'Nhập tên sinh viên')) return;
+        const rec = { id: editing?editing.id:uid(), stt: m.el('#sStt').value.trim() || (S.students.length+1),
+          code, lastName, firstName, fullName: fullNameOf({lastName, firstName}),
+          dob: m.el('#sDob').value, classCode: m.el('#sClass').value.trim(),
+          note: m.el('#sNote').value.trim(), active: m.el('#sActive') ? m.el('#sActive').checked : true };
+        if (editing) Object.assign(editing, rec); else S.students.push(rec);
+        save(); m.close(); ui.flashIds=[rec.id];
+        if (ui.view !== 'students') go('students'); else render();
+        toast('ok', editing?'Đã lưu sinh viên':'Đã thêm sinh viên', rec.fullName);
+      };
+    }
+  });
+}
+function removeStudent(id){
+  const s = studentById(id); if (!s) return;
+  const n = S.incomes.filter(i=>i.studentId===id).length;
+  if (n > 0){
+    return confirmDialog({
+      title:'Không thể xoá sinh viên này', okLabel:'Ẩn khỏi danh sách',
+      message:`${esc(s.fullName)} đã có <b>${n}</b> khoản thu — xoá đi sẽ làm sai số liệu quỹ.
+               Bạn có thể <b>ẩn</b> sinh viên này (không tính vào công nợ nữa, nhưng giữ nguyên lịch sử nộp tiền).`,
+      onOk(){ s.active = false; save(); render(); toast('ok','Đã ẩn sinh viên', s.fullName); }});
+  }
+  confirmDialog({
+    title:'Xoá sinh viên?', danger:true, okLabel:'Xoá',
+    message:`Xoá <b>${esc(s.fullName)}</b> khỏi danh sách lớp? Sinh viên này chưa có khoản thu nào.`,
+    onOk(){
+      const idx = S.students.findIndex(x=>x.id===id);
+      const obj = S.students.splice(idx,1)[0];
+      save(); render();
+      toastAction('warn','Đã xoá sinh viên', obj.fullName, 'Hoàn tác', () => {
+        S.students.splice(idx, 0, obj); save(); render(); toast('ok','Đã hoàn tác');
+      });
+    }});
+}
+
+/* ---------- ĐỢT THU ---------- */
+function openPeriodModal(id){
+  const editing = id ? periodById(id) : null;
+  const st = editing || {};
+  const initFund = st.fund || FUND_KEYS[0];
+  openModal({
+    title: editing ? 'Sửa đợt thu' : 'Tạo đợt thu',
+    sub: 'Một đợt thu thuộc đúng một quỹ và có một mức thu cho mỗi sinh viên.',
+    body: `<form id="fPer" class="fund-${FUNDS[initFund]?FUNDS[initFund].cls:''}">
+      <div class="field"><label>Thu vào quỹ nào? <span style="color:var(--expense)">*</span></label>${fundSegs('pFundR', initFund)}</div>
+      <div class="fundframe">
+        <div class="field"><label for="pName">Tên đợt thu <span style="color:var(--expense)">*</span></label>
+          <input type="text" id="pName" value="${esc(st.name||'')}" placeholder="VD: Quỹ lớp học kỳ I 2026-2027" data-autofocus></div>
+        <div class="f3">
+          <div class="field"><label for="pAmt">Mức thu / SV (₫) <span style="color:var(--expense)">*</span></label>
+            <input type="text" id="pAmt" value="${st.amountPerStudent||''}"></div>
+          <div class="field"><label for="pOpen">Ngày mở</label>
+            <input type="date" id="pOpen" value="${esc(st.openDate||todayISO())}"></div>
+          <div class="field"><label for="pDue">Hạn nộp</label>
+            <input type="date" id="pDue" value="${esc(st.dueDate||'')}"></div>
+        </div>
+        <div class="field"><label for="pNote">Ghi chú</label><input type="text" id="pNote" value="${esc(st.note||'')}"></div>
+        <div class="hint" id="pHint"></div>
+      </div></form>`,
+    footer: `<button class="btn" data-close>Huỷ</button>
+             <button class="btn primary" id="pSave">${editing?'Lưu':'Tạo đợt thu'}</button>`,
+    onMount(m){
+      const amt = m.el('#pAmt'); wireMoney(amt);
+      const refresh = () => {
+        const n = S.students.filter(s=>s.active!==false).length;
+        m.el('#pHint').innerHTML = `Dự kiến thu: <b>${n}</b> SV × <b>${fmtVND(parseMoney(amt.value))}</b>
+          = <b class="num">${fmtVND(n * parseMoney(amt.value))}</b>`;
+      };
+      amt.addEventListener('input', refresh); wireFundSegs(m, refresh); refresh();
+      m.el('#pSave').onclick = () => {
+        const name = m.el('#pName').value.trim();
+        if (!fieldErr(m.el('#pName'), name ? '' : 'Nhập tên đợt thu')) return;
+        const a = parseMoney(amt.value);
+        if (!fieldErr(amt, a > 0 ? '' : 'Mức thu phải lớn hơn 0')) return;
+        const fund = currentFund(m);
+        if (editing && editing.fund !== fund && S.incomes.some(i=>i.periodId===editing.id))
+          return toast('err','Không đổi được quỹ của đợt này','Đã có khoản thu ghi vào đợt — đổi quỹ sẽ làm lệch số liệu hai quỹ.');
+        const rec = { id: editing?editing.id:uid(), name, fund, amountPerStudent:a,
+          openDate: m.el('#pOpen').value || todayISO(), dueDate: m.el('#pDue').value,
+          status: st.status || 'OPEN', note: m.el('#pNote').value.trim() };
+        if (editing) Object.assign(editing, rec); else S.periods.push(rec);
+        save(); m.close(); if (ui.view !== 'periods') go('periods'); else render();
+        toast('ok', editing?'Đã lưu đợt thu':'Đã tạo đợt thu', `${name} · ${FUNDS[fund].label}`);
+      };
+    }
+  });
+}
+function duplicatePeriod(id){
+  const p = periodById(id); if (!p) return;
+  const copy = Object.assign({}, p, { id:uid(), name: p.name + ' (bản sao)', status:'OPEN', openDate: todayISO() });
+  S.periods.push(copy); save(); render();
+  toast('ok','Đã nhân bản đợt thu', copy.name);
+}
+function togglePeriod(id){
+  const p = periodById(id); if (!p) return;
+  p.status = p.status === 'CLOSED' ? 'OPEN' : 'CLOSED';
+  save(); render();
+  toast('ok', p.status==='CLOSED' ? 'Đã đóng đợt thu' : 'Đã mở lại đợt thu', p.name);
+}
+function removePeriod(id){
+  const p = periodById(id); if (!p) return;
+  const n = S.incomes.filter(i=>i.periodId===id).length;
+  if (n > 0) return confirmDialog({
+    title:'Không thể xoá đợt thu này', okLabel:'Đóng đợt thu',
+    message:`Đợt “${esc(p.name)}” đã có <b>${n}</b> khoản thu. Xoá đi sẽ làm mất dấu số tiền đã thu.
+             Bạn nên <b>đóng đợt</b> thay vì xoá.`,
+    onOk(){ p.status='CLOSED'; save(); render(); toast('ok','Đã đóng đợt thu', p.name); }});
+  confirmDialog({ title:'Xoá đợt thu?', danger:true, okLabel:'Xoá',
+    message:`Xoá đợt “${esc(p.name)}”? Đợt này chưa có khoản thu nào.`,
+    onOk(){
+      const idx = S.periods.findIndex(x=>x.id===id), obj = S.periods.splice(idx,1)[0];
+      save(); render();
+      toastAction('warn','Đã xoá đợt thu', obj.name, 'Hoàn tác', () => {
+        S.periods.splice(idx,0,obj); save(); render(); toast('ok','Đã hoàn tác'); });
+    }});
+}
+
+/* ---------- XOÁ THU / CHI (có hoàn tác) ---------- */
+function removeRecord(kind, id){
+  const arr = S[kind], idx = arr.findIndex(x=>x.id===id);
+  if (idx < 0) return;
+  const r = arr[idx];
+  const label = kind === 'incomes'
+    ? `khoản thu ${fmtVND(r.amount)} của ${r.studentId ? (studentById(r.studentId)?.fullName||'') : r.payerName}`
+    : `khoản chi ${fmtVND(r.amount)} — ${r.item}`;
+  confirmDialog({
+    title: kind === 'incomes' ? 'Xoá khoản thu?' : 'Xoá khoản chi?', danger:true, okLabel:'Xoá',
+    message: `Xoá ${esc(label)} ngày ${fmtDate(r.date)} (${esc(FUNDS[r.fund].label)})?<br>
+              Tồn quỹ sẽ được tính lại ngay sau khi xoá.`,
+    onOk(){
+      const obj = arr.splice(idx,1)[0];
+      save(); render();
+      toastAction('warn','Đã xoá', label, 'Hoàn tác', () => {
+        arr.splice(idx,0,obj); save(); render(); toast('ok','Đã hoàn tác', label); });
+    }});
+}
+
+/* ---------- THU THEO LÔ ---------- */
+function openBatchModal(periodId){
+  if (!S.periods.length) return toast('err','Chưa có đợt thu','Tạo đợt thu trước khi thu theo lô.');
+  if (!S.students.length) return toast('err','Chưa có sinh viên','Nhập danh sách lớp trước.');
+  let pid = periodId || (S.periods.find(p=>p.status!=='CLOSED')||S.periods[0]).id;
+  openModal({
+    title:'Thu theo lô', wide:true,
+    sub:'Tick những sinh viên đã nộp — mỗi người sẽ tạo một bản ghi thu riêng.',
+    body:`<div class="f3">
+        <div class="field"><label for="bPeriod">Đợt thu</label><select id="bPeriod">
+          ${S.periods.map(p=>`<option value="${p.id}" ${p.id===pid?'selected':''}>${esc(p.name)} — ${esc(FUNDS[p.fund].label)} (${fmtNum(p.amountPerStudent)}/SV)</option>`).join('')}
+        </select></div>
+        <div class="field"><label for="bDate">Ngày nộp</label><input type="date" id="bDate" value="${todayISO()}"></div>
+        <div class="field"><label for="bBy">Người thu</label><input type="text" id="bBy" value="Thủ quỹ"></div>
+      </div>
+      <div class="row" style="margin-bottom:.5rem">
+        <button class="btn sm" id="bAll">Chọn tất cả người còn thiếu</button>
+        <button class="btn sm ghost" id="bNone">Bỏ chọn hết</button>
+        <span class="small muted" id="bCount" style="margin-left:auto"></span>
+      </div>
+      <div id="bList" style="max-height:46vh;overflow:auto;border:1px solid var(--border);border-radius:var(--radius-sm)"></div>`,
+    footer:`<button class="btn" data-close>Huỷ</button><button class="btn income" id="bSave">Ghi nhận</button>`,
+    onMount(m){
+      const sel = m.el('#bPeriod');
+      const draw = () => {
+        pid = sel.value;
+        const p = periodById(pid);
+        const rows = S.students.filter(s=>s.active!==false).map(s=>{
+          const paid = paidOf(s.id, pid), rem = Math.max(int(p.amountPerStudent) - paid, 0);
+          return { s, paid, rem };
+        });
+        m.el('#bList').innerHTML = `<table><thead><tr><th style="width:36px"></th><th>Sinh viên</th>
+            <th class="r">Đã nộp</th><th class="r">Còn thiếu</th><th class="r" style="width:130px">Ghi nhận (₫)</th></tr></thead>
+          <tbody>${rows.map(r=>`<tr>
+            <td><input type="checkbox" class="bck" data-id="${r.s.id}" ${r.rem>0?'checked':''} ${r.rem===0?'disabled':''}></td>
+            <td>${esc(r.s.fullName)}<div class="small muted num">${esc(r.s.code)}</div></td>
+            <td class="money in">${r.paid?fmtVND(r.paid):'—'}</td>
+            <td class="money out">${r.rem?fmtVND(r.rem):'<span class="badge ok">đủ</span>'}</td>
+            <td><input type="text" class="bamt" data-id="${r.s.id}" value="${r.rem||''}" ${r.rem===0?'disabled':''}></td>
+          </tr>`).join('')}</tbody></table>`;
+        m.all('.bamt').forEach(wireMoney);
+        m.all('.bck').forEach(c => c.onchange = count);
+        count();
+      };
+      const count = () => {
+        const on = m.all('.bck').filter(c=>c.checked);
+        const sum = on.reduce((a,c)=>a + parseMoney(m.el(`.bamt[data-id="${c.dataset.id}"]`).value), 0);
+        m.el('#bCount').innerHTML = `Đã chọn <b>${on.length}</b> SV · tổng <b class="num">${fmtVND(sum)}</b>`;
+      };
+      sel.onchange = draw; draw();
+      m.el('#bAll').onclick  = () => { m.all('.bck').forEach(c => { if(!c.disabled) c.checked = true; }); count(); };
+      m.el('#bNone').onclick = () => { m.all('.bck').forEach(c => c.checked = false); count(); };
+      m.el('#bSave').onclick = () => {
+        const p = periodById(sel.value), date = m.el('#bDate').value || todayISO(), by = m.el('#bBy').value.trim();
+        const picked = m.all('.bck').filter(c=>c.checked);
+        if (!picked.length) return toast('err','Chưa chọn sinh viên nào');
+        let n = 0, sum = 0;
+        picked.forEach(c => {
+          const amt = parseMoney(m.el(`.bamt[data-id="${c.dataset.id}"]`).value);
+          if (amt <= 0) return;
+          S.incomes.push({ id:uid(), date, fund:p.fund, periodId:p.id, studentId:c.dataset.id,
+            payerName: studentById(c.dataset.id)?.fullName || '', amount:amt, method:'CASH',
+            collectedBy:by, note:'Thu theo lô' });
+          n++; sum += amt;
+        });
+        save(); m.close(); render();
+        toast('ok',`Đã ghi nhận ${n} khoản thu`, `${FUNDS[p.fund].label} · tổng ${fmtVND(sum)}`);
+      };
+    }
+  });
+}
+
+/* ---------- QR CHUYỂN KHOẢN ---------- */
+/** Hộp thoại QR cho một sinh viên: quét là chuyển đúng số tiền, đúng nội dung. */
+function openQRModal(o){
+  o = o || {};
+  const student = o.studentId ? studentById(o.studentId) : null;
+  const period  = o.periodId  ? periodById(o.periodId)  : null;
+  if (!bankConfigured()){
+    return confirmDialog({
+      title:'Chưa cấu hình tài khoản nhận tiền', okLabel:'Mở Cài đặt',
+      message:`Để sinh mã QR chuyển khoản, cần nhập <b>ngân hàng</b> và <b>số tài khoản</b> của thủ quỹ
+               ở mục Cài đặt → Tài khoản nhận chuyển khoản.`,
+      onOk(){ go('settings'); setTimeout(()=>byId('bkAccount')?.focus(), 200); }});
+  }
+  const remaining = (student && period)
+    ? Math.max(int(period.amountPerStudent) - paidOf(student.id, period.id), 0) : 0;
+  const initAmount = int(o.amount) || remaining || (period ? int(period.amountPerStudent) : 0);
+  const b = S.meta.bank;
+
+  openModal({
+    title: student ? 'QR chuyển khoản — ' + esc(student.fullName) : 'QR chuyển khoản',
+    sub: period ? `${esc(period.name)} · ${esc(FUNDS[period.fund].label)}` : 'Không thuộc đợt thu nào',
+    mw: 520,
+    body:`<div class="qrbox">
+        <div class="qrwrap"><div id="qrImg" class="qrimg"></div>
+          <div class="qrfallback small muted" id="qrFb" hidden></div></div>
+        <div class="qrmeta">
+          <div class="field"><label for="qrAmount">Số tiền chuyển (₫)</label>
+            <input type="text" id="qrAmount" value="${initAmount||''}"></div>
+          <table class="qrtbl"><tbody>
+            <tr><td>Ngân hàng</td><td><b>${esc(b.bankName || b.bin)}</b></td></tr>
+            <tr><td>Số tài khoản</td><td><b class="num" id="qrAcc">${esc(b.accountNo)}</b></td></tr>
+            ${b.accountName?`<tr><td>Chủ tài khoản</td><td><b>${esc(b.accountName)}</b></td></tr>`:''}
+            <tr><td>Nội dung</td><td><b id="qrNote"></b></td></tr>
+          </tbody></table>
+          <div class="small muted" style="margin-top:.4rem">Quét bằng app ngân hàng hoặc ví điện tử có hỗ trợ VietQR.
+            Số tiền và nội dung đã nằm sẵn trong mã.</div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:.7rem">
+        <button class="btn sm" id="qrCopyNote">Sao chép nội dung CK</button>
+        <button class="btn sm" id="qrCopyAcc">Sao chép số tài khoản</button>
+        <button class="btn sm ghost" id="qrPrint">In / lưu ảnh</button>
+      </div>`,
+    footer:`${student ? `<button class="btn ghost left" id="qrCash">Nộp tiền mặt…</button>` : ''}
+      <button class="btn" data-close>Đóng</button>
+      ${student ? `<button class="btn income" id="qrDone" data-autofocus>Đã nhận được tiền — ghi nhận thu</button>` : ''}`,
+    onMount(m){
+      const amt = m.el('#qrAmount'); wireMoney(amt);
+      const paint = () => {
+        const note = transferNote(student, period);
+        m.el('#qrNote').textContent = note || '(không có)';
+        const payload = buildVietQR({ bin:b.bin, accountNo:b.accountNo, amount:parseMoney(amt.value), description:note });
+        const okDraw = renderQR(m.el('#qrImg'), payload, 5);
+        m.el('#qrFb').hidden = okDraw;
+        if (!okDraw) m.el('#qrFb').innerHTML = `Chưa vẽ được mã QR (thư viện QR chưa tải xong — cần mạng ở lần mở đầu tiên).
+          Bạn vẫn có thể chuyển khoản thủ công theo thông tin bên cạnh.`;
+        m.root.dataset.payload = payload;
+      };
+      amt.addEventListener('input', paint); paint();
+      const copy = (text, what) => {
+        const done = () => toast('ok','Đã sao chép ' + what, text);
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => {});
+        else { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta);
+               ta.select(); try{ document.execCommand('copy'); done(); }catch(e){} ta.remove(); }
+      };
+      m.el('#qrCopyNote').onclick = () => copy(transferNote(student, period), 'nội dung chuyển khoản');
+      m.el('#qrCopyAcc').onclick  = () => copy(b.accountNo, 'số tài khoản');
+      m.el('#qrPrint').onclick    = () => printQRSheet([{ student, period, amount: parseMoney(amt.value) }],
+        period ? period.name : 'Chuyển khoản quỹ lớp');
+      if (student) m.el('#qrCash').onclick = () => {
+        m.close();
+        openIncomeModal({ studentId:student.id, periodId: period ? period.id : '' });
+      };
+      if (student) m.el('#qrDone').onclick = () => {
+        const a = parseMoney(amt.value);
+        if (!fieldErr(amt, a > 0 ? '' : 'Số tiền phải lớn hơn 0')) return;
+        const fund = period ? period.fund : FUND_KEYS[0];
+        const rec = { id:uid(), date: todayISO(), fund, periodId: period ? period.id : null,
+          studentId: student.id, payerName: student.fullName, amount:a, method:'TRANSFER',
+          collectedBy: b.accountName || 'Thủ quỹ', note:'Chuyển khoản QR' };
+        S.incomes.push(rec); save(); m.close(); ui.flashIds = [rec.id]; render();
+        toast('ok','Đã ghi nhận chuyển khoản ' + fmtVND(a), `${student.fullName} · ${FUNDS[fund].label}`);
+      };
+    }
+  });
+}
+/** Bảng QR cho cả đợt thu: mỗi sinh viên còn nợ một mã, in ra hoặc chụp gửi vào nhóm chat. */
+function openQRSheetModal(periodId){
+  const period = periodById(periodId);
+  if (!period) return;
+  if (!bankConfigured()) return openQRModal({ periodId });
+  const rows = S.students.filter(s => s.active !== false).map(s => {
+    const remaining = Math.max(int(period.amountPerStudent) - paidOf(s.id, period.id), 0);
+    return { student:s, period, amount: remaining };
+  });
+  const unpaid = rows.filter(r => r.amount > 0);
+  openModal({
+    title:'QR cả lớp — ' + esc(period.name), wide:true,
+    sub:`${unpaid.length}/${rows.length} sinh viên còn phải nộp · mỗi mã đã gắn sẵn số tiền và nội dung riêng`,
+    body: unpaid.length
+      ? `<div class="row" style="margin-bottom:.6rem">
+           <button class="btn sm" id="qsPrint">In tất cả</button>
+           <span class="small muted">Mẹo: in ra hoặc chụp từng ô gửi vào nhóm lớp — mỗi người quét mã của mình.</span></div>
+         <div class="qrgrid" id="qsGrid">
+           ${unpaid.map((r,i)=>`<div class="qrcell">
+             <div class="qrcell-img" data-i="${i}"></div>
+             <div class="qrcell-name">${esc(r.student.fullName)}</div>
+             <div class="qrcell-sub num">${esc(r.student.code)} · <b>${fmtVND(r.amount)}</b></div>
+           </div>`).join('')}
+         </div>`
+      : `<div class="okbox">✓ Cả lớp đã nộp đủ đợt này, không cần tạo QR.</div>`,
+    footer:`<button class="btn" data-close>Đóng</button>`,
+    onMount(m){
+      unpaid.forEach((r,i) => {
+        const el = m.el(`.qrcell-img[data-i="${i}"]`);
+        if (el) renderQR(el, buildVietQR({ bin:S.meta.bank.bin, accountNo:S.meta.bank.accountNo,
+          amount:r.amount, description: transferNote(r.student, period) }), 3);
+      });
+      const pr = m.el('#qsPrint');
+      if (pr) pr.onclick = () => printQRSheet(unpaid, period.name);
+    }
+  });
+}
+/** Mở cửa sổ in riêng chứa các mã QR — không phụ thuộc CSS của app. */
+function printQRSheet(items, title){
+  const b = S.meta.bank;
+  const cards = items.map(it => {
+    const note = transferNote(it.student, it.period);
+    const payload = buildVietQR({ bin:b.bin, accountNo:b.accountNo, amount:int(it.amount), description:note });
+    let svg = '';
+    if (typeof qrcode !== 'undefined' && payload){
+      const q = qrcode(0,'M'); q.addData(payload); q.make();
+      svg = q.createSvgTag({ cellSize:4, margin:2, scalable:true });
+    }
+    return `<div class="c"><div class="q">${svg}</div>
+      <div class="n">${esc(it.student ? it.student.fullName : '')}</div>
+      <div class="s">${esc(it.student ? it.student.code : '')} · ${fmtVND(it.amount)}</div>
+      <div class="s">${esc(note)}</div></div>`;
+  }).join('');
+  const w = window.open('', '_blank');
+  if (!w) return toast('err','Trình duyệt đã chặn cửa sổ in','Cho phép pop-up rồi thử lại.');
+  w.document.write(`<!doctype html><html lang="vi"><head><meta charset="utf-8">
+    <title>QR chuyển khoản — ${esc(title||'')}</title><style>
+    body{font-family:'Be Vietnam Pro',system-ui,sans-serif;margin:16px;color:#111}
+    h1{font-size:16px;margin:0 0 4px} .meta{font-size:12px;color:#555;margin-bottom:12px}
+    .g{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+    .c{border:1px solid #ccc;border-radius:8px;padding:8px;text-align:center;break-inside:avoid}
+    .q svg{width:100%;height:auto} .n{font-weight:700;font-size:12px;margin-top:4px}
+    .s{font-size:11px;color:#444}
+    @media print{ .noprint{display:none} }
+    </style></head><body>
+    <h1>QR chuyển khoản quỹ lớp ${esc(S.meta.className||'')} — ${esc(title||'')}</h1>
+    <div class="meta">${esc(b.bankName||b.bin)} · ${esc(b.accountNo)}${b.accountName?' · '+esc(b.accountName):''}
+      · in lúc ${new Date().toLocaleString('vi-VN')}</div>
+    <button class="noprint" onclick="window.print()">In trang này</button>
+    <div class="g">${cards}</div></body></html>`);
+  w.document.close();
+}
+
+/* ==========================================================================
+   IMPORT — đọc file Excel danh sách lớp
+   File thật (Danh sách đóng góp quỹ lớp DCXDXD69_03B) có 5 cái bẫy:
+     1. 9 dòng tiêu đề hành chính trước bảng      → tự dò dòng header
+     2. Ô "Họ và tên SV" merge 2 cột (C10:D10)    → ghép cột họ đệm + cột tên
+     3. Mã SV lưu dạng số (2.400000001E9)         → normCode() ép về string nguyên
+     4. Ngày sinh là serial Excel (38918)         → excelSerialToISO() hệ 1900
+     5. Dòng cuối là "Tổng quỹ : 1000000"         → dừng đọc, không thành sinh viên
+   ========================================================================== */
+const IMPORT_FIELDS = [
+  { key:'skip',      label:'— Bỏ qua cột này —', aliases:[] },
+  { key:'stt',       label:'STT',                aliases:['stt','so tt','sott','no','#'] },
+  { key:'code',      label:'Mã SV',              aliases:['ma sv','masv','mssv','ma sinh vien','student code','ma so sv'] },
+  { key:'lastName',  label:'Họ và tên đệm',      aliases:['ho va ten sv','ho va ten','ho ten','ho va ten dem','ho','fullname','full name','ten sinh vien'] },
+  { key:'firstName', label:'Tên (cột tách riêng)',aliases:['ten'] },
+  { key:'dob',       label:'Ngày sinh',          aliases:['ngay sinh','ngaysinh','dob','ns','sinh ngay'] },
+  { key:'classCode', label:'Lớp',                aliases:['lop','class','lop hoc'] },
+  { key:'status',    label:'Trạng thái nộp',     aliases:['trang thai','tinh trang','trang thai nop'] },
+  { key:'amount',    label:'Số tiền đã nộp',     aliases:['so tien','so tien da nop','da nop','so tien nop'] },
+  { key:'payDate',   label:'Ngày nộp',           aliases:['ngay','ngay nop','ngay dong'] },
+  { key:'note',      label:'Ghi chú',            aliases:['ghi chu','note','phat sinh','mua','ghichu'] },
+];
+function guessField(headerText){
+  const h = noAccent(headerText);
+  if (!h) return 'skip';
+  for (const f of IMPORT_FIELDS){
+    if (f.key === 'skip') continue;
+    if (f.aliases.some(a => h === a)) return f.key;
+  }
+  for (const f of IMPORT_FIELDS){
+    if (f.key === 'skip') continue;
+    if (f.aliases.some(a => h.includes(a))) return f.key;
+  }
+  return 'skip';
+}
+/** Dò dòng tiêu đề bảng trong 30 dòng đầu: dòng phải có 'STT' và ('Mã SV' hoặc 'Họ và tên'). */
+function detectHeaderRow(aoa){
+  const lim = Math.min(aoa.length, 30);
+  for (let r = 0; r < lim; r++){
+    const cells = (aoa[r]||[]).map(c => noAccent(c));
+    const hasStt  = cells.some(c => c === 'stt' || c.startsWith('stt'));
+    const hasName = cells.some(c => c.includes('ma sv') || c.includes('masv') || c.includes('mssv') || c.includes('ho va ten'));
+    if (hasStt && hasName) return r;
+  }
+  for (let r = 0; r < lim; r++){                       // dự phòng: chỉ cần có 'ma sv' / 'ho va ten'
+    const cells = (aoa[r]||[]).map(c => noAccent(c));
+    if (cells.some(c => c.includes('ma sv') || c.includes('ho va ten'))) return r;
+  }
+  return -1;
+}
+/** Rút thông tin lớp từ các dòng tiêu đề hành chính phía trên bảng. */
+function detectMeta(aoa, headerRow){
+  const text = aoa.slice(0, Math.max(headerRow,0)).flat()
+    .filter(c => typeof c === 'string').join(' | ');
+  const out = {};
+  let m;
+  if ((m = /KHOA\s*:\s*([^|\-–—]+)/i.exec(text)))         out.faculty    = m[1].trim();
+  if ((m = /L.P\s*:\s*([A-Za-z0-9_.\-]+)/i.exec(text)))    out.className  = m[1].trim().toUpperCase();
+  if ((m = /H.C\s*K.\s*([IVX]+)/i.exec(text)))             out.term       = 'Học kỳ ' + m[1].toUpperCase();
+  if ((m = /(\d{4})\s*[-–]\s*(\d{4})/.exec(text)))         out.schoolYear = m[1] + '-' + m[2];
+  return out;
+}
+/** Tách 'Trần Văn Mẫu' → { lastName:'Trần Văn', firstName:'An' } (tên là từ cuối). */
+function splitName(full){
+  const parts = String(full||'').trim().replace(/\s+/g,' ').split(' ');
+  if (parts.length <= 1) return { lastName:'', firstName: parts[0] || '' };
+  return { lastName: parts.slice(0,-1).join(' '), firstName: parts[parts.length-1] };
+}
+const isEmptyCell = c => c === null || c === undefined || String(c).trim() === '';
+/**
+ * Dò dòng tổng ở cuối bảng ('Tổng quỹ : … 1000000') để đối chiếu số liệu.
+ * Phải quét riêng trên toàn sheet: trong file thật dòng tổng nằm cách bảng 4 dòng trống,
+ * nên vòng đọc dữ liệu (dừng ở 2 dòng trống) không bao giờ chạm tới nó.
+ */
+function findFooterTotal(aoa, fromRow){
+  for (let r = Math.max(fromRow, 0); r < aoa.length; r++){
+    const row = aoa[r] || [];
+    const first = row.find(c => !isEmptyCell(c));
+    if (isEmptyCell(first)) continue;
+    const nf = noAccent(first);
+    if (/^(tong|cong)\b/.test(nf)){
+      const nums = row.filter(c => typeof c === 'number');
+      if (nums.length) return int(nums[nums.length - 1]);
+      const parsed = row.map(c => parseMoney(c)).filter(n => n > 0);
+      if (parsed.length) return parsed[parsed.length - 1];
+    }
+  }
+  return null;
+}
+/** Đọc các dòng dữ liệu, dừng đúng chỗ trước dòng tổng. */
+function extractRows(aoa, headerRow, mapping){
+  const rows = [];
+  let blank = 0, footerTotal = null, stoppedAt = aoa.length;
+  for (let r = headerRow + 1; r < aoa.length; r++){
+    const row = aoa[r] || [];
+    if (row.every(isEmptyCell)){
+      if (++blank >= 2){ stoppedAt = r; break; }
+      continue;
+    }
+    blank = 0;
+    const firstText = row.find(c => !isEmptyCell(c));
+    const nf = noAccent(firstText);
+    if (/^(tong|cong)\b/.test(nf) || nf.startsWith('tong quy') || nf.startsWith('tong cong')){
+      const nums = row.filter(c => typeof c === 'number');
+      if (nums.length) footerTotal = int(nums[nums.length-1]);
+      stoppedAt = r; break;                                    // BẪY 5: dòng tổng, không phải sinh viên
+    }
+    if (noAccent(row.map(c=>c==null?'':c).join(' ')).includes('ma sv')) continue;   // header lặp lại
+    const get = key => {
+      const idx = Object.keys(mapping).find(i => mapping[i] === key);
+      return idx === undefined ? null : row[idx];
+    };
+    const rec = {
+      _row: r + 1,
+      stt: get('stt') == null ? '' : String(get('stt')).replace(/\.0+$/,''),
+      code: normCode(get('code')),                                              // BẪY 3
+      dob: parseDateFlexible(get('dob')),                                       // BẪY 4
+      classCode: get('classCode') == null ? '' : String(get('classCode')).trim(),
+      status: noAccent(get('status')),
+      amount: parseMoney(get('amount')),
+      payDate: parseDateFlexible(get('payDate')),
+      note: get('note') == null ? '' : String(get('note')).trim(),
+    };
+    // BẪY 2: tên có thể nằm ở 1 cột hoặc bị tách 2 cột do ô header bị merge
+    const a = get('lastName'), b = get('firstName');
+    if (!isEmptyCell(b)){
+      rec.lastName  = String(a==null?'':a).trim().replace(/\s+/g,' ');
+      rec.firstName = String(b).trim().replace(/\s+/g,' ');
+    } else {
+      const sp = splitName(a);
+      rec.lastName = sp.lastName; rec.firstName = sp.firstName;
+    }
+    rec.fullName = fullNameOf(rec);
+    if (!rec.code && !rec.fullName) continue;                                   // dòng chỉ có STT
+    rows.push(rec);
+  }
+  if (footerTotal == null) footerTotal = findFooterTotal(aoa, headerRow + 1);
+  return { rows, footerTotal, stoppedAt };
+}
+function validateRows(rows){
+  const seen = new Map();
+  rows.forEach(r => {
+    r.errors = []; r.warns = [];
+    if (!r.code) r.errors.push('Thiếu mã SV');
+    if (!r.fullName) r.errors.push('Thiếu họ tên');
+    if (r.dob){
+      const y = Number(r.dob.slice(0,4));
+      if (y < 1990 || y > 2015) r.warns.push(`Ngày sinh ${fmtDate(r.dob)} trông không hợp lý`);
+    }
+    const key = r.code || (noAccent(r.fullName) + '|' + r.dob);
+    if (seen.has(key)) r.errors.push('Trùng với dòng ' + seen.get(key));
+    else seen.set(key, r._row);
+    const exist = S.students.find(s => r.code ? s.code === r.code
+      : (noAccent(s.fullName) === noAccent(r.fullName) && (s.dob||'') === (r.dob||'')));
+    r.existing = exist || null;
+    r.paidFlag = /^da dong/.test(r.status||'');
+  });
+  return rows;
+}
+
+function openImportModal(preFile){
+  let wb = null, sheetName = '', aoa = [], headerRow = -1, mapping = {}, meta = {}, ext = null;
+  // Luôn bắt đầu ở bước 0: nếu có file truyền vào (kéo-thả), readFile() sẽ tự chuyển sang bước 1
+  // sau khi đọc xong workbook. Vào thẳng bước 1 sẽ vẽ giao diện khớp cột khi wb vẫn còn null.
+  let step = 0;
+  // CHỦ Ý: import chỉ nhập DANH SÁCH lớp. Cột "Số tiền"/"Trạng thái" trong file chỉ hiển thị để
+  // tham khảo, không tạo khoản thu — tiền vào quỹ phải qua chuyển khoản QR hoặc thu tay có người xác nhận.
+  let opts = { dedupe:'skip' };
+
+  const m = openModal({
+    title:'Nhập danh sách lớp từ Excel', wide:true,
+    sub:'Tự dò dòng tiêu đề · tự ghép họ + tên · tự đổi ngày sinh · tự bỏ dòng tổng',
+    body:`<div class="steps" style="margin-bottom:.9rem">
+        <span class="s" data-s="0"><span class="n">1</span>Chọn file</span><span>→</span>
+        <span class="s" data-s="1"><span class="n">2</span>Khớp cột &amp; tuỳ chọn</span><span>→</span>
+        <span class="s" data-s="2"><span class="n">3</span>Xem trước &amp; xác nhận</span>
+      </div><div id="impBody"></div>`,
+    footer:`<span class="left small muted" id="impInfo"></span>
+      <button class="btn" data-close>Đóng</button>
+      <button class="btn" id="impBack" hidden>Quay lại</button>
+      <button class="btn primary" id="impNext" hidden>Tiếp tục</button>`,
+    onMount(api){
+      const body = api.el('#impBody'), info = api.el('#impInfo');
+      const btnNext = api.el('#impNext'), btnBack = api.el('#impBack');
+
+      const setStep = s => {
+        step = s;
+        api.all('.steps .s').forEach(el => {
+          const i = Number(el.dataset.s);
+          el.classList.toggle('on', i === s);
+          el.classList.toggle('done', i < s);
+        });
+        btnBack.hidden = s === 0;
+        btnNext.hidden = s === 0;
+        btnNext.textContent = s === 2 ? 'Xác nhận import' : 'Tiếp tục';
+        btnNext.className = 'btn ' + (s === 2 ? 'income' : 'primary');
+        draw();
+      };
+      function draw(){
+        if (step === 0) return drawPick();
+        if (step === 1) return drawMap();
+        return drawPreview();
+      }
+      function drawPick(){
+        body.innerHTML = `<div class="drop" id="mDrop" tabindex="0" role="button">
+            <svg class="dropico" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" style="color:var(--brand)">
+              <path d="M14 3v5h5"/><path d="M20 9v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8z"/><path d="M9 15h6M9 12h3"/></svg>
+            <div style="margin-top:.5rem"><b>Kéo file Excel vào đây</b> hoặc bấm để chọn</div>
+            <div class="small muted">.xlsx · .xls · .csv</div></div>
+          <input type="file" id="mFile" accept=".xlsx,.xls,.csv" hidden>`;
+        const d = api.el('#mDrop'), f = api.el('#mFile');
+        d.onclick = () => f.click();
+        d.onkeydown = e => { if (e.key==='Enter'||e.key===' '){ e.preventDefault(); f.click(); } };
+        ['dragenter','dragover'].forEach(ev => d.addEventListener(ev, e => { e.preventDefault(); d.classList.add('over'); }));
+        ['dragleave','drop'].forEach(ev => d.addEventListener(ev, e => { e.preventDefault(); d.classList.remove('over'); }));
+        d.addEventListener('drop', e => { const file = e.dataTransfer.files[0]; if (file) readFile(file); });
+        f.onchange = () => { if (f.files[0]) readFile(f.files[0]); };
+      }
+      function readFile(file){
+        body.innerHTML = `<div class="grid" style="gap:.5rem">
+          <div class="skel" style="height:20px;width:45%"></div><div class="skel"></div><div class="skel"></div>
+          <div class="skel" style="width:70%"></div></div>`;
+        if (typeof XLSX === 'undefined'){
+          body.innerHTML = `<div class="warnbox">Không tải được thư viện đọc Excel (SheetJS) — hãy kiểm tra kết nối mạng
+            rồi mở lại trang. Import Excel cần tải thư viện này một lần, sau đó dùng được offline.</div>`;
+          return;
+        }
+        const fr = new FileReader();
+        fr.onload = () => {
+          try {
+            // KHÔNG dùng cellDates:true — để ô ngày ở dạng serial number rồi tự quy đổi bằng
+            // excelSerialToISO(), tránh phụ thuộc múi giờ của máy người dùng.
+            wb = XLSX.read(new Uint8Array(fr.result), { type:'array' });
+            sheetName = wb.SheetNames[0];
+            loadSheet();
+            info.textContent = `${file.name} · ${(file.size/1024).toFixed(0)} KB`;
+            setStep(1);
+          } catch(e){
+            body.innerHTML = `<div class="warnbox">Không đọc được file: ${esc(e.message)}</div>`;
+          }
+        };
+        fr.readAsArrayBuffer(file);
+      }
+      function loadSheet(){
+        const ws = wb.Sheets[sheetName];
+        aoa = XLSX.utils.sheet_to_json(ws, { header:1, raw:true, defval:null, blankrows:true });
+        headerRow = detectHeaderRow(aoa);
+        meta = detectMeta(aoa, headerRow < 0 ? 10 : headerRow);
+        mapping = {};
+        if (headerRow >= 0){
+          const hdr = aoa[headerRow] || [];
+          const width = Math.max(hdr.length, ...aoa.slice(headerRow+1, headerRow+12).map(r=>(r||[]).length), 0);
+          for (let c = 0; c < width; c++) mapping[c] = guessField(hdr[c]);
+          // BẪY 2: header "Họ và tên SV" merge 2 cột ⇒ cột kế bên trống header nhưng có dữ liệu chữ
+          for (let c = 0; c < width; c++){
+            if (mapping[c] === 'lastName' && isEmptyCell(hdr[c+1])){
+              const sample = aoa.slice(headerRow+1, headerRow+8)
+                .some(r => r && !isEmptyCell(r[c+1]) && typeof r[c+1] === 'string');
+              if (sample && (mapping[c+1] === 'skip' || mapping[c+1] === undefined)) mapping[c+1] = 'firstName';
+            }
+          }
+          // tránh 2 cột cùng map 1 field (trừ skip)
+          const used = new Set();
+          Object.keys(mapping).forEach(c => {
+            const v = mapping[c];
+            if (v !== 'skip'){ if (used.has(v)) mapping[c] = 'skip'; else used.add(v); }
+          });
+        }
+        ext = headerRow >= 0 ? extractRows(aoa, headerRow, mapping) : { rows:[], footerTotal:null };
+        validateRows(ext.rows);
+      }
+      function drawMap(){
+        if (!wb) return;                                   // chưa đọc xong file
+        const hdr = aoa[headerRow] || [];
+        const sampleRows = aoa.slice(headerRow+1, headerRow+4);
+        const cols = Object.keys(mapping).map(Number).sort((a,b)=>a-b);
+        body.innerHTML = `
+          ${wb.SheetNames.length > 1 ? `<div class="field" style="max-width:280px"><label for="mSheet">Sheet</label>
+            <select id="mSheet">${wb.SheetNames.map(n=>`<option ${n===sheetName?'selected':''}>${esc(n)}</option>`).join('')}</select></div>` : ''}
+          ${headerRow < 0
+            ? `<div class="warnbox">Không tìm thấy dòng tiêu đề có “STT” và “Mã SV”. Hãy kiểm tra lại file
+                 hoặc chọn sheet khác.</div>`
+            : `<div class="okbox">Đã tìm thấy dòng tiêu đề ở <b>dòng ${headerRow+1}</b> ·
+                 đọc được <b>${ext.rows.length} sinh viên</b> (dòng ${ext.rows.length?ext.rows[0]._row:'-'}–${ext.rows.length?ext.rows[ext.rows.length-1]._row:'-'})
+                 ${ext.footerTotal!=null?` · đã bỏ qua dòng tổng (${fmtVND(ext.footerTotal)})`:''}</div>`}
+
+          ${Object.keys(meta).length ? `<div class="card" style="margin-top:.8rem"><div class="card-b">
+            <b>Thông tin lớp đọc được từ file</b>
+            <div class="f2" style="margin-top:.5rem">
+              <div class="field"><label for="mmClass">Mã lớp</label><input id="mmClass" type="text" value="${esc(meta.className||S.meta.className||'')}"></div>
+              <div class="field"><label for="mmFaculty">Khoa</label><input id="mmFaculty" type="text" value="${esc(meta.faculty||S.meta.faculty||'')}"></div>
+              <div class="field"><label for="mmTerm">Học kỳ</label><input id="mmTerm" type="text" value="${esc(meta.term||S.meta.term||'')}"></div>
+              <div class="field"><label for="mmYear">Năm học</label><input id="mmYear" type="text" value="${esc(meta.schoolYear||S.meta.schoolYear||'')}"></div>
+            </div><div class="small muted">Sẽ được lưu vào Cài đặt sau khi import.</div>
+          </div></div>` : ''}
+
+          <h3 style="margin-top:1rem">Khớp cột</h3>
+          <div class="small muted" style="margin-bottom:.5rem">Hệ thống đã tự đoán. Sửa lại nếu sai —
+            “Họ và tên đệm” + “Tên” là hai cột riêng khi ô tiêu đề bị gộp.</div>
+          <div class="tablewrap" style="border:1px solid var(--border);border-radius:var(--radius-sm)">
+          <table><thead><tr><th>Cột</th><th>Tiêu đề trong file</th><th>Dữ liệu mẫu</th><th>Đưa vào trường</th></tr></thead>
+          <tbody>${cols.map(c=>`<tr>
+            <td class="muted num">${XLSX.utils.encode_col(c)}</td>
+            <td>${esc(hdr[c]==null?'':hdr[c])}</td>
+            <td class="small muted">${sampleRows.map(r=>esc((r||[])[c]==null?'':String((r||[])[c]).slice(0,22))).filter(Boolean).join(' · ')||'—'}</td>
+            <td><select data-col="${c}" style="min-width:190px">
+              ${IMPORT_FIELDS.map(f=>`<option value="${f.key}" ${mapping[c]===f.key?'selected':''}>${esc(f.label)}</option>`).join('')}
+            </select></td></tr>`).join('')}</tbody></table></div>
+
+          <h3 style="margin-top:1.1rem">Tuỳ chọn</h3>
+          <div class="field"><label>Nếu sinh viên đã có trong hệ thống</label>
+            <div class="chips">
+              ${[['skip','Bỏ qua dòng trùng'],['update','Cập nhật thông tin SV đã có'],['insert','Thêm mới hết (có thể tạo bản trùng)']]
+                .map(([v,l])=>`<button type="button" class="chip ${opts.dedupe===v?'on':''}" data-dd="${v}">${l}</button>`).join('')}
+            </div></div>
+          <div class="okbox" style="margin-top:.9rem"><span>ℹ</span><span>
+            Import chỉ tạo <b>danh sách sinh viên</b>. Cột “Trạng thái” và “Số tiền” trong file chỉ được
+            hiển thị để bạn đối chiếu — <b>không</b> tự tạo khoản thu.
+            Tiền vào quỹ được ghi nhận khi sinh viên <b>quét QR chuyển khoản</b> (Đợt thu → “QR cả lớp”)
+            hoặc khi thủ quỹ <b>thu tay</b> và xác nhận.</span></div>
+          </div>`;
+        const sh = api.el('#mSheet');
+        if (sh) sh.onchange = () => { sheetName = sh.value; loadSheet(); draw(); };
+        api.all('[data-col]').forEach(s => s.onchange = () => {
+          const c = Number(s.dataset.col), v = s.value;
+          if (v !== 'skip') Object.keys(mapping).forEach(k => { if (mapping[k] === v && Number(k) !== c) mapping[k] = 'skip'; });
+          mapping[c] = v;
+          ext = extractRows(aoa, headerRow, mapping); validateRows(ext.rows);
+          draw();
+        });
+        api.all('[data-dd]').forEach(b => b.onclick = () => { opts.dedupe = b.dataset.dd; draw(); });
+      }
+      function drawPreview(){
+        const rows = ext.rows;
+        const errs = rows.filter(r=>r.errors.length);
+        const dups = rows.filter(r=>!r.errors.length && r.existing);
+        const news = rows.filter(r=>!r.errors.length && !r.existing);
+        const warns = rows.filter(r=>r.warns.length);
+        const fileSum = rows.reduce((a,r)=>a + (r.amount || 0), 0);
+        body.innerHTML = `
+          <div class="row" style="gap:.5rem;margin-bottom:.7rem">
+            <span class="badge ok">${news.length} thêm mới</span>
+            <span class="badge part">${dups.length} đã tồn tại → ${esc({skip:'bỏ qua',update:'cập nhật',insert:'thêm mới'}[opts.dedupe])}</span>
+            <span class="badge no">${errs.length} lỗi</span>
+            ${warns.length?`<span class="badge warn">${warns.length} cảnh báo</span>`:''}
+          </div>
+          <div class="okbox" style="margin-bottom:.7rem"><span>ℹ</span><span>
+            Chỉ danh sách sinh viên được ghi vào hệ thống. Cột “Số tiền” trong file
+            (tổng <b>${fmtVND(fileSum)}</b>${ext.footerTotal != null ? `, dòng tổng ghi <b>${fmtVND(ext.footerTotal)}</b>` : ''})
+            <b>không</b> được dùng để cộng vào quỹ.</span></div>
+          ${errs.length ? `<div class="warnbox" style="margin-bottom:.7rem"><span>⚠</span><span>
+              ${errs.slice(0,4).map(r=>`Dòng ${r._row}: ${esc(r.errors.join(', '))}`).join('<br>')}
+              ${errs.length>4?`<br>…và ${errs.length-4} dòng lỗi khác`:''}
+              <br><button class="btn sm" id="dlErr" style="margin-top:.4rem">Tải danh sách dòng lỗi (.xlsx)</button>
+            </span></div>` : ''}
+          <div class="tablewrap" style="max-height:44vh;overflow:auto;border:1px solid var(--border);border-radius:var(--radius-sm)">
+            <table><thead><tr><th>Dòng</th><th>STT</th><th>Mã SV</th><th>Họ và tên</th><th>Ngày sinh</th><th>Lớp</th>
+              <th>Trạng thái</th><th class="r">Số tiền</th><th>Kết quả</th></tr></thead>
+            <tbody>${rows.slice(0,20).map(r=>`<tr>
+              <td class="muted num small">${r._row}</td><td class="num muted">${esc(r.stt)}</td>
+              <td class="num">${esc(r.code)}</td><td><b>${esc(r.fullName)}</b></td>
+              <td class="num small">${fmtDate(r.dob)}</td><td class="small muted">${esc(r.classCode)}</td>
+              <td class="small">${r.paidFlag?'<span class="badge ok">Đã đóng</span>':(r.status?'<span class="badge no">Chưa đóng</span>':'—')}</td>
+              <td class="money">${r.amount?fmtVND(r.amount):'—'}</td>
+              <td>${r.errors.length?`<span class="badge no" title="${esc(r.errors.join(', '))}">Lỗi</span>`
+                   : r.existing?'<span class="badge part">Đã có</span>':'<span class="badge ok">Mới</span>'}</td>
+            </tr>`).join('')}</tbody></table>
+          </div>
+          <div class="small muted" style="margin-top:.5rem">
+            ${rows.length > 20 ? `Xem trước 20/${rows.length} dòng. ` : ''}Dữ liệu chỉ được ghi khi bạn bấm “Xác nhận import”.</div>`;
+        const de = api.el('#dlErr');
+        if (de) de.onclick = () => exportErrorRows(errs);
+      }
+      btnBack.onclick = () => setStep(Math.max(step-1, 0));
+      btnNext.onclick = () => {
+        if (step === 1){
+          if (headerRow < 0) return toast('err','Chưa dò được dòng tiêu đề','Kiểm tra lại file hoặc chọn sheet khác.');
+          if (!ext.rows.length) return toast('err','Không đọc được dòng dữ liệu nào');
+          const hasCode = Object.values(mapping).includes('code');
+          const hasName = Object.values(mapping).includes('lastName') || Object.values(mapping).includes('firstName');
+          if (!hasCode || !hasName) return toast('err','Thiếu cột bắt buộc','Cần khớp ít nhất cột “Mã SV” và cột họ tên.');
+          ['className','faculty','term','schoolYear'].forEach((k,i) => {
+            const el = api.el(['#mmClass','#mmFaculty','#mmTerm','#mmYear'][i]);
+            if (el) meta[k] = el.value.trim();
+          });
+          setStep(2); return;
+        }
+        if (step === 2) doImport(api, ext, opts, meta);
+      };
+      setStep(step);
+      if (preFile) readFile(preFile);
+    }
+  });
+  return m;
+}
+/**
+ * Ghi dữ liệu vào state — thuần nghiệp vụ, KHÔNG chạm giao diện, để bộ tự kiểm tra gọi được
+ * mà không làm nhảy trang. Chỉ tạo/cập nhật sinh viên; không bao giờ tạo khoản thu.
+ */
+function applyImport(ext, opts, meta){
+  const batch = { studentIds:[], incomeIds:[], periodId:null, at:new Date().toISOString() };
+  let added = 0, updated = 0, skipped = 0, failed = 0;
+
+  ['className','faculty','term','schoolYear'].forEach(k => { if (meta[k]) S.meta[k] = meta[k]; });
+
+  ext.rows.forEach(r => {
+    if (r.errors.length){ failed++; return; }
+    let student = r.existing;
+    if (student){
+      if (opts.dedupe === 'skip'){ skipped++; }
+      else if (opts.dedupe === 'update'){
+        Object.assign(student, { stt:r.stt||student.stt, lastName:r.lastName, firstName:r.firstName,
+          fullName:r.fullName, dob:r.dob||student.dob, classCode:r.classCode||student.classCode,
+          note:r.note||student.note });
+        updated++;
+      } else { student = null; }
+    }
+    if (!student){
+      student = { id:uid(), stt:r.stt || (S.students.length+1), code:r.code, lastName:r.lastName,
+        firstName:r.firstName, fullName:r.fullName, dob:r.dob, classCode:r.classCode || S.meta.className,
+        note:r.note, active:true };
+      S.students.push(student); batch.studentIds.push(student.id); added++;
+    }
+  });
+  ui.lastImport = batch;
+  return { added, updated, skipped, failed, batch };
+}
+/** Ghi dữ liệu rồi báo cáo — chỉ chạy khi người dùng bấm "Xác nhận import". */
+function doImport(api, ext, opts, meta){
+  const { added, updated, skipped, failed } = applyImport(ext, opts, meta);
+  save();
+  api.close();
+  go('students');
+  openModal({
+    title:'Import xong', mw:520,
+    body:`<div class="okbox" style="margin-bottom:.8rem">Đọc được <b>${ext.rows.length}</b> dòng dữ liệu từ file.</div>
+      <table><tbody>
+        <tr><td>Thêm mới</td><td class="r"><b>${added}</b> sinh viên</td></tr>
+        <tr><td>Cập nhật</td><td class="r"><b>${updated}</b></td></tr>
+        <tr><td>Bỏ qua (đã có)</td><td class="r"><b>${skipped}</b></td></tr>
+        <tr><td>Lỗi</td><td class="r"><b>${failed}</b></td></tr>
+      </tbody></table>
+      <div class="warnbox" style="margin-top:.8rem"><span>→</span><span>Bước tiếp theo: tạo <b>đợt thu</b>
+        (mức thu mỗi SV, thuộc Quỹ Lớp hay Quỹ Đoàn), rồi bấm <b>“QR cả lớp”</b> để mỗi sinh viên quét mã
+        chuyển khoản đúng số tiền của mình.</span></div>`,
+    footer:`<button class="btn danger left" id="undoImp">Hoàn tác lần import này</button>
+            <button class="btn primary" data-close data-autofocus>Xong</button>`,
+    onMount(m2){ m2.el('#undoImp').onclick = () => { m2.close(); undoImport(); }; }
+  });
+  toast('ok', `Đã import ${added} sinh viên`, 'Tạo đợt thu rồi dùng QR để thu tiền.');
+}
+function undoImport(){
+  const b = ui.lastImport;
+  if (!b) return toast('err','Không có lần import nào để hoàn tác');
+  confirmDialog({
+    title:'Hoàn tác lần import?', danger:true, okLabel:'Hoàn tác',
+    message:`Xoá <b>${b.studentIds.length}</b> sinh viên và <b>${b.incomeIds.length}</b> khoản thu đã tạo ở lần import gần nhất
+             ${b.periodId?' (kèm đợt thu được tạo tự động)':''}. Dữ liệu bạn nhập tay không bị ảnh hưởng.`,
+    onOk(){
+      S.incomes  = S.incomes .filter(i => !b.incomeIds.includes(i.id));
+      S.students = S.students.filter(s => !b.studentIds.includes(s.id));
+      if (b.periodId) S.periods = S.periods.filter(p => p.id !== b.periodId);
+      ui.lastImport = null; save(); render();
+      toast('ok','Đã hoàn tác lần import');
+    }});
+}
+
+/* ==========================================================================
+   EXPORT — workbook nhiều sheet
+   ========================================================================== */
+function scopeLabel(sc){
+  if (sc.mode === 'all')   return 'Tất cả';
+  if (sc.mode === 'day')   return 'Ngày ' + fmtDate(sc.from);
+  return `${fmtDate(sc.from)} → ${fmtDate(sc.to)}`;
+}
+function scopeFileTag(sc){
+  if (sc.mode === 'all') return 'TatCa';
+  if (sc.mode === 'day') return (sc.from||'').replace(/-/g,'');
+  return (sc.from||'').replace(/-/g,'') + '-' + (sc.to||'').replace(/-/g,'');
+}
+/** Lọc bản ghi theo phạm vi xuất — dùng chung cho mọi sheet và cho bộ tự kiểm tra. */
+function scopeFilter(rows, sc){
+  return rows.filter(r => {
+    if (sc.fund && r.fund !== sc.fund) return false;
+    if (sc.mode === 'day')   return r.date === sc.from;
+    if (sc.mode === 'range') return (!sc.from || r.date >= sc.from) && (!sc.to || r.date <= sc.to);
+    return true;
+  });
+}
+/** Tạo worksheet: cột tiền ghi số thật + format #,##0 để Excel SUM được; ngày ghi kiểu ngày. */
+function mkSheet(aoa, o){
+  o = o || {};
+  const ws = XLSX.utils.aoa_to_sheet(aoa, { cellDates:true });
+  const money = o.money || [], dates = o.dates || [];
+  const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+  for (let R = range.s.r; R <= range.e.r; R++){
+    money.forEach(C => { const c = ws[XLSX.utils.encode_cell({r:R,c:C})]; if (c && c.t === 'n') c.z = '#,##0'; });
+    dates.forEach(C => { const c = ws[XLSX.utils.encode_cell({r:R,c:C})];
+      if (c && (c.t === 'd' || (c.t === 'n' && R > (o.headerRow||0)))) c.z = 'dd/mm/yyyy'; });
+  }
+  ws['!cols'] = (o.widths || aoa[o.headerRow||0] || []).map((h,i) => {
+    if (o.widths) return { wch: o.widths[i] };
+    const len = Math.max(String(h==null?'':h).length + 2,
+      ...aoa.slice(1, 60).map(r => String((r||[])[i]==null?'':(r||[])[i]).length + 2));
+    return { wch: Math.min(Math.max(len, 8), 42) };
+  });
+  if (o.autofilter && aoa.length > 1){
+    const hr = o.headerRow || 0;
+    ws['!autofilter'] = { ref: XLSX.utils.encode_range(
+      { r:hr, c:0 }, { r: aoa.length-1, c: Math.max((aoa[hr]||[]).length-1, 0) }) };
+  }
+  return ws;
+}
+/**
+ * ISO 'YYYY-MM-DD' → serial Excel (số nguyên, hệ 1900, gốc 1899-12-30).
+ * Tự tính thay vì đưa Date object cho SheetJS: SheetJS quy đổi theo offset múi giờ
+ * *lịch sử* của năm 1899 (Asia/Bangkok là +6:59:56) nên ô ngày bị dính phần thập phân
+ * 0.0000463 ≈ 4 giây. Ghi số nguyên + format 'dd/mm/yyyy' là chính xác và không phụ thuộc máy.
+ */
+function isoToSerial(iso){
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso||''));
+  if (!m) return '';
+  return Math.round((Date.UTC(+m[1], +m[2]-1, +m[3]) - Date.UTC(1899,11,30)) / 86400000);
+}
+const toDate = iso => isoToSerial(iso);
+const NO_DATA = [['Không có dữ liệu trong khoảng đã chọn']];
+
+function buildWorkbook(sc){
+  const wb = XLSX.utils.book_new();
+  const inc = scopeFilter(S.incomes,  sc).sort((a,b)=>a.date<b.date?-1:1);
+  const exp = scopeFilter(S.expenses, sc).sort((a,b)=>a.date<b.date?-1:1);
+  const funds = sc.fund ? [sc.fund] : FUND_KEYS;
+  const sum = (arr,f) => arr.filter(x=>x.fund===f).reduce((a,x)=>a+int(x.amount),0);
+
+  /* 1. Tong quan */
+  const t = [];
+  t.push(['BÁO CÁO THU CHI QUỸ LỚP']);
+  t.push(['Lớp', S.meta.className || '', '', 'Khoa', S.meta.faculty || '']);
+  t.push(['Học kỳ', S.meta.term || '', '', 'Năm học', S.meta.schoolYear || '']);
+  t.push(['Phạm vi xuất', scopeLabel(sc), '', 'Quỹ', sc.fund ? FUNDS[sc.fund].label : 'Cả ' + FUND_KEYS.length + ' quỹ']);
+  t.push(['Xuất lúc', new Date().toLocaleString('vi-VN')]);
+  t.push([]);
+  t.push(['Chỉ tiêu', ...funds.map(f=>FUNDS[f].label), 'Tổng cộng']);
+  const rowIncome  = funds.map(f => sum(inc,f));
+  const rowExpense = funds.map(f => sum(exp,f));
+  t.push(['Tổng thu',  ...rowIncome,  rowIncome.reduce((a,b)=>a+b,0)]);
+  t.push(['Tổng chi',  ...rowExpense, rowExpense.reduce((a,b)=>a+b,0)]);
+  t.push(['Tồn quỹ',   ...funds.map((f,i)=>rowIncome[i]-rowExpense[i]),
+                       rowIncome.reduce((a,b)=>a+b,0) - rowExpense.reduce((a,b)=>a+b,0)]);
+  if (sc.mode !== 'all'){
+    t.push([]);
+    t.push(['Tồn quỹ luỹ kế toàn thời gian', ...funds.map(f=>lifetimeBalance(f)),
+            funds.reduce((a,f)=>a+lifetimeBalance(f),0)]);
+    t.push(['(Đây là số tiền lớp thực tế đang giữ, không phụ thuộc phạm vi lọc)']);
+  }
+  XLSX.utils.book_append_sheet(wb, mkSheet(t, { money:[1,2,3], headerRow:6, widths:[34,18,18,18,18] }), 'Tong quan');
+
+  /* 2. Thu */
+  const hThu = ['Ngày','Quỹ','Đợt thu','Mã SV','Họ và tên','Số tiền','Hình thức','Người thu','Ghi chú'];
+  const aThu = inc.length ? [hThu, ...inc.map(i => {
+    const s = i.studentId ? studentById(i.studentId) : null;
+    return [toDate(i.date), FUNDS[i.fund].label, periodById(i.periodId)?.name || 'Ngoài đợt',
+      s ? s.code : '', s ? s.fullName : (i.payerName || 'Nguồn khác'), int(i.amount),
+      METHODS[i.method] || '', i.collectedBy || '', i.note || ''];
+  }), [], ['TỔNG CỘNG','','','','', inc.reduce((a,x)=>a+int(x.amount),0)],
+     ...funds.map(f => ['Trong đó ' + FUNDS[f].label,'','','','', sum(inc,f)])] : [hThu, ...NO_DATA];
+  XLSX.utils.book_append_sheet(wb, mkSheet(aThu, { money:[5], dates:[0], autofilter:true }), 'Thu');
+
+  /* 3. Chi */
+  const hChi = ['Ngày','Rút từ quỹ','Nội dung / Mua món gì','Danh mục','Người đi mua','Số tiền','Có hoá đơn','Vượt quỹ','Ghi chú'];
+  const aChi = exp.length ? [hChi, ...exp.map(e => [toDate(e.date), FUNDS[e.fund].label, e.item,
+      e.category || '', e.buyer || '', int(e.amount), e.hasReceipt ? 'Có' : 'Không',
+      e.overdraft ? 'CÓ' : '', e.note || '']),
+    [], ['TỔNG CỘNG','','','','', exp.reduce((a,x)=>a+int(x.amount),0)],
+    ...funds.map(f => ['Trong đó ' + FUNDS[f].label,'','','','', sum(exp,f)])] : [hChi, ...NO_DATA];
+  XLSX.utils.book_append_sheet(wb, mkSheet(aChi, { money:[5], dates:[0], autofilter:true }), 'Chi');
+
+  /* 4. Cong no */
+  const periods = S.periods.filter(p => !sc.fund || p.fund === sc.fund);
+  const dm = debtMatrix();
+  const hNo = ['STT','Mã SV','Họ và tên','Lớp', ...periods.map(p=>`${p.name} (${FUNDS[p.fund].short})`),
+               'Phải nộp','Đã nộp','Còn thiếu','Trạng thái'];
+  const aNo = [hNo, ...dm.map(r => {
+    const cells = periods.map(p => { const c = r.cells.find(x=>x.period.id===p.id); return c ? c.paid : 0; });
+    const must = periods.reduce((a,p)=>a+int(p.amountPerStudent),0);
+    const paid = cells.reduce((a,b)=>a+b,0);
+    return [r.student.stt || '', r.student.code, r.student.fullName, r.student.classCode || '',
+      ...cells, must, paid, Math.max(must-paid,0), paid >= must ? 'Đã đủ' : paid > 0 ? 'Còn thiếu' : 'Chưa nộp'];
+  })];
+  XLSX.utils.book_append_sheet(wb, mkSheet(aNo, {
+    money: periods.map((_,i)=>4+i).concat([4+periods.length, 5+periods.length, 6+periods.length]), autofilter:true }), 'Cong no');
+
+  /* 5. Ma tran dot thu */
+  const hMt = ['Mã SV','Họ và tên', ...periods.map(p=>p.name)];
+  const aMt = [hMt, ...dm.map(r => [r.student.code, r.student.fullName, ...periods.map(p => {
+    const c = r.cells.find(x=>x.period.id===p.id);
+    if (!c || int(c.must) === 0) return '—';
+    return c.status === 'paid' ? 'Đã đóng' : c.status === 'partial' ? 'Thiếu ' + fmtNum(c.remaining) : 'Chưa đóng';
+  })])];
+  XLSX.utils.book_append_sheet(wb, mkSheet(aMt, { autofilter:true }), 'Ma tran dot thu');
+
+  /* 6. Danh sach lop — xuất ra để tái import được */
+  const hDs = ['STT','Mã SV','Họ và tên đệm','Tên','Ngày sinh','Lớp','Ghi chú','Còn học'];
+  const aDs = [hDs, ...S.students.map(s => [s.stt || '', s.code, s.lastName, s.firstName,
+    toDate(s.dob), s.classCode || '', s.note || '', s.active === false ? 'Không' : 'Có'])];
+  XLSX.utils.book_append_sheet(wb, mkSheet(aDs, { dates:[4], autofilter:true }), 'Danh sach lop');
+
+  /* 7. Nhat ky theo ngay — có số dư luỹ kế của từng quỹ */
+  const led = dailyLedger(null).filter(r => (!sc.fund || r.fund === sc.fund) &&
+    (sc.mode === 'all' ? true : sc.mode === 'day' ? r.date === sc.from
+      : (!sc.from || r.date >= sc.from) && (!sc.to || r.date <= sc.to)));
+  const hNk = ['Ngày','Loại','Quỹ','Nội dung / Người nộp','Chi tiết','Số tiền thu','Số tiền chi','Số dư luỹ kế của quỹ'];
+  const aNk = led.length ? [hNk, ...led.map(r => [toDate(r.date), r.kind === 'THU' ? 'Thu' : 'Chi',
+    FUNDS[r.fund].label, r.label, r.extra || '',
+    r.kind === 'THU' ? r.amount : '', r.kind === 'CHI' ? r.amount : '', r.running])] : [hNk, ...NO_DATA];
+  XLSX.utils.book_append_sheet(wb, mkSheet(aNk, { money:[5,6,7], dates:[0], autofilter:true }), 'Nhat ky theo ngay');
+
+  /* 8. QR chuyen khoan — để đối chiếu sao kê ngân hàng với từng sinh viên */
+  if (bankConfigured() && periods.length){
+    const b = S.meta.bank;
+    const hQr = ['Mã SV','Họ và tên','Đợt thu','Quỹ','Còn phải nộp','Nội dung chuyển khoản',
+                 'Ngân hàng','Số tài khoản','Nội dung mã QR (VietQR)'];
+    const aQr = [hQr];
+    periods.forEach(p => {
+      S.students.filter(st => st.active !== false).forEach(st => {
+        const remaining = Math.max(int(p.amountPerStudent) - paidOf(st.id, p.id), 0);
+        if (!remaining) return;
+        const note = transferNote(st, p);
+        aQr.push([st.code, st.fullName, p.name, FUNDS[p.fund].label, remaining, note,
+          b.bankName || b.bin, b.accountNo,
+          buildVietQR({ bin:b.bin, accountNo:b.accountNo, amount:remaining, description:note })]);
+      });
+    });
+    if (aQr.length === 1) aQr.push(['Cả lớp đã nộp đủ, không còn ai cần chuyển khoản']);
+    XLSX.utils.book_append_sheet(wb, mkSheet(aQr, { money:[4], autofilter:true }), 'QR chuyen khoan');
+  }
+
+  return wb;
+}
+function openExportModal(mode){
+  let sc = { mode: mode || 'all', from: todayISO(), to: todayISO(), fund: '' };
+  openModal({
+    title:'Xuất Excel', mw:560,
+    sub:'Workbook gồm: Tổng quan · Thu · Chi · Công nợ · Ma trận đợt thu · Danh sách lớp · Nhật ký theo ngày'
+      + (bankConfigured() ? ' · QR chuyển khoản' : ''),
+    body:`<div class="field"><label>Phạm vi</label><div class="chips">
+        ${[['all','Tất cả'],['range','Theo khoảng ngày'],['day','Theo một ngày']]
+          .map(([v,l])=>`<button type="button" class="chip ${sc.mode===v?'on':''}" data-sc="${v}">${l}</button>`).join('')}
+      </div></div>
+      <div id="scDates"></div>
+      <div class="field"><label for="scFund">Quỹ</label><select id="scFund">
+        <option value="">Cả ${FUND_KEYS.length} quỹ (tách cột riêng)</option>
+        ${FUND_KEYS.map(k=>`<option value="${k}">Chỉ ${esc(FUNDS[k].label)}</option>`).join('')}
+      </select></div>
+      <div class="small muted" id="scInfo"></div>`,
+    footer:`<button class="btn" data-close>Huỷ</button><button class="btn primary" id="scGo">Tải file .xlsx</button>`,
+    onMount(m){
+      const drawDates = () => {
+        const box = m.el('#scDates');
+        box.innerHTML = sc.mode === 'range'
+          ? `<div class="f2"><div class="field"><label for="scFrom">Từ ngày</label><input type="date" id="scFrom" value="${sc.from}"></div>
+             <div class="field"><label for="scTo">Đến ngày</label><input type="date" id="scTo" value="${sc.to}"></div></div>`
+          : sc.mode === 'day'
+          ? `<div class="field" style="max-width:220px"><label for="scFrom">Ngày</label><input type="date" id="scFrom" value="${sc.from}"></div>` : '';
+        const f = m.el('#scFrom'), t2 = m.el('#scTo');
+        if (f) f.onchange = () => { sc.from = f.value; info(); };
+        if (t2) t2.onchange = () => { sc.to = t2.value; info(); };
+        info();
+      };
+      const info = () => {
+        const i = scopeFilter(S.incomes, sc).length, e = scopeFilter(S.expenses, sc).length;
+        m.el('#scInfo').innerHTML = `Phạm vi này có <b>${i}</b> khoản thu và <b>${e}</b> khoản chi.`;
+      };
+      m.all('[data-sc]').forEach(b => b.onclick = () => {
+        sc.mode = b.dataset.sc;
+        m.all('[data-sc]').forEach(x => x.classList.toggle('on', x.dataset.sc === sc.mode));
+        drawDates();
+      });
+      m.el('#scFund').onchange = e => { sc.fund = e.target.value; info(); };
+      drawDates();
+      m.el('#scGo').onclick = () => {
+        if (typeof XLSX === 'undefined') return toast('err','Chưa tải được thư viện Excel','Kiểm tra kết nối mạng rồi mở lại trang.');
+        if (sc.mode === 'range' && sc.from && sc.to && sc.from > sc.to)
+          return toast('err','Khoảng ngày không hợp lệ','“Từ ngày” phải trước “Đến ngày”.');
+        try {
+          const wb = buildWorkbook(sc);
+          const name = `QuyLop_${(S.meta.className||'lop').replace(/\s+/g,'')}_${scopeFileTag(sc)}_${stampNow()}.xlsx`;
+          XLSX.writeFile(wb, name);
+          m.close();
+          toast('ok','Đã xuất Excel', name);
+        } catch(err){ toast('err','Xuất Excel thất bại', err.message); }
+      };
+    }
+  });
+}
+function downloadTemplate(){
+  if (typeof XLSX === 'undefined') return toast('err','Chưa tải được thư viện Excel');
+  const aoa = [
+    ['DANH SÁCH LỚP — FILE MẪU IMPORT'],
+    ['Giữ nguyên dòng tiêu đề bên dưới. Mã SV nên định dạng Text để không bị Excel đổi thành số.'],
+    [],
+    ['STT','Mã SV','Họ và tên đệm','Tên','Ngày sinh','Lớp','Trạng thái','Số tiền','Ngày','Ghi chú'],
+    [1,'2400000001','Trần Văn','An', toDate('2006-07-20'), S.meta.className||'DCXDXD69_03B','Đã đóng',50000, toDate(todayISO()),''],
+    [2,'2400000002','Lê Thị','Anh', toDate('2006-06-05'), S.meta.className||'DCXDXD69_03B','Chưa đóng','','',''],
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, mkSheet(aoa, { money:[7], dates:[4,8], headerRow:3 }), 'Danh sach lop');
+  XLSX.writeFile(wb, 'FileMau_DanhSachLop.xlsx');
+  toast('ok','Đã tải file mẫu','Điền theo đúng các cột trong file rồi import lại.');
+}
+function exportErrorRows(errs){
+  if (typeof XLSX === 'undefined' || !errs.length) return;
+  const aoa = [['Dòng trong file','STT','Mã SV','Họ và tên','Ngày sinh','Lý do lỗi'],
+    ...errs.map(r => [r._row, r.stt, r.code, r.fullName, r.dob ? toDate(r.dob) : '', r.errors.join('; ')])];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, mkSheet(aoa, { dates:[4], autofilter:true }), 'Dong loi');
+  XLSX.writeFile(wb, `DongLoi_Import_${stampNow()}.xlsx`);
+}
+
+/* ==========================================================================
+   SELFTEST — chạy trên dữ liệu giả, không ảnh hưởng dữ liệu thật
+   ========================================================================== */
+function runSelfTest(){
+  const out = [];
+  const t = (name, fn) => {
+    try { const r = fn(); out.push({ ok: r === true, name, msg: r === true ? '' : String(r) }); }
+    catch(e){ out.push({ ok:false, name, msg:'Lỗi: ' + e.message }); }
+  };
+  const real = S;                                     // giữ dữ liệu thật, chạy test trên sandbox
+  const eq = (a,b,label) => a === b ? true : `${label}: nhận ${a}, mong đợi ${b}`;
+
+  t('Tồn quỹ = Tổng thu − Tổng chi (từng quỹ), đúng sau thêm/sửa/xoá', () => {
+    S = emptyState();
+    S.periods.push({ id:'p1', name:'P1', fund:'QUY_LOP', amountPerStudent:50000, openDate:'2026-09-01', status:'OPEN' });
+    S.incomes.push({ id:'i1', date:'2026-09-02', fund:'QUY_LOP', periodId:'p1', studentId:null, payerName:'A', amount:100000 });
+    S.expenses.push({ id:'e1', date:'2026-09-03', fund:'QUY_LOP', item:'Nước', buyer:'B', amount:30000 });
+    if (lifetimeBalance('QUY_LOP') !== 70000) return 'sau khi thêm: ' + lifetimeBalance('QUY_LOP');
+    S.incomes[0].amount = 120000;                                        // sửa
+    if (lifetimeBalance('QUY_LOP') !== 90000) return 'sau khi sửa: ' + lifetimeBalance('QUY_LOP');
+    S.expenses.splice(0,1);                                              // xoá
+    return eq(lifetimeBalance('QUY_LOP'), 120000, 'sau khi xoá');
+  });
+  t('Thu vào Quỹ Đoàn không làm đổi tồn Quỹ Lớp (và ngược lại)', () => {
+    S = emptyState();
+    S.incomes.push({ id:'i1', date:'2026-09-02', fund:'QUY_LOP',  amount:100000, payerName:'A' });
+    S.incomes.push({ id:'i2', date:'2026-09-02', fund:'QUY_DOAN', amount:70000,  payerName:'B' });
+    S.expenses.push({ id:'e1', date:'2026-09-04', fund:'QUY_DOAN', item:'Cờ', buyer:'C', amount:20000 });
+    if (lifetimeBalance('QUY_LOP') !== 100000) return 'Quỹ Lớp bị ảnh hưởng: ' + lifetimeBalance('QUY_LOP');
+    return eq(lifetimeBalance('QUY_DOAN'), 50000, 'Quỹ Đoàn');
+  });
+  t('Mã SV dạng số/khoa học → chuỗi nguyên', () => {
+    const cases = [['2.400000001E9','2400000001'], [2400000001,'2400000001'],
+                   ['2400000001.0','2400000001'], ['0240000001','0240000001']];
+    for (const [i,o] of cases){ const got = normCode(i); if (got !== o) return `normCode(${i}) = ${got}, mong đợi ${o}`; }
+    return true;
+  });
+  t('Serial Excel → ngày (hệ 1900, gốc 1899-12-30)', () => {
+    const cases = [[38918,'2006-07-20'], [38873,'2006-06-05'], [38399,'2005-02-16'], [39077,'2006-12-26']];
+    for (const [i,o] of cases){ const got = excelSerialToISO(i); if (got !== o) return `${i} → ${got}, mong đợi ${o}`; }
+    return true;
+  });
+  t('Ô ngày kiểu Date lệch vài giây trước nửa đêm vẫn ra đúng ngày', () => {
+    const d = new Date(2006, 6, 20, 0, 0, 0);            // 20/07/2006 00:00 giờ địa phương
+    d.setSeconds(d.getSeconds() - 4);                     // → 19/07/2006 23:59:56 (kiểu SheetJS trả về)
+    const got = parseDateFlexible(d);
+    return got === '2006-07-20' ? true : `nhận ${got}, mong đợi 2006-07-20`;
+  });
+  t('Import file mẫu: đọc đúng 49 SV, không lấy dòng "Tổng quỹ"', () => {
+    S = emptyState();
+    const aoa = fakeClassSheet();
+    const hr = detectHeaderRow(aoa);
+    if (hr !== 9) return 'dò dòng tiêu đề ra dòng ' + (hr+1) + ', mong đợi dòng 10';
+    const mapping = {}; (aoa[hr]||[]).forEach((h,c) => mapping[c] = guessField(h));
+    mapping[3] = 'firstName';
+    const ex = extractRows(aoa, hr, mapping);
+    if (ex.rows.length !== 49) return 'đọc được ' + ex.rows.length + ' dòng, mong đợi 49';
+    if (ex.rows.some(r => noAccent(r.fullName).startsWith('tong'))) return 'dòng tổng bị lẫn vào danh sách';
+    if (ex.footerTotal !== 1000000) return 'không đọc được dòng tổng để đối chiếu: ' + ex.footerTotal;
+    if (ex.rows[0].code !== '2400000001') return 'mã SV dòng đầu = ' + ex.rows[0].code;
+    if (ex.rows[0].fullName !== 'Trần Văn Mẫu') return 'ghép họ tên sai: ' + ex.rows[0].fullName;
+    if (ex.rows[0].dob !== '2006-07-20') return 'ngày sinh dòng đầu = ' + ex.rows[0].dob;
+    return true;
+  });
+  t('Import lại lần 2 với chế độ "Bỏ qua trùng" → vẫn 49 SV', () => {
+    S = emptyState();
+    const aoa = fakeClassSheet(), hr = detectHeaderRow(aoa);
+    const mapping = {}; (aoa[hr]||[]).forEach((h,c) => mapping[c] = guessField(h)); mapping[3] = 'firstName';
+    const push = () => {
+      const ex = extractRows(aoa, hr, mapping); validateRows(ex.rows);
+      ex.rows.forEach(r => { if (!r.errors.length && !r.existing)
+        S.students.push({ id:uid(), code:r.code, lastName:r.lastName, firstName:r.firstName,
+                          fullName:r.fullName, dob:r.dob, active:true }); });
+    };
+    push(); const first = S.students.length; push();
+    if (first !== 49) return 'lần 1 được ' + first + ' SV';
+    return eq(S.students.length, 49, 'sau lần 2');
+  });
+  t('Xuất theo một ngày chỉ chứa bản ghi của ngày đó', () => {
+    S = emptyState();
+    S.incomes.push({ id:'a', date:'2026-09-05', fund:'QUY_LOP', amount:50000, payerName:'A' });
+    S.incomes.push({ id:'b', date:'2026-09-06', fund:'QUY_LOP', amount:50000, payerName:'B' });
+    S.expenses.push({ id:'c', date:'2026-09-05', fund:'QUY_DOAN', item:'X', buyer:'Y', amount:10000 });
+    const sc = { mode:'day', from:'2026-09-05', fund:'' };
+    const i = scopeFilter(S.incomes, sc), e = scopeFilter(S.expenses, sc);
+    if (i.length !== 1 || i[0].id !== 'a') return 'thu lọc ra ' + i.length + ' dòng';
+    return eq(e.length, 1, 'chi lọc ra');
+  });
+  t('Tổng còn thiếu = Σ(số SV × mức thu) − Σ đã nộp, đúng theo từng quỹ', () => {
+    S = emptyState();
+    S.periods.push({ id:'p1', name:'Lớp', fund:'QUY_LOP',  amountPerStudent:50000, openDate:'2026-09-01', status:'OPEN' });
+    S.periods.push({ id:'p2', name:'Đoàn', fund:'QUY_DOAN', amountPerStudent:20000, openDate:'2026-09-01', status:'OPEN' });
+    for (let k = 0; k < 5; k++) S.students.push({ id:'s'+k, code:'c'+k, lastName:'SV', firstName:''+k, fullName:'SV '+k, active:true });
+    S.incomes.push({ id:'i1', date:'2026-09-02', fund:'QUY_LOP',  periodId:'p1', studentId:'s0', amount:50000 });
+    S.incomes.push({ id:'i2', date:'2026-09-02', fund:'QUY_LOP',  periodId:'p1', studentId:'s1', amount:20000 });
+    S.incomes.push({ id:'i3', date:'2026-09-02', fund:'QUY_DOAN', periodId:'p2', studentId:'s0', amount:20000 });
+    const st1 = periodStats(S.periods[0]), st2 = periodStats(S.periods[1]);
+    if (st1.remaining !== 5*50000 - 70000) return 'Quỹ Lớp còn thiếu = ' + st1.remaining;
+    if (st1.paidCount !== 1 || st1.partialCount !== 1 || st1.unpaidCount !== 3)
+      return `Quỹ Lớp: ${st1.paidCount} đủ / ${st1.partialCount} thiếu / ${st1.unpaidCount} chưa`;
+    return eq(st2.remaining, 5*20000 - 20000, 'Quỹ Đoàn còn thiếu');
+  });
+  t('CRC16/CCITT-FALSE đúng chuẩn EMVCo', () =>
+    crc16('123456789') === '29B1' ? true : `crc16('123456789') = ${crc16('123456789')}, mong đợi 29B1`);
+  t('Payload VietQR đúng cấu trúc và CRC tự kiểm', () => {
+    const p = buildVietQR({ bin:'970436', accountNo:'1021234567', amount:50000, description:'2400000001 QUY LOP' });
+    const parse = str => { const out = {}; let i = 0;
+      while (i < str.length){ const id = str.substr(i,2), len = +str.substr(i+2,2); out[id] = str.substr(i+4,len); i += 4+len; }
+      return out; };
+    const f = parse(p);
+    if (f['00'] !== '01') return 'thiếu phiên bản';
+    if (f['01'] !== '12') return 'QR có số tiền phải là kiểu 12, nhận ' + f['01'];
+    if (f['53'] !== '704') return 'tiền tệ phải là 704 (VND)';
+    if (f['54'] !== '50000') return 'số tiền trong QR = ' + f['54'];
+    if (f['58'] !== 'VN') return 'thiếu mã quốc gia';
+    const acc = parse(parse(f['38'])['01']);
+    if (acc['00'] !== '970436' || acc['01'] !== '1021234567') return 'sai BIN/số tài khoản: ' + JSON.stringify(acc);
+    if (parse(f['38'])['02'] !== 'QRIBFTTA') return 'thiếu mã dịch vụ chuyển khoản';
+    return p.slice(-4) === crc16(p.slice(0,-4)) ? true : 'CRC cuối payload không khớp';
+  });
+  t('QR không có số tiền là mã tĩnh (kiểu 11), không có trường 54', () => {
+    const p = buildVietQR({ bin:'970436', accountNo:'1021234567' });
+    const f = {}; let i = 0;
+    while (i < p.length){ const id = p.substr(i,2), len = +p.substr(i+2,2); f[id] = p.substr(i+4,len); i += 4 + len; }
+    if (f['01'] !== '11') return 'kiểu QR = ' + f['01'] + ', mong đợi 11';
+    return f['54'] === undefined ? true : 'vẫn có trường số tiền: ' + f['54'];
+  });
+  t('Chưa cấu hình tài khoản thì không sinh QR', () =>
+    buildVietQR({ bin:'', accountNo:'' }) === '' && buildVietQR({ bin:'97043', accountNo:'123' }) === ''
+      ? true : 'vẫn sinh ra payload dù thiếu cấu hình');
+  t('Nội dung chuyển khoản: bỏ dấu, in hoa, tối đa 25 ký tự', () => {
+    const n = cleanTransferNote('Trần Văn Mẫu – Quỹ lớp học kỳ I (2026)');
+    if (/[^A-Z0-9 ]/.test(n)) return 'còn ký tự lạ: ' + n;
+    if (n.length > 25) return 'dài ' + n.length + ' ký tự';
+    return n === n.trim() ? true : 'còn khoảng trắng ở đầu/cuối: "' + n + '"';
+  });
+  t('Import KHÔNG tự tạo khoản thu từ cột Số tiền trong file', () => {
+    S = emptyState();
+    const aoa = fakeClassSheet(), hr = detectHeaderRow(aoa);
+    const mapping = {}; (aoa[hr]||[]).forEach((h,c) => mapping[c] = guessField(h)); mapping[3] = 'firstName';
+    const ex = extractRows(aoa, hr, mapping); validateRows(ex.rows);
+    const hasMoneyInFile = ex.rows.some(r => r.amount > 0);
+    applyImport(ex, { dedupe:'skip' }, {});
+    if (!hasMoneyInFile) return 'file mẫu phải có cột số tiền để phép kiểm tra này có ý nghĩa';
+    if (S.incomes.length !== 0) return 'đã tạo ' + S.incomes.length + ' khoản thu từ file';
+    return S.students.length === 49 ? true : 'nhập được ' + S.students.length + ' SV';
+  });
+  t('Nhập tiền "50.000" và "50000" cho cùng một giá trị', () =>
+    parseMoney('50.000') === 50000 && parseMoney('50000') === 50000 && parseMoney('50 000 ₫') === 50000
+      ? true : 'parseMoney sai');
+  t('Tìm kiếm bỏ dấu khớp tên có dấu', () =>
+    noAccent('Trần Văn Mẫu') === 'tran van mau' && noAccent('Đặng Văn Bảy') === 'dang van bay'
+      ? true : 'noAccent sai: ' + noAccent('Trần Văn Mẫu'));
+
+  S = real;                                            // trả lại dữ liệu thật
+  const pass = out.filter(o=>o.ok).length;
+  return `<div class="${pass===out.length?'okbox':'warnbox'}" style="margin-bottom:.6rem">
+      <b>${pass}/${out.length} phép kiểm tra đạt</b>${pass===out.length?' — số liệu tính toán đúng như đặc tả.':''}</div>
+    ${out.map(o=>`<div class="testline ${o.ok?'p':'f'}"><span class="st">${o.ok?'✓ ĐẠT':'✕ LỖI'}</span>
+      <span>${esc(o.name)}${o.msg?` <span style="color:var(--expense)">— ${esc(o.msg)}</span>`:''}</span></div>`).join('')}`;
+}
+/** Dựng lại đúng hình dạng file thật để test parser (9 dòng tiêu đề · tên tách 2 cột · serial ngày · dòng tổng). */
+function fakeClassSheet(){
+  const rows = [
+    ['BỘ GIÁO DỤC VÀ ĐÀO TẠO', null, null, null, null, null, null, null, null, 'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM'],
+    ['TRƯỜNG ĐẠI HỌC MỎ - ĐỊA CHẤT', null, null, null, null, null, null, null, null, 'Độc lập - Tự do - Hạnh phúc'],
+    [], [null,null,null,null,null,null,null,null,null,null,null,'Hà Nội, ngày tháng năm 2026'], [],
+    ['DANH SÁCH ĐÓNG GÓP QUỸ LỚP HỌC KỲ I - NĂM HỌC 2026-2027'],
+    ['KHOA: XÂY DỰNG - LỚP: DCXDXD69_03B'],
+    [], [],
+    ['STT','Mã SV','Họ và tên SV', null,'Ngày sinh','Lớp ','Trạng thái','Số tiền ','Ngày','Mua','Phát sinh','Tổng tiền còn lại ','Tiền thiếu '],
+  ];
+  const names = [['Trần Văn','An',38918],['Lê Thị','Anh',38873],['Hoàng Văn','Anh',38515],['Bùi Văn','Anh',38746]];
+  for (let k = 0; k < 49; k++){
+    const n = names[k % names.length];
+    rows.push([k+1, 2400000001 + k, n[0], n[1] + (k>3?('_'+k):''), n[2] + k, 'DCXDXD69_03B',
+               k % 2 ? 'Đã đóng ' : 'Chưa đóng ', k % 2 ? 50000 : null]);
+  }
+  rows.push([], [], ['Tổng quỹ :', null, null, null, null, null, null, 1000000]);
+  return rows;
+}
+
+/* ==========================================================================
+   DEMO DATA
+   ========================================================================== */
+function loadDemo(){
+  const p1 = { id:uid(), name:'Quỹ lớp học kỳ I 2026-2027', fund:'QUY_LOP', amountPerStudent:50000,
+    openDate:'2026-09-01', dueDate:'2026-09-30', status:'OPEN', note:'', demo:true };
+  const p2 = { id:uid(), name:'Quỹ Đoàn học kỳ I 2026-2027', fund:'QUY_DOAN', amountPerStudent:20000,
+    openDate:'2026-09-01', dueDate:'2026-10-15', status:'OPEN', note:'', demo:true };
+  const st = [
+    { lastName:'Trần Văn',  firstName:'An',  code:'2400000001', dob:'2005-01-15' },
+    { lastName:'Lê Thị',    firstName:'Anh', code:'2400000002', dob:'2005-02-20' },
+    { lastName:'Phạm Minh',  firstName:'Nam', code:'2400000003', dob:'2005-03-25' },
+  ].map((s,i) => Object.assign(s, { id:uid(), stt:i+1, fullName: fullNameOf(s),
+      classCode: S.meta.className || 'DCXDXD69_03B', active:true, note:'', demo:true }));
+  S.periods.push(p1, p2); S.students.push(...st);
+  S.incomes.push(
+    { id:uid(), date:'2026-09-03', fund:'QUY_LOP',  periodId:p1.id, studentId:st[0].id, payerName:st[0].fullName,
+      amount:50000, method:'CASH', collectedBy:'Thủ quỹ', note:'', demo:true },
+    { id:uid(), date:'2026-09-03', fund:'QUY_LOP',  periodId:p1.id, studentId:st[1].id, payerName:st[1].fullName,
+      amount:30000, method:'CASH', collectedBy:'Thủ quỹ', note:'Nộp thiếu 20.000', demo:true },
+    { id:uid(), date:'2026-09-04', fund:'QUY_DOAN', periodId:p2.id, studentId:st[0].id, payerName:st[0].fullName,
+      amount:20000, method:'TRANSFER', collectedBy:'Thủ quỹ', note:'', demo:true });
+  S.expenses.push(
+    { id:uid(), date:'2026-09-05', fund:'QUY_LOP', item:'Nước + bánh sinh hoạt lớp', category:'Sinh hoạt',
+      buyer:'Phạm Minh Ví', amount:120000, hasReceipt:false, note:'', demo:true },
+    { id:uid(), date:'2026-09-06', fund:'QUY_DOAN', item:'In giấy khen chi đoàn', category:'In ấn',
+      buyer:'Trần Văn Mẫu', amount:15000, hasReceipt:true, note:'', demo:true });
+  if (!S.meta.className) Object.assign(S.meta,
+    { className:'DCXDXD69_03B', faculty:'Xây dựng', term:'Học kỳ I', schoolYear:'2026-2027' });
+  S.meta.demo = true;
+  save(); go('dashboard');
+  toast('ok','Đã nạp dữ liệu demo','Xoá bất cứ lúc nào ở Cài đặt → Xoá dữ liệu demo.');
+}
+
+/* ==========================================================================
+   INIT
+   ========================================================================== */
+function initEvents(){
+  document.querySelectorAll('.nav-item').forEach(b => b.onclick = () => go(b.dataset.view));
+  byId('btnAddIncome').onclick  = () => openIncomeModal();
+  byId('btnAddExpense').onclick = () => openExpenseModal();
+  byId('btnTheme').onclick = () => {
+    P.theme = P.theme === 'auto' ? 'light' : P.theme === 'light' ? 'dark' : 'auto';
+    applyPrefs();
+    toast('ok','Giao diện: ' + ({ light:'Sáng', dark:'Tối', auto:'Theo hệ thống' })[P.theme], '', 1800);
+    if (ui.view === 'settings') render();
+  };
+  const burger = byId('burger');
+  burger.onclick = () => {
+    const side = byId('side'), open = !side.classList.contains('open');
+    side.classList.toggle('open', open);
+    burger.setAttribute('aria-expanded', String(open));
+    document.querySelector('.scrim')?.remove();
+    if (open){
+      const sc = document.createElement('div');
+      sc.className = 'scrim';
+      sc.onclick = () => { side.classList.remove('open'); sc.remove(); burger.setAttribute('aria-expanded','false'); };
+      document.body.appendChild(sc);
+    }
+  };
+  document.addEventListener('keydown', e => {
+    const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName);
+    if (byId('modalRoot').children.length) return;
+    if (typing) return;
+    if (e.key === 't' || e.key === 'T'){ e.preventDefault(); openIncomeModal(); }
+    else if (e.key === 'c' || e.key === 'C'){ e.preventDefault(); openExpenseModal(); }
+    else if (e.key === '/'){
+      e.preventDefault();
+      if (ui.view !== 'students') go('students');
+      setTimeout(()=>byId('q')?.focus(), 80);
+    }
+  });
+  // dự phòng nếu CDN chính bị chặn
+  if (typeof XLSX === 'undefined'){
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    document.head.appendChild(s);
+  }
+}
+(function init(){
+  loadPrefs(); applyPrefs();
+  const had = load();
+  initEvents();
+  render();
+  if (!had && !S.students.length){
+    setTimeout(() => openModal({
+      title:'Chào mừng đến Quỹ Lớp', mw:520,
+      sub:'Công cụ quản lý thu chi quỹ lớp — rành mạch đến từng đồng',
+      body:`<p>Ba việc app này làm cho bạn:</p>
+        <ul style="margin:.2rem 0 .8rem;padding-left:1.1rem;line-height:1.9">
+          <li><b>Theo dõi nguồn thu</b> — ai đã nộp, ai còn nợ, tách riêng <b>Quỹ Lớp</b> và <b>Quỹ Đoàn</b>, nhiều đợt thu theo thời gian.</li>
+          <li><b>Nhật ký mua sắm</b> — ngày nào, mua gì, ai đi mua, rút từ quỹ nào.</li>
+          <li><b>Báo cáo tự động</b> — mở lên là thấy tổng thu, tổng chi, tồn quỹ của từng quỹ.</li>
+        </ul>
+        <p class="small muted">Dữ liệu lưu ngay trong trình duyệt này. Nhớ tải file sao lưu JSON định kỳ ở mục Nhập / Xuất.</p>`,
+      footer:`<button class="btn ghost left" data-close>Để tôi tự làm</button>
+              <button class="btn" id="wDemo">Xem dữ liệu demo</button>
+              <button class="btn primary" id="wImport" data-autofocus>Nhập danh sách lớp từ Excel</button>`,
+      onMount(m){
+        m.el('#wDemo').onclick   = () => { m.close(); loadDemo(); };
+        m.el('#wImport').onclick = () => { m.close(); openImportModal(); };
+      }
+    }), 400);
+  }
+})();
+</script>
+</body>
+</html>
