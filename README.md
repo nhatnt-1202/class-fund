@@ -3,7 +3,23 @@
 Công cụ quản lý tài chính lớp học **rành mạch đến từng đồng**: theo dõi ai đã nộp / ai còn nợ,
 ghi nhật ký mua sắm, và luôn có bảng tổng kết tự động cho **từng quỹ riêng biệt**.
 
-Bản này là **all-in-one một file**: `index.html`. Không cài đặt, không npm, không server.
+Repo có **hai bản dùng được**, chọn theo nhu cầu:
+
+| | `index.html` (bản 1) | `app/` (bản 2) |
+|---|---|---|
+| Cài đặt | Không — double-click là chạy | `npm install` + một project Supabase |
+| Lưu dữ liệu | localStorage của một trình duyệt | Postgres trên Supabase |
+| Nhiều người dùng | Không — ai mở file cũng sửa được | Có — 5 vai trò, phân quyền bằng RLS |
+| Audit log | Không | Có, do trigger DB ghi, không ai sửa được |
+| Thu qua QR VietQR | Có | Có |
+| Import / export Excel | Có | Có |
+| Phù hợp khi | Một người giữ quỹ, muốn dùng ngay | Cả lớp cùng xem, thủ quỹ và lớp trưởng cùng làm |
+
+Tài liệu bản 2: [`app/README.md`](app/README.md). Phần dưới đây nói về **bản 1**.
+
+---
+
+Bản 1 là **all-in-one một file**: `index.html`. Không cài đặt, không npm, không server.
 Mở bằng double-click là chạy.
 
 ---
@@ -164,8 +180,8 @@ SELFTEST  bộ tự kiểm tra
 ## Giới hạn đã biết
 
 - **Dữ liệu chỉ nằm trên một máy/một trình duyệt.** Không có tài khoản, không đồng bộ, ai mở file
-  cũng sửa được. Cần nhiều người dùng + phân quyền + audit log thì xem `PROMPT.md`
-  (bản Supabase + React đang là bước tiếp theo).
+  cũng sửa được. Cần nhiều người dùng + phân quyền + audit log thì dùng **bản 2** trong
+  [`app/`](app/README.md).
 - **Header trong file Excel xuất ra không in đậm được**: bản community của SheetJS không ghi style ô.
   Bù lại đã có autofilter, độ rộng cột và định dạng số/ngày.
 - **QR cần được quét thử với ngân hàng thật** trước khi dùng cho cả lớp (xem cảnh báo ở trên).
@@ -175,5 +191,7 @@ SELFTEST  bộ tự kiểm tra
 
 ## Tài liệu
 
-- `PROMPT.v1.md` — đặc tả của chính bản này (all-in-one 1 file).
-- `PROMPT.md` — đặc tả bản đầy đủ: Supabase + React, có tài khoản, phân quyền 5 vai trò, audit log.
+- `PROMPT.v1.md` — đặc tả của bản 1 (all-in-one 1 file).
+- `PROMPT.md` — đặc tả của bản 2 (Supabase + React, tài khoản, phân quyền, audit log).
+- `app/README.md` — hướng dẫn dựng và vận hành bản 2.
+- `tests/run.js` — kiểm thử bản 1 · `tests/db/run.sh` — kiểm thử database của bản 2.

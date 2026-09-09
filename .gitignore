@@ -7,6 +7,7 @@ Thumbs.db
 # phụ thuộc & build (dùng cho bản Supabase + React ở bước 2)
 node_modules/
 dist/
+*.tsbuildinfo
 .env
 .env.local
 

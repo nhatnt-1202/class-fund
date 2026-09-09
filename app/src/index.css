@@ -1,0 +1,199 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =====================================================================================
+   Token màu — định nghĩa dạng "R G B" để Tailwind dùng được với alpha (bg-brand/10).
+   Màu định danh quỹ nhất quán toàn app: Quỹ Lớp = indigo, Quỹ Đoàn = amber.
+   ===================================================================================== */
+:root {
+  --c-bg: 245 246 250;
+  --c-surface: 255 255 255;
+  --c-surface-2: 241 243 249;
+  --c-surface-3: 233 236 244;
+  --c-border: 226 230 240;
+  --c-border-strong: 205 212 227;
+  --c-text: 19 23 34;
+  --c-text-2: 69 76 94;
+  --c-text-3: 107 114 128;
+  --c-brand: 79 70 229;
+  --c-brand-soft: 238 239 254;
+  --c-brand-ink: 55 48 163;
+  --c-lop: 79 70 229;
+  --c-lop-soft: 236 237 253;
+  --c-lop-ink: 49 46 129;
+  --c-doan: 180 83 9;
+  --c-doan-soft: 253 240 224;
+  --c-doan-ink: 124 61 5;
+  --c-income: 14 122 77;
+  --c-income-soft: 229 246 238;
+  --c-expense: 192 39 59;
+  --c-expense-soft: 253 235 238;
+  --c-warn: 163 90 6;
+  --c-warn-soft: 253 242 227;
+  --c-focus: 37 99 235;
+  /* Màu cho MARK trong biểu đồ — đã chạy qua scripts/validate_palette.js:
+     ĐẠT cả 5 phép (dải sáng, độ bão hoà, phân biệt mù màu ΔE 31.7, tương phản nền). */
+  --c-chart-lop: 79 70 229;
+  --c-chart-doan: 180 83 9;
+  --fs-scale: 1;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --c-bg: 14 16 22;
+    --c-surface: 23 26 34;
+    --c-surface-2: 29 33 43;
+    --c-surface-3: 37 42 54;
+    --c-border: 39 44 56;
+    --c-border-strong: 57 64 79;
+    --c-text: 233 236 243;
+    --c-text-2: 182 189 205;
+    --c-text-3: 143 151 169;
+    --c-brand: 139 140 247;
+    --c-brand-soft: 35 36 69;
+    --c-brand-ink: 195 196 251;
+    --c-lop: 139 140 247;
+    --c-lop-soft: 34 36 74;
+    --c-lop-ink: 195 196 251;
+    --c-doan: 232 163 92;
+    --c-doan-soft: 58 42 21;
+    --c-doan-ink: 246 205 155;
+    --c-income: 78 201 140;
+    --c-income-soft: 18 50 39;
+    --c-expense: 242 116 138;
+    --c-expense-soft: 58 26 34;
+    --c-warn: 233 178 106;
+    --c-warn-soft: 56 41 15;
+    --c-focus: 122 165 255;
+    /* Bước màu riêng cho dark mode (không lật tự động): ĐẠT dải sáng L 0.48–0.67 và ΔE 28.9 */
+    --c-chart-lop: 118 121 240;
+    --c-chart-doan: 192 130 64;
+  }
+}
+
+:root[data-theme='dark'] {
+  --c-bg: 14 16 22;
+  --c-surface: 23 26 34;
+  --c-surface-2: 29 33 43;
+  --c-surface-3: 37 42 54;
+  --c-border: 39 44 56;
+  --c-border-strong: 57 64 79;
+  --c-text: 233 236 243;
+  --c-text-2: 182 189 205;
+  --c-text-3: 143 151 169;
+  --c-brand: 139 140 247;
+  --c-brand-soft: 35 36 69;
+  --c-brand-ink: 195 196 251;
+  --c-lop: 139 140 247;
+  --c-lop-soft: 34 36 74;
+  --c-lop-ink: 195 196 251;
+  --c-doan: 232 163 92;
+  --c-doan-soft: 58 42 21;
+  --c-doan-ink: 246 205 155;
+  --c-income: 78 201 140;
+  --c-income-soft: 18 50 39;
+  --c-expense: 242 116 138;
+  --c-expense-soft: 58 26 34;
+  --c-warn: 233 178 106;
+  --c-warn-soft: 56 41 15;
+  --c-focus: 122 165 255;
+  --c-chart-lop: 118 121 240;
+  --c-chart-doan: 192 130 64;
+}
+
+@layer base {
+  html {
+    font-size: calc(16px * var(--fs-scale));
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-bg text-ink font-sans antialiased;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.6;
+    margin: 0;
+  }
+  /* Chế độ dễ đọc: chữ to hơn, giãn dòng và giãn chữ */
+  body.reading {
+    --fs-scale: 1.12;
+    line-height: 1.8;
+    letter-spacing: 0.01em;
+    word-spacing: 0.05em;
+  }
+  h1, h2, h3, h4 {
+    @apply font-head;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+  }
+  :focus-visible {
+    outline: 2px solid rgb(var(--c-focus));
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  /* Ô nhập và select mặc định */
+  input[type='text'], input[type='date'], input[type='search'], input[type='email'],
+  input[type='password'], input[type='number'], select, textarea {
+    @apply w-full min-h-[42px] rounded-[10px] border border-lineStrong bg-surface px-3 py-2 text-ink;
+    transition: border-color 0.14s, box-shadow 0.14s;
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: rgb(var(--c-focus));
+    box-shadow: 0 0 0 3px rgb(var(--c-focus) / 0.22);
+  }
+  input[aria-invalid='true'] {
+    border-color: rgb(var(--c-expense));
+    box-shadow: 0 0 0 3px rgb(var(--c-expense) / 0.18);
+  }
+  table { @apply w-full text-sm; border-collapse: separate; border-spacing: 0; }
+  th {
+    @apply sticky top-0 z-[5] bg-surface2 text-ink2 text-left px-3 py-2 border-b border-line whitespace-nowrap;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.045em;
+  }
+  td { @apply px-3 py-2 border-b border-line align-middle; }
+  tbody tr { transition: background 0.14s; }
+  tbody tr:hover { @apply bg-surface2; }
+  tfoot td { @apply bg-surface2 font-bold border-t-2 border-lineStrong; border-bottom: 0; }
+}
+
+@layer utilities {
+  .num { font-variant-numeric: tabular-nums; }
+  .card { @apply bg-surface border border-line rounded-xl2 shadow-s1; }
+  .skel {
+    background: linear-gradient(90deg, rgb(var(--c-surface-2)) 25%, rgb(var(--c-surface-3)) 37%, rgb(var(--c-surface-2)) 63%);
+    background-size: 400% 100%;
+    animation: shimmer 1.4s linear infinite;
+    @apply rounded;
+  }
+  .qr-svg svg { display: block; width: 100%; height: auto; }
+  .row-flash { animation: flash 1.8s cubic-bezier(0.22, 1, 0.36, 1); }
+}
+
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+@keyframes flash {
+  0% { background: rgb(var(--c-brand-soft)); }
+  100% { background: transparent; }
+}
+
+/* Giảm chuyển động: tôn trọng cài đặt hệ điều hành và công tắc trong app */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.09s !important;
+    scroll-behavior: auto !important;
+  }
+}
+body.no-motion *, body.no-motion *::before, body.no-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.09s !important;
+}
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: #fff; }
+}
