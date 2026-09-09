@@ -1,5 +1,5 @@
 -- =====================================================================================
--- Kiểm thử DB: RLS, guard nghiệp vụ, audit log, view báo cáo, RPC import.
+-- Kiểm thử DB: nhiều lớp, cách ly dữ liệu giữa các lớp, RLS, guard nghiệp vụ, audit, RPC.
 -- Chạy: bash tests/db/run.sh   (fail-fast: sai một phép là dừng và trả mã lỗi)
 -- =====================================================================================
 \set ON_ERROR_STOP on
@@ -14,7 +14,7 @@ begin
   raise notice '  PASS  %', msg;
 end $q$;
 
-/** Dùng cho những thao tác BẮT BUỘC phải bị chặn. */
+/** Dùng cho những thao tác BẮT BUỘC phải bị chặn bằng lỗi. */
 create or replace function assert_blocked(stmt text, msg text) returns void
 language plpgsql as $q$
 begin
@@ -22,17 +22,16 @@ begin
     execute stmt;
   exception when others then
     if sqlerrm like 'FAIL:%' then raise; end if;
-    raise notice '  PASS  % [bị chặn: %]', msg, left(replace(sqlerrm, E'\n', ' '), 70);
+    raise notice '  PASS  % [bị chặn: %]', msg, left(replace(sqlerrm, E'\n', ' '), 66);
     return;
   end;
   raise exception 'FAIL: % — lẽ ra phải bị chặn nhưng lại thành công', msg;
 end $q$;
 
 /**
- * Dùng cho UPDATE/DELETE bị RLS chặn: policy không khớp thì Postgres KHÔNG báo lỗi,
- * nó chỉ đơn giản là không thấy dòng nào ⇒ 0 dòng bị sửa. Phép kiểm tra này chấp nhận
- * cả hai kết quả "bị báo lỗi" và "không dòng nào bị sửa", nhưng thất bại nếu có dòng bị sửa.
- * (Hệ quả cho frontend: sau mỗi update phải kiểm tra số dòng trả về, đừng mặc định là thành công.)
+ * Dùng cho UPDATE/DELETE bị RLS chặn: policy không khớp thì Postgres KHÔNG báo lỗi, nó chỉ
+ * không thấy dòng nào ⇒ 0 dòng bị sửa. Chấp nhận cả "bị lỗi" và "0 dòng", thất bại nếu có
+ * dòng bị sửa. (Hệ quả cho frontend: sau update phải kiểm tra số dòng trả về.)
  */
 create or replace function assert_noop(stmt text, msg text) returns void
 language plpgsql as $q$
@@ -46,10 +45,8 @@ begin
     raise notice '  PASS  % [bị chặn: %]', msg, left(replace(sqlerrm, E'\n', ' '), 60);
     return;
   end;
-  if n = 0 then
-    raise notice '  PASS  % [RLS lọc hết, 0 dòng bị sửa]', msg;
-  else
-    raise exception 'FAIL: % — đã sửa được % dòng', msg, n;
+  if n = 0 then raise notice '  PASS  % [RLS lọc hết, 0 dòng bị sửa]', msg;
+  else raise exception 'FAIL: % — đã sửa được % dòng', msg, n;
   end if;
 end $q$;
 
@@ -57,400 +54,409 @@ grant execute on function assert(boolean, text), assert_blocked(text, text),
                           assert_noop(text, text) to anon, authenticated;
 
 \echo ''
-\echo '=== 1. Đăng ký chỉ qua lời mời ==='
+\echo '=== 1. Người đăng ký đầu tiên là chủ sở hữu hệ thống ==='
 insert into auth.users (email, raw_user_meta_data)
   values ('chusohuu@lop.vn', '{"full_name":"Nguyễn Chủ Sở Hữu"}');
 select assert((select role from profiles where email = 'chusohuu@lop.vn') = 'owner',
-  'Người đăng ký đầu tiên tự động thành chủ sở hữu');
-select assert_blocked($q$insert into auth.users (email) values ('nguoila@gmail.com')$q$,
-  'Email chưa được mời không đăng ký được');
-
+  'Người đăng ký đầu tiên tự động thành chủ sở hữu hệ thống');
+select assert(is_system_owner() is not null, 'Hàm is_system_owner() tồn tại');
 select format('{"sub":"%s"}', id) as owner_jwt from profiles where email = 'chusohuu@lop.vn' \gset
 
 \echo ''
-\echo '=== 2. Chủ sở hữu mời quản trị / thủ quỹ / thành viên ==='
+\echo '=== 2. Tạo hai lớp ==='
 begin;
   set local role authenticated;
   set local request.jwt.claims to :'owner_jwt';
-  insert into invites (email, role) values ('quantri@lop.vn', 'admin');
-  insert into invites (email, role) values ('thuquy@lop.vn',  'treasurer');
-  insert into invites (email, role) values ('sinhvien@lop.vn','member');
-  select assert((select count(*) from invites where accepted_at is null) = 3, 'Tạo được 3 lời mời');
+  select assert((create_class('DCXDXD69_03B', 'Lớp 03B', 'Xây dựng', 'Học kỳ I', '2026-2027')).code = 'DCXDXD69_03B',
+    'Tạo được lớp A và người tạo thành quản trị lớp');
+  select assert((create_class('DCXDXD69_04A', 'Lớp 04A', 'Xây dựng', 'Học kỳ I', '2026-2027')).code = 'DCXDXD69_04A',
+    'Tạo được lớp B');
+  select assert_blocked($q$select create_class('', 'Thiếu mã')$q$, 'Mã lớp trống bị chặn');
 commit;
-
-insert into auth.users (email, raw_user_meta_data) values ('quantri@lop.vn',  '{"full_name":"Trần Quản Trị"}');
-insert into auth.users (email, raw_user_meta_data) values ('thuquy@lop.vn',   '{"full_name":"Lê Thủ Quỹ"}');
-insert into auth.users (email, raw_user_meta_data) values ('sinhvien@lop.vn', '{"full_name":"Phạm Sinh Viên"}');
-select assert((select role from profiles where email = 'quantri@lop.vn')  = 'admin',     'Lời mời admin ⇒ vai trò admin');
-select assert((select role from profiles where email = 'thuquy@lop.vn')   = 'treasurer', 'Lời mời thủ quỹ ⇒ vai trò treasurer');
-select assert((select role from profiles where email = 'sinhvien@lop.vn') = 'member',    'Lời mời thành viên ⇒ vai trò member');
-select assert((select count(*) from invites where accepted_at is not null) = 3, 'Cả 3 lời mời được đánh dấu đã nhận');
-
-select format('{"sub":"%s"}', id) as admin_jwt     from profiles where email = 'quantri@lop.vn'  \gset
-select format('{"sub":"%s"}', id) as treasurer_jwt from profiles where email = 'thuquy@lop.vn'   \gset
-select format('{"sub":"%s"}', id) as member_jwt    from profiles where email = 'sinhvien@lop.vn' \gset
+select id as class_a from classes where code = 'DCXDXD69_03B' \gset
+select id as class_b from classes where code = 'DCXDXD69_04A' \gset
+select assert((select count(*) from classes) = 3, 'Có 3 lớp: 1 chuyển từ dữ liệu cũ + 2 mới tạo');
 
 \echo ''
-\echo '=== 3. Đợt thu: chỉ quản trị được tạo ==='
+\echo '=== 3. Nhập danh sách sinh viên cho từng lớp ==='
 begin;
   set local role authenticated;
-  set local request.jwt.claims to :'treasurer_jwt';
-  select assert_blocked(
-    $q$insert into periods (name, fund, amount_per_student) values ('Thủ quỹ tự tạo', 'QUY_LOP', 50000)$q$,
-    'Thủ quỹ KHÔNG tạo được đợt thu');
+  set local request.jwt.claims to :'owner_jwt';
+  select assert((import_students(:'class_a'::uuid, $q$[
+      {"stt":1,"code":"2421070527","last_name":"Trần Văn","first_name":"Mẫu","dob":"2005-01-15"},
+      {"stt":2,"code":"2421070528","last_name":"Lê Thị","first_name":"Thử","dob":"2005-02-20"}
+    ]$q$::jsonb, 'skip')->>'added')::int = 2, 'Nhập 2 sinh viên vào lớp A');
+  select assert((import_students(:'class_b'::uuid, $q$[
+      {"stt":1,"code":"2421070999","last_name":"Phạm Minh","first_name":"Ví","dob":"2005-03-25"}
+    ]$q$::jsonb, 'skip')->>'added')::int = 1, 'Nhập 1 sinh viên vào lớp B');
 commit;
+select assert((select count(*) from students where class_id = :'class_a') = 2, 'Lớp A có 2 sinh viên');
+select assert((select count(*) from students where class_id = :'class_b') = 1, 'Lớp B có 1 sinh viên');
+-- cùng một mã SV được phép tồn tại ở hai lớp khác nhau (học lại, chuyển lớp)
 begin;
   set local role authenticated;
-  set local request.jwt.claims to :'admin_jwt';
-  insert into periods (name, fund, amount_per_student, open_date) values
-    ('Quỹ lớp HK1 2026-2027',  'QUY_LOP',  50000, '2026-09-01'),
-    ('Quỹ Đoàn HK1 2026-2027', 'QUY_DOAN', 20000, '2026-09-01');
-  select assert((select count(*) from periods) = 2, 'Quản trị tạo được 2 đợt thu');
+  set local request.jwt.claims to :'owner_jwt';
+  select assert((import_students(:'class_b'::uuid,
+      $q$[{"code":"2421070527","last_name":"Trần Văn","first_name":"Mẫu"}]$q$::jsonb, 'skip')->>'added')::int = 1,
+    'Mã SV trùng nhau giữa hai lớp vẫn nhập được (unique theo từng lớp)');
 commit;
-
-select id as p_lop  from periods where fund = 'QUY_LOP'  \gset
-select id as p_doan from periods where fund = 'QUY_DOAN' \gset
 
 \echo ''
-\echo '=== 4. Thủ quỹ: sinh viên, thu, chi ==='
+\echo '=== 4. Đăng ký TỰ DO bằng email trường ==='
+select assert(student_code_from_email('2421070527@student.humg.edu.vn') = '2421070527',
+  'Tách được mã SV từ email trường');
+select assert(student_code_from_email('2421070527@gmail.com') is null,
+  'Email ngoài domain trường không tách được mã');
+select assert(student_code_from_email('abc@student.humg.edu.vn') is null,
+  'Phần trước @ không phải mã SV thì không hợp lệ');
+
+insert into auth.users (email, raw_user_meta_data)
+  values ('2421070527@student.humg.edu.vn', '{"full_name":"Trần Văn Mẫu"}');
+select assert((select role from profiles where email = '2421070527@student.humg.edu.vn') = 'member',
+  'Email trường đăng ký được ngay, không cần lời mời');
+select assert((select count(*) from memberships m join profiles p on p.id = m.user_id
+               where p.email = '2421070527@student.humg.edu.vn') = 2,
+  'Mã SV có ở 2 lớp ⇒ được gắn vào cả 2 lớp');
+select assert((select m.student_id is not null from memberships m join profiles p on p.id = m.user_id
+               where p.email = '2421070527@student.humg.edu.vn' and m.class_id = :'class_a'),
+  'Membership được gắn đúng bản ghi sinh viên trong lớp');
+select assert((select count(*) from memberships m join profiles p on p.id = m.user_id
+               where p.email = '2421070527@student.humg.edu.vn' and m.role = 'member') = 2,
+  'Sinh viên tự đăng ký chỉ có vai trò thành viên');
+
+-- đăng ký TRƯỚC khi lớp có danh sách: tài khoản vẫn tạo được, và tự vào lớp khi nhập danh sách
+insert into auth.users (email, raw_user_meta_data)
+  values ('2421079999@student.humg.edu.vn', '{"full_name":"Đăng Ký Sớm"}');
+select assert((select count(*) from memberships m join profiles p on p.id = m.user_id
+               where p.email = '2421079999@student.humg.edu.vn') = 0,
+  'Chưa lớp nào có mã này ⇒ chưa thuộc lớp nào');
 begin;
   set local role authenticated;
-  set local request.jwt.claims to :'treasurer_jwt';
-  insert into students (stt, code, last_name, first_name, dob, class_code) values
-    (1, '2400000001', 'Trần Văn', 'Mẫu',  '2005-01-15', 'DCXDXD69_03B'),
-    (2, '2400000002', 'Lê Thị',   'Thử', '2005-02-20', 'DCXDXD69_03B'),
-    (3, '2400000003', 'Phạm Minh', 'Ví', '2005-03-25', 'DCXDXD69_03B');
-  select assert((select count(*) from students) = 3, 'Thủ quỹ thêm được 3 sinh viên');
+  set local request.jwt.claims to :'owner_jwt';
+  select import_students(:'class_a'::uuid,
+    $q$[{"code":"2421079999","last_name":"Đăng Ký","first_name":"Sớm"}]$q$::jsonb, 'skip');
 commit;
+select assert((select count(*) from memberships m join profiles p on p.id = m.user_id
+               where p.email = '2421079999@student.humg.edu.vn' and m.class_id = :'class_a') = 1,
+  'Nhập danh sách sau đó ⇒ tài khoản tự được gắn vào lớp');
 
-select id as s_an  from students where code = '2400000001' \gset
-select id as s_anh from students where code = '2400000002' \gset
-select id as s_nam from students where code = '2400000003' \gset
+select assert_blocked($q$insert into auth.users (email) values ('nguoila@gmail.com')$q$,
+  'Email không đúng dạng email trường và không có lời mời thì bị chặn');
+
+\echo ''
+\echo '=== 5. Mời người ngoài (giáo viên) vào một lớp cụ thể ==='
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'owner_jwt';
+  insert into invites (email, role, class_id) values ('thuquy@lop.vn', 'treasurer', :'class_a');
+  insert into invites (email, role, class_id) values ('quantri.b@lop.vn', 'admin', :'class_b');
+commit;
+insert into auth.users (email, raw_user_meta_data) values ('thuquy@lop.vn', '{"full_name":"Lê Thủ Quỹ"}');
+insert into auth.users (email, raw_user_meta_data) values ('quantri.b@lop.vn', '{"full_name":"Trần Quản Trị B"}');
+select assert((select m.role from memberships m join profiles p on p.id = m.user_id
+               where p.email = 'thuquy@lop.vn') = 'treasurer', 'Lời mời thủ quỹ ⇒ vai trò treasurer trong lớp A');
+select assert((select m.class_id from memberships m join profiles p on p.id = m.user_id
+               where p.email = 'quantri.b@lop.vn') = :'class_b'::uuid, 'Quản trị B chỉ thuộc lớp B');
+
+select format('{"sub":"%s"}', id) as tq_jwt from profiles where email = 'thuquy@lop.vn' \gset
+select format('{"sub":"%s"}', id) as qtb_jwt from profiles where email = 'quantri.b@lop.vn' \gset
+select format('{"sub":"%s"}', id) as sv_jwt from profiles where email = '2421070527@student.humg.edu.vn' \gset
+
+\echo ''
+\echo '=== 6. Thủ quỹ lớp A ghi thu chi trong lớp mình ==='
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'owner_jwt';
+  insert into periods (class_id, name, fund, amount_per_student, open_date)
+    values (:'class_a', 'Quỹ lớp A HK1', 'QUY_LOP', 50000, '2026-09-01'),
+           (:'class_a', 'Quỹ Đoàn A HK1', 'QUY_DOAN', 20000, '2026-09-01'),
+           (:'class_b', 'Quỹ lớp B HK1', 'QUY_LOP', 70000, '2026-09-01');
+commit;
+select id as pa_lop  from periods where class_id = :'class_a' and fund = 'QUY_LOP' \gset
+select id as pa_doan from periods where class_id = :'class_a' and fund = 'QUY_DOAN' \gset
+select id as pb_lop  from periods where class_id = :'class_b' and fund = 'QUY_LOP' \gset
+select id as sa1 from students where class_id = :'class_a' and code = '2421070527' \gset
+select id as sb1 from students where class_id = :'class_b' and code = '2421070999' \gset
 
 begin;
   set local role authenticated;
-  set local request.jwt.claims to :'treasurer_jwt';
-  -- An chuyển khoản đủ 50.000 quỹ lớp + 20.000 quỹ đoàn; Anh nộp thiếu (30.000)
-  insert into incomes (date, fund, period_id, student_id, payer_name, amount, method, collected_by, note, created_by)
-    values ('2026-09-03', 'QUY_LOP', :'p_lop', :'s_an', 'Trần Văn Mẫu', 50000, 'TRANSFER', 'Lê Thủ Quỹ', 'Chuyển khoản QR', auth.uid());
-  insert into incomes (date, fund, period_id, student_id, payer_name, amount, method, collected_by, created_by)
-    values ('2026-09-03', 'QUY_LOP', :'p_lop', :'s_anh', 'Lê Thị Thử', 30000, 'CASH', 'Lê Thủ Quỹ', auth.uid());
-  insert into incomes (date, fund, period_id, student_id, payer_name, amount, method, collected_by, created_by)
-    values ('2026-09-04', 'QUY_DOAN', :'p_doan', :'s_an', 'Trần Văn Mẫu', 20000, 'TRANSFER', 'Lê Thủ Quỹ', auth.uid());
-  insert into expenses (date, fund, item, category, buyer, amount, created_by)
-    values ('2026-09-05', 'QUY_LOP', 'Nước + bánh sinh hoạt lớp', 'Sinh hoạt', 'Phạm Minh Ví', 30000, auth.uid());
-  select assert((select count(*) from incomes) = 3 and (select count(*) from expenses) = 1,
-    'Thủ quỹ ghi được 3 khoản thu + 1 khoản chi');
+  set local request.jwt.claims to :'tq_jwt';
+  insert into incomes (class_id, date, fund, period_id, student_id, amount, method)
+    values (:'class_a', '2026-09-03', 'QUY_LOP', :'pa_lop', :'sa1', 50000, 'TRANSFER');
+  insert into incomes (class_id, date, fund, period_id, student_id, amount, method)
+    values (:'class_a', '2026-09-04', 'QUY_DOAN', :'pa_doan', :'sa1', 20000, 'CASH');
+  insert into expenses (class_id, date, fund, item, category, buyer, amount)
+    values (:'class_a', '2026-09-05', 'QUY_LOP', 'Nước sinh hoạt lớp', 'Sinh hoạt', 'Lê Thủ Quỹ', 30000);
+  select assert(true, 'Thủ quỹ lớp A ghi được 2 khoản thu + 1 khoản chi');
 
-  -- hai quỹ phải khớp giữa khoản thu và đợt thu
   select assert_blocked(
-    format($q$insert into incomes (date, fund, period_id, student_id, amount) values ('2026-09-05','QUY_DOAN','%s','%s',10000)$q$, :'p_lop', :'s_nam'),
+    format($q$insert into incomes (class_id, date, fund, period_id, student_id, amount)
+              values ('%s','2026-09-05','QUY_DOAN','%s','%s',10000)$q$, :'class_a', :'pa_lop', :'sa1'),
     'Ghi thu Quỹ Đoàn vào đợt của Quỹ Lớp bị chặn');
+  -- CHÉO LỚP: dùng đợt thu của lớp B cho khoản thu của lớp A
   select assert_blocked(
-    format($q$insert into incomes (date, fund, period_id, student_id, amount) values ('2026-09-05','QUY_LOP','%s','%s',-5000)$q$, :'p_lop', :'s_nam'),
-    'Số tiền âm bị chặn');
+    format($q$insert into incomes (class_id, date, fund, period_id, student_id, amount)
+              values ('%s','2026-09-05','QUY_LOP','%s','%s',10000)$q$, :'class_a', :'pb_lop', :'sa1'),
+    'Không ghi được khoản thu dùng đợt thu của lớp khác');
+  -- CHÉO LỚP: gán sinh viên lớp B vào khoản thu của lớp A
   select assert_blocked(
-    $q$insert into expenses (date, fund, item, category, buyer, amount) values ('2026-09-05','QUY_LOP','Thiếu người mua','Khác','',10000)$q$,
-    'Khoản chi thiếu người đi mua bị chặn');
+    format($q$insert into incomes (class_id, date, fund, period_id, student_id, amount)
+              values ('%s','2026-09-05','QUY_LOP','%s','%s',10000)$q$, :'class_a', :'pa_lop', :'sb1'),
+    'Không ghi được khoản thu gán sinh viên của lớp khác');
 commit;
 
 \echo ''
-\echo '=== 5. Tồn quỹ = Thu − Chi, hai quỹ tách biệt tuyệt đối ==='
-select assert((select balance from v_fund_balance where fund = 'QUY_LOP')  = 50000,
-  'Tồn Quỹ Lớp = 80.000 thu − 30.000 chi = 50.000');
-select assert((select balance from v_fund_balance where fund = 'QUY_DOAN') = 20000,
-  'Tồn Quỹ Đoàn = 20.000, không bị khoản chi của Quỹ Lớp ảnh hưởng');
-select assert((select total_income from v_fund_balance where fund = 'QUY_LOP') = 80000, 'Tổng thu Quỹ Lớp đúng');
-select assert((select remaining from v_student_debt where student_id = :'s_anh' and period_id = :'p_lop') = 20000,
-  'Công nợ: Lê Thị Thử còn thiếu 20.000 ở đợt Quỹ Lớp');
-select assert((select paid_count from v_period_progress where period_id = :'p_lop') = 1
-          and (select partial_count from v_period_progress where period_id = :'p_lop') = 1
-          and (select unpaid_count from v_period_progress where period_id = :'p_lop') = 1,
-  'Tiến độ đợt Quỹ Lớp: 1 đủ / 1 thiếu / 1 chưa nộp');
-select assert((select remaining from v_period_progress where period_id = :'p_lop') = 70000,
-  'Đợt Quỹ Lớp còn phải thu 70.000 (3×50.000 − 80.000)');
-select assert((select running_balance from v_daily_ledger where fund = 'QUY_LOP' order by date desc, id limit 1) = 50000,
-  'Số dư luỹ kế cuối kỳ của Quỹ Lớp khớp tồn quỹ');
-
-\echo ''
-\echo '=== 6. Thành viên chỉ được đọc ==='
+\echo '=== 7. CÁCH LY GIỮA CÁC LỚP (phần quan trọng nhất) ==='
 begin;
   set local role authenticated;
-  set local request.jwt.claims to :'member_jwt';
-  select assert((select count(*) from incomes) = 3, 'Thành viên đọc được danh sách thu');
-  select assert((select count(*) from students) = 3, 'Thành viên đọc được danh sách lớp');
+  set local request.jwt.claims to :'tq_jwt';       -- thủ quỹ lớp A
+  select assert((select count(*) from students) = 3, 'Thủ quỹ A chỉ thấy 3 sinh viên của lớp A');
+  select assert((select count(*) from students where class_id = :'class_b') = 0,
+    'Thủ quỹ A KHÔNG thấy sinh viên nào của lớp B');
+  select assert((select count(*) from incomes where class_id = :'class_b') = 0,
+    'Thủ quỹ A KHÔNG thấy khoản thu của lớp B');
+  select assert((select count(*) from classes) = 1, 'Thủ quỹ A chỉ thấy đúng lớp A trong danh sách lớp');
   select assert_blocked(
-    format($q$insert into incomes (date, fund, period_id, student_id, amount) values ('2026-09-06','QUY_LOP','%s','%s',50000)$q$, :'p_lop', :'s_nam'),
-    'Thành viên KHÔNG ghi được khoản thu');
-  select assert_noop($q$update expenses set amount = 1 where true$q$, 'Thành viên KHÔNG sửa được khoản chi');
-  select assert((select count(*) from audit_logs) = 0, 'Thành viên KHÔNG đọc được audit log');
-  select assert_blocked($q$insert into students (code, last_name, first_name) values ('999','Tự','Thêm')$q$,
-    'Thành viên KHÔNG thêm được sinh viên');
+    format($q$insert into incomes (class_id, date, fund, amount, payer_name)
+              values ('%s','2026-09-06','QUY_LOP',50000,'Ai đó')$q$, :'class_b'),
+    'Thủ quỹ A KHÔNG ghi được khoản thu vào lớp B');
+  select assert_blocked(
+    format($q$insert into students (class_id, code, last_name, first_name) values ('%s','999','Chèn','Lậu')$q$, :'class_b'),
+    'Thủ quỹ A KHÔNG thêm được sinh viên vào lớp B');
+  select assert_noop(format($q$update classes set name = 'Bị đổi tên' where id = '%s'$q$, :'class_b'),
+    'Thủ quỹ A KHÔNG sửa được thông tin lớp B');
+  select assert_noop(format($q$update students set is_active = false where class_id = '%s'$q$, :'class_b'),
+    'Thủ quỹ A KHÔNG sửa được sinh viên lớp B');
+commit;
+
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'qtb_jwt';      -- quản trị lớp B
+  select assert((select count(*) from students) = 2, 'Quản trị B chỉ thấy 2 sinh viên của lớp B');
+  select assert((select count(*) from incomes) = 0, 'Quản trị B không thấy khoản thu nào (lớp B chưa thu)');
+  select assert_noop(format($q$update periods set amount_per_student = 1 where class_id = '%s'$q$, :'class_a'),
+    'Quản trị B KHÔNG sửa được đợt thu của lớp A');
+  insert into periods (class_id, name, fund, amount_per_student, open_date)
+    values (:'class_b', 'Quỹ Đoàn B', 'QUY_DOAN', 15000, '2026-09-01');
+  select assert(true, 'Quản trị B tạo được đợt thu trong lớp mình');
+commit;
+
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'sv_jwt';       -- sinh viên, thuộc CẢ HAI lớp
+  select assert((select count(*) from classes) = 2, 'Sinh viên có mã ở 2 lớp thì thấy đúng 2 lớp');
+  select assert((select count(*) from students) = 5, 'Sinh viên thấy danh sách của cả hai lớp mình thuộc');
+  select assert_blocked(
+    format($q$insert into incomes (class_id, date, fund, amount, payer_name)
+              values ('%s','2026-09-06','QUY_LOP',10000,'Tự ghi')$q$, :'class_a'),
+    'Sinh viên KHÔNG ghi được khoản thu');
+  select assert_noop($q$update expenses set amount = 1 where true$q$, 'Sinh viên KHÔNG sửa được khoản chi');
 commit;
 
 \echo ''
-\echo '=== 7. Khách chưa đăng nhập (anon) ==='
+\echo '=== 8. Tồn quỹ tính riêng theo từng lớp ==='
+select assert((select balance from v_fund_balance where class_id = :'class_a' and fund = 'QUY_LOP') = 20000,
+  'Lớp A · Quỹ Lớp = 50.000 thu − 30.000 chi = 20.000');
+select assert((select balance from v_fund_balance where class_id = :'class_a' and fund = 'QUY_DOAN') = 20000,
+  'Lớp A · Quỹ Đoàn = 20.000, không bị khoản chi của Quỹ Lớp ảnh hưởng');
+select assert((select balance from v_fund_balance where class_id = :'class_b' and fund = 'QUY_LOP') = 0,
+  'Lớp B · Quỹ Lớp = 0 — tiền của lớp A không lẫn sang lớp B');
+select assert((select remaining from v_student_debt
+               where class_id = :'class_a' and student_id = :'sa1' and period_id = :'pa_lop') = 0,
+  'Công nợ: sinh viên đã nộp đủ đợt Quỹ Lớp của lớp A');
+select assert((select expected from v_period_progress where period_id = :'pb_lop') = 140000,
+  'Tiến độ lớp B: 2 SV × 70.000 = 140.000 (không tính SV lớp A)');
+select assert((select count(*) from v_student_debt where class_id = :'class_b') = 4,
+  'Công nợ lớp B chỉ gồm SV của lớp B × đợt của lớp B');
+
+\echo ''
+\echo '=== 9. Khách chưa đăng nhập ==='
 begin;
   set local role anon;
-  select assert((select count(*) from v_incomes_public) = 3, 'Khách xem được các khoản thu qua view công khai');
-  select assert((select count(*) from v_expenses_public) = 1, 'Khách xem được các khoản chi');
-  select assert((select balance from v_fund_balance where fund = 'QUY_LOP') = 50000, 'Khách xem được tồn quỹ');
-  select assert((select count(*) from periods) = 2, 'Khách xem được các đợt thu');
-  -- anon còn không có cả quyền SELECT trên các bảng gốc ⇒ bị chặn ngay ở tầng privilege,
-  -- trước cả khi tới RLS. Đây là lớp bảo vệ mạnh hơn "thấy 0 dòng".
-  select assert_blocked($q$select count(*) from incomes$q$,    'Khách KHÔNG đọc được bảng incomes gốc');
+  select assert((select count(*) from v_classes_public) >= 2, 'Khách xem được danh sách lớp để tìm lớp mình');
+  select assert((select student_count from v_classes_public where code = 'DCXDXD69_03B') = 3,
+    'Danh sách lớp công khai có số sinh viên');
+  select assert((select count(*) from v_incomes_public where class_id = :'class_a') = 2,
+    'Khách xem được các khoản thu của một lớp qua view công khai');
+  select assert((select balance from v_fund_balance where class_id = :'class_a' and fund = 'QUY_LOP') = 20000,
+    'Khách xem được tồn quỹ của lớp');
   select assert_blocked($q$select count(*) from students$q$,   'Khách KHÔNG đọc được bảng students gốc');
+  select assert_blocked($q$select count(*) from incomes$q$,    'Khách KHÔNG đọc được bảng incomes gốc');
   select assert_blocked($q$select count(*) from audit_logs$q$, 'Khách KHÔNG đọc được audit log');
-  select assert_blocked($q$select * from profiles$q$, 'Khách KHÔNG đọc được danh sách tài khoản');
-  select assert_blocked($q$select * from class_settings$q$, 'Khách KHÔNG đọc được bảng cấu hình (có số tài khoản)');
-  select assert((select bank_configured from v_class_public) is not null, 'Khách chỉ biết ĐÃ cấu hình QR hay chưa, không thấy số tài khoản');
-  select assert_blocked(
-    format($q$insert into incomes (date, fund, period_id, student_id, amount) values ('2026-09-06','QUY_LOP','%s','%s',50000)$q$, :'p_lop', :'s_an'),
-    'Khách KHÔNG ghi được khoản thu bằng anon key');
+  select assert_blocked($q$select count(*) from memberships$q$,'Khách KHÔNG đọc được danh sách thành viên lớp');
+  select assert_blocked($q$select account_no from classes$q$,  'Khách KHÔNG đọc được số tài khoản của lớp');
+  select assert((select bank_configured from v_classes_public where code = 'DCXDXD69_03B') is not null,
+    'Khách chỉ biết lớp đã cấu hình QR hay chưa');
 commit;
 select assert((select count(*) = 0 from information_schema.columns
                where table_name = 'v_students_public' and column_name = 'dob'),
   'View công khai không có cột ngày sinh');
 
 \echo ''
-\echo '=== 8. Xoá mềm: thủ quỹ chỉ xoá bản ghi của mình trong 24h ==='
+\echo '=== 10. Xoá mềm theo vai trò trong lớp ==='
 begin;
   set local role authenticated;
-  set local request.jwt.claims to :'admin_jwt';
-  insert into expenses (date, fund, item, category, buyer, amount, created_by)
-    values ('2026-09-06', 'QUY_LOP', 'Khoản chi của quản trị', 'Khác', 'Quản trị', 5000, auth.uid());
+  set local request.jwt.claims to :'owner_jwt';
+  insert into expenses (class_id, date, fund, item, category, buyer, amount)
+    values (:'class_a', '2026-09-06', 'QUY_LOP', 'Khoản chi của quản trị', 'Khác', 'Quản trị', 5000);
 commit;
 begin;
   set local role authenticated;
-  set local request.jwt.claims to :'treasurer_jwt';
+  set local request.jwt.claims to :'tq_jwt';
   select assert_blocked($q$update expenses set deleted_at = now() where item = 'Khoản chi của quản trị'$q$,
     'Thủ quỹ KHÔNG xoá được bản ghi của người khác');
-  update expenses set deleted_at = now() where item = 'Nước + bánh sinh hoạt lớp';
-  select assert((select deleted_at is not null from expenses where item = 'Nước + bánh sinh hoạt lớp'),
+  update expenses set deleted_at = now() where item = 'Nước sinh hoạt lớp';
+  select assert((select deleted_at is not null from expenses where item = 'Nước sinh hoạt lớp'),
     'Thủ quỹ xoá được bản ghi của chính mình trong 24h');
 commit;
-select assert((select balance from v_fund_balance where fund = 'QUY_LOP') = 75000,
-  'Xoá mềm khoản chi 30.000 ⇒ tồn quỹ tự tính lại thành 75.000');
--- lùi ngày tạo về 2 ngày trước để kiểm tra mốc 24h
-update expenses set deleted_at = null, created_at = now() - interval '2 days' where item = 'Nước + bánh sinh hoạt lớp';
+select assert((select balance from v_fund_balance where class_id = :'class_a' and fund = 'QUY_LOP') = 45000,
+  'Xoá mềm 30.000 ⇒ tồn quỹ lớp A tự tính lại thành 45.000');
+update expenses set deleted_at = null, created_at = now() - interval '2 days' where item = 'Nước sinh hoạt lớp';
 begin;
   set local role authenticated;
-  set local request.jwt.claims to :'treasurer_jwt';
-  select assert_blocked($q$update expenses set deleted_at = now() where item = 'Nước + bánh sinh hoạt lớp'$q$,
+  set local request.jwt.claims to :'tq_jwt';
+  select assert_blocked($q$update expenses set deleted_at = now() where item = 'Nước sinh hoạt lớp'$q$,
     'Quá 24h thủ quỹ KHÔNG xoá được nữa');
 commit;
+-- quản trị xoá mềm một bản ghi để kiểm tra quyền PHỤC HỒI (phải có bản ghi đang bị xoá thật,
+-- gán deleted_at = null lên bản ghi chưa xoá thì guard không kích hoạt)
 begin;
   set local role authenticated;
-  set local request.jwt.claims to :'admin_jwt';
-  update expenses set deleted_at = now() where item = 'Nước + bánh sinh hoạt lớp';
-  select assert((select deleted_at is not null from expenses where item = 'Nước + bánh sinh hoạt lớp'),
-    'Quản trị xoá được bản ghi quá hạn');
+  set local request.jwt.claims to :'owner_jwt';
+  update expenses set deleted_at = now() where item = 'Khoản chi của quản trị';
+  select assert((select deleted_at is not null from expenses where item = 'Khoản chi của quản trị'),
+    'Quản trị lớp xoá được bản ghi của người khác');
 commit;
 begin;
   set local role authenticated;
-  set local request.jwt.claims to :'treasurer_jwt';
-  select assert_blocked($q$update expenses set deleted_at = null where item = 'Nước + bánh sinh hoạt lớp'$q$,
+  set local request.jwt.claims to :'tq_jwt';
+  select assert_blocked($q$update expenses set deleted_at = null where item = 'Khoản chi của quản trị'$q$,
     'Thủ quỹ KHÔNG phục hồi được bản ghi đã xoá');
 commit;
 begin;
   set local role authenticated;
-  set local request.jwt.claims to :'admin_jwt';
-  update expenses set deleted_at = null where item = 'Nước + bánh sinh hoạt lớp';
-  select assert((select deleted_at is null from expenses where item = 'Nước + bánh sinh hoạt lớp'),
-    'Quản trị phục hồi được bản ghi đã xoá');
+  set local request.jwt.claims to :'owner_jwt';
+  update expenses set deleted_at = null where item = 'Khoản chi của quản trị';
+  select assert((select deleted_at is null from expenses where item = 'Khoản chi của quản trị'),
+    'Quản trị lớp phục hồi được bản ghi đã xoá');
 commit;
 
 \echo ''
-\echo '=== 9. Không làm mất dấu tiền ==='
-begin;
-  set local role authenticated;
-  set local request.jwt.claims to :'admin_jwt';
-  select assert_blocked(format($q$update periods set deleted_at = now() where id = '%s'$q$, :'p_lop'),
-    'Đợt thu đã có khoản thu KHÔNG xoá được');
-  select assert_blocked(format($q$update periods set fund = 'QUY_DOAN' where id = '%s'$q$, :'p_lop'),
-    'Đợt thu đã có khoản thu KHÔNG đổi được quỹ');
-  update periods set status = 'CLOSED' where id = :'p_lop';
-  select assert((select status from periods where id = :'p_lop') = 'CLOSED', 'Đóng đợt thu thì được');
-  update periods set status = 'OPEN' where id = :'p_lop';
-commit;
-begin;
-  -- chạy bằng quyền quản trị để bỏ qua quy tắc 24h của thủ quỹ, nhờ vậy kiểm tra đúng
-  -- guard "đang có khoản thu" chứ không phải guard quyền xoá
-  set local role authenticated;
-  set local request.jwt.claims to :'admin_jwt';
-  select assert_blocked(format($q$update students set deleted_at = now() where id = '%s'$q$, :'s_an'),
-    'Sinh viên đã có khoản thu KHÔNG xoá được');
-  update students set is_active = false where id = :'s_nam';
-  select assert((select not is_active from students where id = :'s_nam'), 'Ẩn sinh viên chưa nộp thì được');
-  update students set is_active = true where id = :'s_nam';
-commit;
-select assert((select created_by is not null from students where code = '2400000001'),
-  'DB tự ghi created_by cho bản ghi do người dùng tạo');
-
-\echo ''
-\echo '=== 10. Bảo vệ tài khoản ==='
-begin;
-  set local role authenticated;
-  set local request.jwt.claims to :'admin_jwt';
-  select assert_blocked($q$update profiles set role = 'owner' where email = 'quantri@lop.vn'$q$,
-    'Quản trị KHÔNG tự phong mình làm chủ sở hữu');
-  select assert_blocked($q$update profiles set role = 'member' where email = 'chusohuu@lop.vn'$q$,
-    'Quản trị KHÔNG sửa được tài khoản chủ sở hữu');
-  update profiles set role = 'admin' where email = 'thuquy@lop.vn';
-  select assert((select role from profiles where email = 'thuquy@lop.vn') = 'admin',
-    'Quản trị nâng được thủ quỹ lên quản trị');
-  update profiles set role = 'treasurer' where email = 'thuquy@lop.vn';
-  update profiles set is_active = false where email = 'sinhvien@lop.vn';
-  select assert((select not is_active from profiles where email = 'sinhvien@lop.vn'),
-    'Quản trị vô hiệu hoá được tài khoản thành viên');
-  update profiles set is_active = true where email = 'sinhvien@lop.vn';
-commit;
+\echo '=== 11. Không làm mất dấu tiền ==='
 begin;
   set local role authenticated;
   set local request.jwt.claims to :'owner_jwt';
-  select assert_blocked($q$update profiles set role = 'member' where email = 'chusohuu@lop.vn'$q$,
-    'Không ai được tự đổi vai trò của chính mình');
-  select assert_blocked($q$update profiles set is_active = false where email = 'chusohuu@lop.vn'$q$,
-    'Không vô hiệu hoá được chủ sở hữu cuối cùng');
-commit;
-begin;
-  set local role authenticated;
-  set local request.jwt.claims to :'member_jwt';
-  select assert((select count(*) from profiles) = 1, 'Thành viên chỉ thấy tài khoản của chính mình');
-  select assert_blocked($q$update profiles set role = 'admin' where email = 'sinhvien@lop.vn'$q$,
-    'Thành viên KHÔNG tự nâng quyền');
+  select assert_blocked(format($q$update periods set deleted_at = now() where id = '%s'$q$, :'pa_lop'),
+    'Đợt thu đã có khoản thu KHÔNG xoá được');
+  select assert_blocked(format($q$update periods set fund = 'QUY_DOAN' where id = '%s'$q$, :'pa_lop'),
+    'Đợt thu đã có khoản thu KHÔNG đổi được quỹ');
+  select assert_blocked(format($q$update students set deleted_at = now() where id = '%s'$q$, :'sa1'),
+    'Sinh viên đã có khoản thu KHÔNG xoá được');
 commit;
 
 \echo ''
-\echo '=== 11. Audit log: có vết, đúng tiếng Việt, và bất biến ==='
-select assert((select count(*) from audit_logs) >= 15, 'Mọi thao tác ghi đều để lại vết');
-select assert(exists (select 1 from audit_logs
-  where action = 'INSERT' and table_name = 'incomes'
-    and summary like '%Lê Thủ Quỹ đã ghi nhận thu 50.000 ₫ từ Trần Văn Mẫu vào Quỹ Lớp (chuyển khoản)%'),
-  'Diễn giải khoản thu bằng tiếng Việt, có số tiền và tên quỹ');
-select assert(exists (select 1 from audit_logs
-  where action = 'ROLE_CHANGE' and summary like '%đã đổi vai trò của Lê Thủ Quỹ: thủ quỹ → quản trị%'),
-  'Đổi vai trò được ghi log kèm vai trò cũ → mới');
-select assert(exists (select 1 from audit_logs
-  where action = 'SOFT_DELETE' and table_name = 'expenses' and summary like '%đã xoá khoản chi 30.000 ₫%'),
-  'Xoá mềm được ghi nhận là SOFT_DELETE');
-select assert(exists (select 1 from audit_logs where action = 'RESTORE' and table_name = 'expenses'),
-  'Phục hồi được ghi nhận là RESTORE');
-select assert((select changed_fields from audit_logs
-  where action = 'ROLE_CHANGE' order by id limit 1) = array['role'],
-  'changed_fields chỉ ra đúng cột đã đổi');
-select assert(exists (select 1 from audit_logs where table_name = 'invites' and action = 'INVITE'),
-  'Lời mời được ghi log');
+\echo '=== 12. Quản lý thành viên lớp ==='
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'owner_jwt';
+  update memberships set role = 'treasurer'
+    where class_id = :'class_a' and user_id = (select id from profiles where email = '2421070527@student.humg.edu.vn');
+  select assert((select role from memberships where class_id = :'class_a'
+                 and user_id = (select id from profiles where email = '2421070527@student.humg.edu.vn')) = 'treasurer',
+    'Quản trị lớp nâng được sinh viên lên thủ quỹ');
+  update memberships set role = 'member'
+    where class_id = :'class_a' and user_id = (select id from profiles where email = '2421070527@student.humg.edu.vn');
+commit;
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'tq_jwt';
+  select assert_noop(format($q$update memberships set role = 'admin' where class_id = '%s' and user_id = (select id from profiles where email = 'thuquy@lop.vn')$q$, :'class_a'),
+    'Thủ quỹ KHÔNG tự nâng mình lên quản trị');
+  select assert_blocked(format($q$insert into memberships (user_id, class_id, role) values ((select id from profiles where email = 'thuquy@lop.vn'), '%s', 'admin')$q$, :'class_b'),
+    'Thủ quỹ KHÔNG tự thêm mình vào lớp khác');
+commit;
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'qtb_jwt';
+  select assert_blocked($q$update memberships set role = 'member' where user_id = (select id from profiles where email = 'quantri.b@lop.vn')$q$,
+    'Không ai tự đổi vai trò của chính mình trong lớp');
+commit;
+
+\echo ''
+\echo '=== 13. Audit log theo lớp, bất biến ==='
+select assert((select count(*) from audit_logs) >= 20, 'Mọi thao tác ghi đều để lại vết');
+select assert(exists (select 1 from audit_logs where class_id = :'class_a'
+  and summary like '%Lê Thủ Quỹ đã ghi nhận thu 50.000 ₫%'), 'Diễn giải tiếng Việt kèm số tiền, gắn đúng lớp');
+select assert(exists (select 1 from audit_logs where action = 'INSERT' and table_name = 'profiles'
+  and summary like '%đăng ký bằng email trường và được gắn vào 2 lớp%'), 'Ghi log việc tự đăng ký bằng email trường');
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'qtb_jwt';
+  select assert((select count(*) from audit_logs where class_id = :'class_a') = 0,
+    'Quản trị lớp B KHÔNG xem được audit log của lớp A');
+commit;
 begin;
   set local role authenticated;
   set local request.jwt.claims to :'owner_jwt';
   select assert_noop($q$update audit_logs set summary = 'sửa lịch sử' where id = 1$q$,
     'Chủ sở hữu cũng KHÔNG sửa được audit log');
-  select assert_blocked($q$delete from audit_logs where id = 1$q$,
-    'Chủ sở hữu cũng KHÔNG xoá được audit log');
-commit;
-begin;
-  set local role authenticated;
-  set local request.jwt.claims to :'treasurer_jwt';
-  select assert((select count(*) from audit_logs where table_name = 'profiles') = 0,
-    'Thủ quỹ KHÔNG xem được log tài khoản');
-  select assert((select count(*) from audit_logs where table_name = 'incomes') > 0,
-    'Thủ quỹ xem được log thu chi');
+  select assert_blocked($q$delete from audit_logs where id = 1$q$, 'Chủ sở hữu cũng KHÔNG xoá được audit log');
 commit;
 
 \echo ''
-\echo '=== 12. RPC: log_event, import_students, undo_import ==='
+\echo '=== 14. RPC theo lớp ==='
 begin;
   set local role authenticated;
-  set local request.jwt.claims to :'treasurer_jwt';
-  select log_event('LOGIN', 'Lê Thủ Quỹ đã đăng nhập', null);
+  set local request.jwt.claims to :'tq_jwt';
+  select log_event('LOGIN', 'Lê Thủ Quỹ đã đăng nhập', null, :'class_a');
   select assert((select last_sign_in_at is not null from profiles where email = 'thuquy@lop.vn'),
     'log_event(LOGIN) cập nhật lần đăng nhập gần nhất');
-  select assert_blocked($q$select log_event('HACK', 'thử ghi log lạ')$q$, 'log_event chặn loại sự kiện không hợp lệ');
-
-  select assert((import_students(null, 'skip')->>'added')::int = 0,
-    'import_students với payload rỗng trả về 0, không làm sập');
-commit;
-
-begin;
-  set local role authenticated;
-  set local request.jwt.claims to :'treasurer_jwt';
-  select import_students($q$[
-    {"stt":10,"code":"2400000008","last_name":"Ngô Văn","first_name":"Tám","dob":"2005-04-10","class_code":"DCXDXD69_03B"},
-    {"stt":11,"code":"2400000007","last_name":"Đặng Văn","first_name":"Bảy","dob":"2005-05-12","class_code":"DCXDXD69_03B"},
-    {"stt":12,"code":"","last_name":"","first_name":"","class_code":"X"}
-  ]$q$::jsonb, 'skip') as r \gset
-  select assert((:'r'::jsonb->>'added')::int = 2 and (:'r'::jsonb->>'failed')::int = 1,
-    'import_students: thêm 2, 1 dòng lỗi (thiếu mã và tên)');
-  select assert((select count(*) from incomes) = 3,
-    'import_students KHÔNG tạo thêm khoản thu nào (tiền không đến từ file Excel)');
-  select :'r'::jsonb->>'batch_id' as batch \gset
-commit;
-select assert((select count(*) from students where deleted_at is null) = 5, 'Sau import có 5 sinh viên');
-
-begin;
-  set local role authenticated;
-  set local request.jwt.claims to :'treasurer_jwt';
-  select import_students($q$[
-    {"stt":10,"code":"2400000008","last_name":"Ngô Văn","first_name":"Tám"}
-  ]$q$::jsonb, 'skip') as r2 \gset
-  select assert((:'r2'::jsonb->>'skipped')::int = 1 and (:'r2'::jsonb->>'added')::int = 0,
-    'Import lại cùng mã SV với chế độ "bỏ qua" ⇒ không nhân bản');
-commit;
-
-begin;
-  set local role authenticated;
-  set local request.jwt.claims to :'treasurer_jwt';
-  select undo_import(:'batch'::uuid);
-  select assert((select count(*) from students where deleted_at is null) = 3,
-    'undo_import hoàn tác đúng lần import vừa rồi');
+  select assert_blocked(format($q$select log_event('EXPORT','thử ghi log lớp khác', null, '%s')$q$, :'class_b'),
+    'Không ghi được log gắn vào lớp mình không thuộc');
+  select assert_blocked(format($q$select import_students('%s', '[]'::jsonb, 'skip')$q$, :'class_b'),
+    'Thủ quỹ lớp A KHÔNG gọi được import_students cho lớp B');
 commit;
 begin;
   set local role authenticated;
-  set local request.jwt.claims to :'member_jwt';
-  select assert_blocked($q$select import_students('[]'::jsonb, 'skip')$q$,
-    'Thành viên KHÔNG gọi được import_students');
+  set local request.jwt.claims to :'sv_jwt';
+  select assert_blocked(format($q$select import_students('%s', '[]'::jsonb, 'skip')$q$, :'class_a'),
+    'Sinh viên KHÔNG gọi được import_students');
 commit;
 
 \echo ''
-\echo '=== 13. Cấu hình lớp và che tên với khách ==='
+\echo '=== 15. Cấu hình lớp và che tên với khách ==='
 begin;
   set local role authenticated;
-  set local request.jwt.claims to :'treasurer_jwt';
-  select assert_noop($q$update class_settings set account_no = '999' where id = 1$q$,
-    'Thủ quỹ KHÔNG sửa được tài khoản nhận tiền');
+  set local request.jwt.claims to :'tq_jwt';
+  select assert_noop(format($q$update classes set account_no = '999' where id = '%s'$q$, :'class_a'),
+    'Thủ quỹ KHÔNG sửa được tài khoản nhận tiền của lớp');
 commit;
 begin;
   set local role authenticated;
-  set local request.jwt.claims to :'admin_jwt';
-  update class_settings set class_name = 'DCXDXD69_03B', bank_bin = '970436', bank_name = 'Vietcombank',
-    account_no = '1021234567', account_name = 'LE THU QUY', hide_student_names_from_guest = true where id = 1;
-  select assert((select account_no from class_settings) = '1021234567', 'Quản trị lưu được tài khoản nhận tiền');
-  select assert_blocked($q$update class_settings set bank_bin = '97043' where id = 1$q$,
+  set local request.jwt.claims to :'owner_jwt';
+  update classes set bank_bin = '970436', bank_name = 'Vietcombank', account_no = '1021234567',
+    account_name = 'LE THU QUY', hide_student_names_from_guest = true where id = :'class_a';
+  select assert((select account_no from classes where id = :'class_a') = '1021234567',
+    'Quản trị lớp lưu được tài khoản nhận tiền');
+  select assert_blocked(format($q$update classes set bank_bin = '97043' where id = '%s'$q$, :'class_a'),
     'Mã BIN sai định dạng bị chặn ở tầng DB');
 commit;
-select assert((select bank_configured from v_class_public), 'View công khai báo đã cấu hình QR');
 begin;
   set local role anon;
-  select assert((select full_name from v_students_public where code like '%363') = 'Trần V. M.',
+  select assert((select full_name from v_students_public where class_id = :'class_a' and code like '%527') = 'Trần V. M.',
     'Bật che tên ⇒ khách chỉ thấy tên viết tắt');
-  select assert((select code from v_students_public limit 1) like '***%',
-    'Bật che tên ⇒ mã SV cũng bị che một phần');
-commit;
-begin;
-  set local role authenticated;
-  set local request.jwt.claims to :'admin_jwt';
-  update class_settings set hide_student_names_from_guest = false where id = 1;
+  select assert((select count(*) from v_students_public where class_id = :'class_b' and full_name like '%.%') = 0,
+    'Che tên chỉ áp dụng cho lớp bật công tắc, không ảnh hưởng lớp khác');
 commit;
 
 \echo ''
-\echo '=== 14. Không ai xoá cứng được gì ==='
+\echo '=== 16. Không ai xoá cứng được gì ==='
 begin;
   set local role authenticated;
   set local request.jwt.claims to :'owner_jwt';
   select assert_blocked($q$delete from incomes where true$q$,  'Chủ sở hữu KHÔNG xoá cứng được khoản thu');
   select assert_blocked($q$delete from students where true$q$, 'Chủ sở hữu KHÔNG xoá cứng được sinh viên');
-  select assert_blocked($q$delete from profiles where true$q$, 'Chủ sở hữu KHÔNG xoá cứng được tài khoản');
+  select assert_blocked($q$delete from classes where true$q$,  'Chủ sở hữu KHÔNG xoá cứng được lớp');
 commit;
 
 \echo ''

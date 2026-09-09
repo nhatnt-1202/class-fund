@@ -45,6 +45,7 @@ grant execute on function current_app_role(), has_min_role(app_role), my_student
 -- =====================================================================================
 -- AUDIT LOG — do trigger DB ghi, KHÔNG phụ thuộc frontend.
 -- =====================================================================================
+-- LƯU Ý: 0004_multiclass.sql thay thế hàm này để ghi thêm class_id. Sửa ở đây thì phải sửa cả ở đó.
 create or replace function audit_trigger() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare
