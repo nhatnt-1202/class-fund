@@ -50,10 +50,10 @@ export default function Layout({ children }: { children: ReactNode }) {
       <div className="flex items-center gap-3 px-2 pb-4">
         <div className="grid h-10 w-10 shrink-0 place-items-center rounded-[11px] bg-gradient-to-br
           from-lop to-doan font-head text-[1.05rem] font-bold text-white shadow-s1" aria-hidden>
-          QL
+          CF
         </div>
         <div className="min-w-0">
-          <div className="font-head text-[1.05rem] font-bold leading-tight">Quỹ Lớp</div>
+          <div className="font-head text-[1.05rem] font-bold leading-tight">Class Fund</div>
           <div className="truncate text-xs text-ink3">
             {info?.class_name ? info.class_name : 'Chưa có thông tin lớp'}
           </div>
@@ -169,7 +169,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             <Menu className="h-5 w-5" />
           </Button>
           <h1 className="font-head text-[1.25rem] font-semibold">
-            {items.find((i) => i.to === location.pathname)?.label ?? 'Quỹ Lớp'}
+            {items.find((i) => i.to === location.pathname)?.label ?? 'Class Fund'}
           </h1>
           <div className="flex-1" />
           <Button

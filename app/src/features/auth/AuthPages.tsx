@@ -17,9 +17,9 @@ function Shell({ title, sub, children, foot }: {
       <motion.div variants={pageVariants} initial="hidden" animate="show" className="w-full max-w-[420px]">
         <div className="mb-5 flex items-center gap-3">
           <div className="grid h-11 w-11 place-items-center rounded-[12px] bg-gradient-to-br from-lop to-doan
-            font-head text-lg font-bold text-white shadow-s1" aria-hidden>QL</div>
+            font-head text-lg font-bold text-white shadow-s1" aria-hidden>CF</div>
           <div>
-            <div className="font-head text-lg font-bold leading-tight">Quỹ Lớp</div>
+            <div className="font-head text-lg font-bold leading-tight">Class Fund</div>
             <div className="text-xs text-ink3">Quản lý thu chi lớp học</div>
           </div>
         </div>

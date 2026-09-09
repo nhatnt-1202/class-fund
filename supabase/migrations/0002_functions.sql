@@ -303,7 +303,7 @@ begin
 
   if v_invite.id is null then
     if v_profiles > 0 then
-      raise exception 'Email % chưa được mời vào hệ thống Quỹ Lớp', new.email using errcode = '42501';
+      raise exception 'Email % chưa được mời vào hệ thống Class Fund', new.email using errcode = '42501';
     end if;
     insert into profiles (id, email, full_name, role) values (new.id, new.email, v_name, 'owner');
   else

@@ -443,7 +443,7 @@ Workbook phải có đúng các sheet sau, đúng thứ tự và đúng tên:
 8. **`Audit log`** — chỉ khi người xuất là admin/owner: Thời điểm, Người thực hiện, Hành động, Bảng, Diễn giải.
 
 Quy ước:
-- Tên file: `QuyLop_<MaLop>_<phamvi>_<yyyyMMdd-HHmm>.xlsx`, ví dụ `QuyLop_DCXDXD69_03B_20260901-20260930_20260909-1530.xlsx`.
+- Tên file: `ClassFund_<MaLop>_<phamvi>_<yyyyMMdd-HHmm>.xlsx`, ví dụ `ClassFund_DCXDXD69_03B_20260901-20260930_20260909-1530.xlsx`.
 - Cột tiền ghi **số thật** + format `#,##0` để Excel còn `SUM` được; cột ngày ghi kiểu ngày thật.
 - Freeze dòng header, header in đậm có nền, độ rộng cột tự tính theo nội dung, auto-filter.
 - Phạm vi lọc ra 0 bản ghi → vẫn xuất sheet có header + dòng "Không có dữ liệu trong khoảng đã chọn".

@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
-<title>Quỹ Lớp — Quản lý thu chi lớp học</title>
+<title>Class Fund — Quản lý thu chi lớp học</title>
 <!--
   =====================================================================================
-  QUỸ LỚP — HỆ THỐNG QUẢN LÝ TÀI CHÍNH LỚP HỌC (ALL-IN-ONE, 1 FILE)
+  CLASS FUND — HỆ THỐNG QUẢN LÝ TÀI CHÍNH LỚP HỌC (ALL-IN-ONE, 1 FILE)
   =====================================================================================
   KIẾN TRÚC
     Toàn bộ app nằm trong file này. Không build, không npm. Mở bằng double-click là chạy.
@@ -463,9 +463,9 @@ body.no-motion *,body.no-motion *::before,body.no-motion *::after{
 <div class="app">
   <nav class="side" id="side" aria-label="Điều hướng chính">
     <div class="brand">
-      <div class="brand-logo" aria-hidden="true">QL</div>
+      <div class="brand-logo" aria-hidden="true">CF</div>
       <div>
-        <div class="brand-name">Quỹ Lớp</div>
+        <div class="brand-name">Class Fund</div>
         <div class="brand-sub" id="brandSub">Đang tải…</div>
       </div>
     </div>
@@ -575,7 +575,7 @@ function loadPrefs(){
 }
 function backupJSON(){
   const blob = new Blob([JSON.stringify(S,null,2)],{type:'application/json'});
-  downloadBlob(blob, `SaoLuu_QuyLop_${S.meta.className||'lop'}_${stampNow()}.json`);
+  downloadBlob(blob, `Backup_ClassFund_${S.meta.className||'lop'}_${stampNow()}.json`);
   toast('ok','Đã tải file sao lưu','Giữ file này để phục hồi khi đổi máy.');
 }
 function restoreJSON(file){
@@ -968,8 +968,8 @@ const VIEW_TITLE = { dashboard:'Tổng quan', students:'Danh sách lớp', incom
                      periods:'Đợt thu', io:'Nhập / Xuất', settings:'Cài đặt' };
 function render(){
   const host = byId('main');
-  byId('pageTitle').textContent = VIEW_TITLE[ui.view] || 'Quỹ Lớp';
-  document.title = (VIEW_TITLE[ui.view]||'') + ' · Quỹ Lớp' + (S.meta.className ? ' ' + S.meta.className : '');
+  byId('pageTitle').textContent = VIEW_TITLE[ui.view] || 'Class Fund';
+  document.title = (VIEW_TITLE[ui.view]||'') + ' · Class Fund' + (S.meta.className ? ' ' + S.meta.className : '');
   byId('brandSub').textContent = S.meta.className
     ? `${S.meta.className} · ${S.students.filter(s=>s.active!==false).length} SV`
     : 'Chưa có danh sách lớp';
@@ -1651,7 +1651,7 @@ function viewSettings(){
     </div></div>
 
     <div class="card"><div class="card-h"><h2>Về ứng dụng</h2></div><div class="card-b small muted">
-      <p><b>Quỹ Lớp</b> — bản all-in-one 1 file, không cần cài đặt, chạy offline sau lần mở đầu.</p>
+      <p><b>Class Fund</b> — bản all-in-one 1 file, không cần cài đặt, chạy offline sau lần mở đầu.</p>
       <p>Tồn quỹ luôn được tính lại từ bản ghi thu/chi: <b>Tồn(quỹ) = Σ Thu − Σ Chi</b>. Không có ô nhập tồn quỹ tay,
          nên số liệu không thể bị sửa ngầm.</p>
       <p>Phím tắt: <span class="kbd">T</span> thêm thu · <span class="kbd">C</span> thêm chi ·
@@ -3159,7 +3159,7 @@ function openExportModal(mode){
           return toast('err','Khoảng ngày không hợp lệ','“Từ ngày” phải trước “Đến ngày”.');
         try {
           const wb = buildWorkbook(sc);
-          const name = `QuyLop_${(S.meta.className||'lop').replace(/\s+/g,'')}_${scopeFileTag(sc)}_${stampNow()}.xlsx`;
+          const name = `ClassFund_${(S.meta.className||'lop').replace(/\s+/g,'')}_${scopeFileTag(sc)}_${stampNow()}.xlsx`;
           XLSX.writeFile(wb, name);
           m.close();
           toast('ok','Đã xuất Excel', name);
@@ -3460,7 +3460,7 @@ function initEvents(){
   render();
   if (!had && !S.students.length){
     setTimeout(() => openModal({
-      title:'Chào mừng đến Quỹ Lớp', mw:520,
+      title:'Chào mừng đến Class Fund', mw:520,
       sub:'Công cụ quản lý thu chi quỹ lớp — rành mạch đến từng đồng',
       body:`<p>Ba việc app này làm cho bạn:</p>
         <ul style="margin:.2rem 0 .8rem;padding-left:1.1rem;line-height:1.9">

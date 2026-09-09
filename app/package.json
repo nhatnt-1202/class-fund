@@ -1,5 +1,5 @@
 {
-  "name": "quy-lop",
+  "name": "class-fund",
   "private": true,
   "version": "2.0.0",
   "type": "module",
@@ -14,7 +14,8 @@
     "db:push": "supabase db push",
     "db:types": "supabase gen types typescript --local > src/types/database.types.ts",
     "check": "node scripts/check-connection.mjs",
-    "db:bundle": "node scripts/bundle-migrations.mjs"
+    "db:bundle": "node scripts/bundle-migrations.mjs",
+    "create:owner": "node scripts/create-owner.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

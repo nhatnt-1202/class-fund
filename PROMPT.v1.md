@@ -153,7 +153,7 @@ Workbook xuất ra phải có các sheet sau, **đúng thứ tự và đúng tê
 8. **`QR chuyen khoan`** (chỉ khi đã cấu hình tài khoản) — Mã SV, Họ tên, Đợt thu, Quỹ, Còn phải nộp, Nội dung chuyển khoản, Ngân hàng, Số tài khoản, và **payload VietQR** dạng text; dùng để đối chiếu sao kê ngân hàng hoặc sinh QR ở chỗ khác.
 
 Quy ước xuất:
-- Tên file: `QuyLop_<MaLop>_<phamvi>_<yyyyMMdd-HHmm>.xlsx`, ví dụ `QuyLop_DCXDXD69_03B_20260901-20260930_20260909-1530.xlsx`.
+- Tên file: `ClassFund_<MaLop>_<phamvi>_<yyyyMMdd-HHmm>.xlsx`, ví dụ `ClassFund_DCXDXD69_03B_20260901-20260930_20260909-1530.xlsx`.
 - Cột tiền: ghi **số thật** (không phải chuỗi) + định dạng `#,##0` để Excel còn tính SUM được; cột ngày ghi dạng ngày thật.
 - Có freeze dòng tiêu đề, độ rộng cột tự tính theo nội dung, header in đậm.
 - Nếu phạm vi lọc ra 0 bản ghi: vẫn xuất sheet có header + dòng "Không có dữ liệu trong khoảng đã chọn".

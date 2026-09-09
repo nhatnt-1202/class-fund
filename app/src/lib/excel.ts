@@ -514,7 +514,7 @@ export function exportFileName(className: string, sc: ExportScope): string {
   const d = new Date();
   const p = (n: number) => String(n).padStart(2, '0');
   const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
-  return `QuyLop_${(className || 'lop').replace(/\s+/g, '')}_${scopeTag(sc)}_${stamp}.xlsx`;
+  return `ClassFund_${(className || 'lop').replace(/\s+/g, '')}_${scopeTag(sc)}_${stamp}.xlsx`;
 }
 
 /** File mẫu để nhập danh sách lớp cho lần sau. */

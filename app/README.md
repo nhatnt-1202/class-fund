@@ -1,4 +1,4 @@
-# Quỹ Lớp v2 — Supabase + React
+# Class Fund v2 — Supabase + React
 
 Bản đầy đủ của hệ thống quản lý thu chi quỹ lớp: **có tài khoản, phân quyền 5 vai trò,
 audit log** và thu tiền bằng **QR chuyển khoản VietQR**.
@@ -74,7 +74,7 @@ Dashboard → **Authentication**:
 - **URL Configuration**: đặt *Site URL* = `http://localhost:5173` khi phát triển, và thêm vào
   *Redirect URLs*:
   `http://localhost:5173/doi-mat-khau` (link đặt lại mật khẩu trả về đây).
-  Khi deploy thì thêm domain thật, ví dụ `https://quy-lop.netlify.app/doi-mat-khau`.
+  Khi deploy thì thêm domain thật, ví dụ `https://class-fund.netlify.app/doi-mat-khau`.
 
 ### 5. Kiểm tra rồi chạy
 
@@ -98,7 +98,7 @@ không cần chạy SQL tay. Sau đó vào trang **Tài khoản** để mời nh
 | `npm run check` báo *không tìm thấy view v_class_public* | Chưa chạy `0001_schema.sql` |
 | Báo *không tìm thấy RPC log_event* | Chưa chạy `0002_functions.sql` |
 | Báo *anon ĐỌC ĐƯỢC bảng students* | Chưa chạy `0003_rls.sql` |
-| Đăng ký báo *Database error saving new user* | Email chưa được mời. Đây là trigger `handle_new_user()` chặn đúng thiết kế, nhưng Supabase đôi khi che câu tiếng Việt gốc ("Email … chưa được mời vào hệ thống Quỹ Lớp"). Người đầu tiên của hệ thống thì không cần lời mời. |
+| Đăng ký báo *Database error saving new user* | Email chưa được mời. Đây là trigger `handle_new_user()` chặn đúng thiết kế, nhưng Supabase đôi khi che câu tiếng Việt gốc ("Email … chưa được mời vào hệ thống Class Fund"). Người đầu tiên của hệ thống thì không cần lời mời. |
 | Đăng nhập được nhưng không thấy nút thêm thu/chi | Tài khoản đang là *thành viên*. Nhờ quản trị nâng lên *thủ quỹ* ở trang Tài khoản. |
 | Trang trắng sau khi deploy | Thiếu SPA fallback về `index.html`, hoặc chưa khai 2 biến môi trường ở nhà cung cấp hosting |
 

@@ -1,4 +1,4 @@
-# Quỹ Lớp — Quản lý thu chi lớp học
+# Class Fund — Quản lý thu chi quỹ lớp học
 
 Công cụ quản lý tài chính lớp học **rành mạch đến từng đồng**: theo dõi ai đã nộp / ai còn nợ,
 ghi nhật ký mua sắm, và luôn có bảng tổng kết tự động cho **từng quỹ riêng biệt**.
@@ -117,7 +117,7 @@ Một workbook gồm các sheet:
 | `QR chuyen khoan` | Nội dung CK + payload VietQR từng SV còn nợ, để đối chiếu sao kê *(khi đã cấu hình tài khoản)* |
 
 Cột tiền ghi **số thật** + định dạng `#,##0` (Excel `SUM` được); cột ngày là **ngày thật** (`dd/mm/yyyy`),
-có autofilter và độ rộng cột tự tính. Tên file: `QuyLop_<MãLớp>_<phạmvi>_<yyyyMMdd-HHmm>.xlsx`.
+có autofilter và độ rộng cột tự tính. Tên file: `ClassFund_<MãLớp>_<phạmvi>_<yyyyMMdd-HHmm>.xlsx`.
 
 ---
 
