@@ -94,8 +94,21 @@ export async function stubSupabase(page: Page, opts: StubOptions = {}): Promise<
   };
   // Vai trò trong lớp nằm ở memberships, nên cùng một tài khoản có thể là thủ quỹ lớp này
   // và thành viên lớp khác. Tài khoản gốc không cần dòng nào: nó thấy mọi lớp.
+  // `profiles` là bảng nhúng: useMembers đọc memberships kèm thông tin tài khoản
   const memberships = opts.role
-    ? [{ id: 'm1', user_id: 'u1', class_id: CLASS_ID, role: opts.role, student_id: 's2', created_at: '', created_by: null }]
+    ? [
+        {
+          id: 'm1', user_id: 'u1', class_id: CLASS_ID, role: opts.role, student_id: 's2',
+          created_at: '', created_by: null,
+          profiles: { id: 'u1', email: 'nguoidung@lop.vn', full_name: 'Lê Thủ Quỹ', role: 'member', is_active: true, last_sign_in_at: null },
+        },
+        {
+          // Quản trị lớp được mời bằng email nên chưa gắn với sinh viên nào — chính chỗ cần sửa
+          id: 'm2', user_id: 'u2', class_id: CLASS_ID, role: 'admin', student_id: null,
+          created_at: '', created_by: null,
+          profiles: { id: 'u2', email: 'loptruong@lop.vn', full_name: 'Phạm Lớp Trưởng', role: 'member', is_active: true, last_sign_in_at: null },
+        },
+      ]
     : [];
 
   if (signedIn) {
@@ -131,7 +144,16 @@ export async function stubSupabase(page: Page, opts: StubOptions = {}): Promise<
   const tables: Record<string, unknown[]> = {
     app_config: [{ id: 1, student_email_domain: 'student.humg.edu.vn', student_code_pattern: '^[0-9]{8,12}$', updated_at: '' }],
     classes: opts.noClasses ? [] : opts.twoClasses || opts.systemOwner ? [klass, otherKlass] : [klass],
-    memberships: opts.noClasses ? [] : memberships,
+    /*
+     * Giả lập cả RLS của bảng này: chỉ quản trị lớp đọc được membership của người khác,
+     * người thường chỉ thấy dòng của chính mình. Không giả lập chỗ này thì test sẽ tưởng
+     * mọi vai trò đều đọc được cả lớp.
+     */
+    memberships: opts.noClasses
+      ? []
+      : opts.role === 'admin' || opts.systemOwner
+        ? memberships
+        : memberships.filter((m) => m.user_id === 'u1'),
     v_classes_public: publicClasses,
     // Ban quản lý lớp: s2 (Lê Thị Thử) là thủ quỹ và có trong danh sách; một quản trị lớp
     // được mời bằng email nên không có dòng sinh viên nào.

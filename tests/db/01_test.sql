@@ -601,6 +601,29 @@ begin;
   set local request.jwt.claims to :'adm_c_jwt';
   select assert((select count(*) from v_class_officers where class_id = :'class_c' and role = 'admin') = 1,
     'Lớp C có đúng một quản trị lớp trong ban quản lý');
+  -- Quản trị lớp C được mời bằng email nên chưa gắn với sinh viên nào; gắn vào một sinh viên
+  -- của LỚP MÌNH là hợp lệ, và sau đó tên trong ban quản lý lấy theo danh sách lớp.
+  select assert((select not in_student_list from v_class_officers where class_id = :'class_c'),
+    'Quản trị lớp C ban đầu chưa gắn với sinh viên nào');
+commit;
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'owner_jwt';
+  insert into students (class_id, stt, code, last_name, first_name)
+    values (:'class_c', 1, '2421075555', 'Phạm', 'Lớp Trưởng');
+commit;
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'adm_c_jwt';
+  update memberships set student_id = (select id from students where code = '2421075555')
+    where class_id = :'class_c' and user_id = (select id from profiles where email = 'lopTruong05C@lop.vn');
+  select assert((select in_student_list from v_class_officers where class_id = :'class_c'),
+    'Gắn tài khoản với sinh viên cùng lớp ⇒ đánh dấu được trên dòng của họ');
+  select assert((select person_name from v_class_officers where class_id = :'class_c') = 'Phạm Lớp Trưởng',
+    'Tên trong ban quản lý lấy theo danh sách lớp sau khi đã gắn');
+  select assert_blocked(format($q$update memberships set student_id = '%s'
+                                 where class_id = '%s'$q$, :'sa1', :'class_c'),
+    'Vẫn không gắn được sinh viên của lớp khác');
 commit;
 
 \echo ''

@@ -80,16 +80,22 @@ export interface MyClass extends Klass {
   myStudentId: string | null;
 }
 
-/** Các lớp người đang đăng nhập thuộc về, kèm vai trò trong từng lớp. */
-export function useMyClasses(enabled: boolean, isSystemOwner: boolean) {
+/**
+ * Các lớp người đang đăng nhập thuộc về, kèm vai trò trong từng lớp.
+ *
+ * `userId` là bắt buộc chứ không tiện tay bỏ qua: quản trị lớp đọc được membership của MỌI
+ * người trong lớp mình (RLS cho phép, vì họ phải quản lý thành viên), nên nếu không lọc theo
+ * chính mình thì vai trò và "sinh viên của tôi" có thể lấy nhầm của người khác trong lớp.
+ */
+export function useMyClasses(enabled: boolean, isSystemOwner: boolean, userId: string | null) {
   return useQuery({
-    queryKey: qk.myClasses,
+    queryKey: [...qk.myClasses, userId ?? ''],
     queryFn: async (): Promise<MyClass[]> => {
       const [classes, members] = await Promise.all([
         fetchAll<Klass>((from, to) =>
           supabase.from('classes').select('*').eq('is_active', true).order('code').range(from, to)),
         fetchAll<Membership>((from, to) =>
-          supabase.from('memberships').select('*').range(from, to)),
+          supabase.from('memberships').select('*').eq('user_id', userId!).range(from, to)),
       ]);
       const mine = new Map(members.map((m) => [m.class_id, m]));
       return classes.map((c) => ({
@@ -99,7 +105,7 @@ export function useMyClasses(enabled: boolean, isSystemOwner: boolean) {
         myStudentId: mine.get(c.id)?.student_id ?? null,
       }));
     },
-    enabled,
+    enabled: enabled && Boolean(userId),
   });
 }
 

@@ -94,6 +94,8 @@ export default function UsersPage() {
           Sinh viên có email dạng <b>&lt;mã SV&gt;@{domain}</b> <b>tự đăng ký được</b>, hệ thống tự gắn
           vào đúng lớp có mã sinh viên đó trong danh sách. Trang này chỉ cần dùng để <b>nâng quyền</b>
           {' '}(thủ quỹ, quản trị) hoặc <b>mời người ngoài</b> danh sách lớp (giáo viên, phụ huynh…).
+          {' '}Cột <b>Gắn với sinh viên</b> quyết định hai việc: người đó xem được công nợ và QR của
+          chính mình, và vai trò của họ được <b>đánh dấu ngay trên dòng của họ</b> ở trang Danh sách lớp.
         </span>
       </Note>
 
@@ -117,7 +119,7 @@ export default function UsersPage() {
               <caption className="sr-only">Thành viên của lớp và vai trò trong lớp</caption>
               <thead>
                 <tr>
-                  <th>Họ tên</th><th>Email</th><th>Vai trò trong lớp</th><th>Gắn với SV</th>
+                  <th>Họ tên</th><th>Email</th><th>Vai trò trong lớp</th><th>Gắn với sinh viên</th>
                   <th>Đăng nhập gần nhất</th><th />
                 </tr>
               </thead>
@@ -143,8 +145,34 @@ export default function UsersPage() {
                           {CLASS_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
                         </Select>
                       </td>
-                      <td className="text-[13px] text-ink3">
-                        {(students.data ?? []).find((s) => s.id === m.student_id)?.full_name ?? '—'}
+                      {/*
+                        * Gắn tài khoản với một sinh viên trong danh sách để (1) người đó xem được
+                        * công nợ và QR của chính mình, (2) vai trò của họ được đánh dấu ngay trên
+                        * dòng của họ ở trang Danh sách lớp. Quản trị lớp mời bằng email thì lúc
+                        * đầu chưa gắn với ai, nên phải sửa được ở đây.
+                        */}
+                      <td>
+                        <Select
+                          className="w-auto min-w-[150px]"
+                          aria-label={`Gắn ${m.profile?.full_name || m.profile?.email} với sinh viên trong danh sách`}
+                          value={m.student_id ?? ''}
+                          onChange={(e) => update.mutate(
+                            { id: m.id, values: { student_id: e.target.value || null } },
+                            {
+                              onSuccess: () => toast.ok(
+                                e.target.value ? 'Đã gắn với sinh viên' : 'Đã bỏ gắn sinh viên',
+                                m.profile?.email ?? undefined,
+                              ),
+                              onError: (err) => toast.err('Không gắn được',
+                                err instanceof Error ? err.message : undefined),
+                            },
+                          )}
+                        >
+                          <option value="">— Chưa gắn —</option>
+                          {(students.data ?? []).filter((s) => s.is_active).map((s) => (
+                            <option key={s.id} value={s.id}>{s.full_name} — {s.code}</option>
+                          ))}
+                        </Select>
                       </td>
                       <td className="text-[13px] text-ink3" title={fmtDateTime(m.profile?.last_sign_in_at)}>
                         {m.profile?.last_sign_in_at ? fmtRelative(m.profile.last_sign_in_at) : 'chưa đăng nhập'}

@@ -126,3 +126,33 @@ test.describe('Sinh viên chưa được gán lớp', () => {
     await expect(page.getByText(/chưa nhập danh sách sinh viên/)).toBeVisible();
   });
 });
+
+test.describe('Đánh dấu ban quản lý trong danh sách lớp', () => {
+  test('quản trị lớp gắn được tài khoản với một sinh viên trong danh sách', async ({ page }) => {
+    const sent: Sent[] = await stubSupabase(page, { role: 'admin' });
+    await page.goto('/tai-khoan');
+    await expect(page.getByRole('heading', { name: /Thành viên lớp/ })).toBeVisible();
+
+    // Quản trị lớp được mời bằng email nên chưa gắn với sinh viên nào
+    const picker = page.getByRole('combobox', { name: /Gắn Phạm Lớp Trưởng với sinh viên/ });
+    await expect(picker).toHaveValue('');
+    await picker.selectOption('s3');
+
+    await expect.poll(() => sent.filter((s) => s.method === 'PATCH' && s.table === 'memberships').length,
+      { timeout: 7000 }).toBe(1);
+    const body = sent.find((s) => s.method === 'PATCH' && s.table === 'memberships')!.body as Record<string, unknown>;
+    expect(body.student_id).toBe('s3');
+  });
+
+  test('bỏ gắn thì gửi lên null, không phải chuỗi rỗng', async ({ page }) => {
+    const sent: Sent[] = await stubSupabase(page, { role: 'admin' });
+    await page.goto('/tai-khoan');
+    await page.getByRole('combobox', { name: /Gắn Lê Thủ Quỹ với sinh viên/ }).selectOption('');
+
+    await expect.poll(() => sent.filter((s) => s.method === 'PATCH' && s.table === 'memberships').length,
+      { timeout: 7000 }).toBe(1);
+    const body = sent.find((s) => s.method === 'PATCH' && s.table === 'memberships')!.body as Record<string, unknown>;
+    // Postgres cần null; chuỗi rỗng sẽ lỗi kiểu uuid
+    expect(body.student_id).toBeNull();
+  });
+});

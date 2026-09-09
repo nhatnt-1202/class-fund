@@ -44,7 +44,7 @@ export function ClassProvider({ children }: { children: ReactNode }) {
   const isSystemOwner = profile?.role === 'owner';
   const signedIn = Boolean(session && profile?.is_active);
 
-  const mine = useMyClasses(signedIn, isSystemOwner);
+  const mine = useMyClasses(signedIn, isSystemOwner, profile?.id ?? null);
   const publicList = usePublicClasses();
 
   const options = useMemo<ClassOption[]>(() => {
