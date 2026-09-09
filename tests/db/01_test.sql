@@ -117,9 +117,9 @@ begin;
   set local role authenticated;
   set local request.jwt.claims to :'treasurer_jwt';
   insert into students (stt, code, last_name, first_name, dob, class_code) values
-    (1, '2400000001', 'Trần Văn', 'An',  '2005-01-15', 'DCXDXD69_03B'),
-    (2, '2400000002', 'Lê Thị',   'Anh', '2005-02-20', 'DCXDXD69_03B'),
-    (3, '2400000003', 'Phạm Minh', 'Nam', '2005-03-25', 'DCXDXD69_03B');
+    (1, '2400000001', 'Trần Văn', 'Mẫu',  '2005-01-15', 'DCXDXD69_03B'),
+    (2, '2400000002', 'Lê Thị',   'Thử', '2005-02-20', 'DCXDXD69_03B'),
+    (3, '2400000003', 'Phạm Minh', 'Ví', '2005-03-25', 'DCXDXD69_03B');
   select assert((select count(*) from students) = 3, 'Thủ quỹ thêm được 3 sinh viên');
 commit;
 
@@ -376,8 +376,8 @@ begin;
   set local role authenticated;
   set local request.jwt.claims to :'treasurer_jwt';
   select import_students($q$[
-    {"stt":10,"code":"2400000008","last_name":"Ngô Văn","first_name":"Vinh","dob":"2005-04-10","class_code":"DCXDXD69_03B"},
-    {"stt":11,"code":"2400000007","last_name":"Đặng Văn","first_name":"Thắng","dob":"2005-05-12","class_code":"DCXDXD69_03B"},
+    {"stt":10,"code":"2400000008","last_name":"Ngô Văn","first_name":"Tám","dob":"2005-04-10","class_code":"DCXDXD69_03B"},
+    {"stt":11,"code":"2400000007","last_name":"Đặng Văn","first_name":"Bảy","dob":"2005-05-12","class_code":"DCXDXD69_03B"},
     {"stt":12,"code":"","last_name":"","first_name":"","class_code":"X"}
   ]$q$::jsonb, 'skip') as r \gset
   select assert((:'r'::jsonb->>'added')::int = 2 and (:'r'::jsonb->>'failed')::int = 1,
@@ -392,7 +392,7 @@ begin;
   set local role authenticated;
   set local request.jwt.claims to :'treasurer_jwt';
   select import_students($q$[
-    {"stt":10,"code":"2400000008","last_name":"Ngô Văn","first_name":"Vinh"}
+    {"stt":10,"code":"2400000008","last_name":"Ngô Văn","first_name":"Tám"}
   ]$q$::jsonb, 'skip') as r2 \gset
   select assert((:'r2'::jsonb->>'skipped')::int = 1 and (:'r2'::jsonb->>'added')::int = 0,
     'Import lại cùng mã SV với chế độ "bỏ qua" ⇒ không nhân bản');

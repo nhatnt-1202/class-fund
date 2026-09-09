@@ -35,8 +35,8 @@ describe('tìm kiếm bỏ dấu', () => {
 
 describe('tên và ngày', () => {
   it('tách tên là từ cuối', () => {
-    expect(splitName('Trần Văn Mẫu')).toEqual({ last_name: 'Trần Văn', first_name: 'An' });
-    expect(splitName('An')).toEqual({ last_name: '', first_name: 'An' });
+    expect(splitName('Trần Văn Mẫu')).toEqual({ last_name: 'Trần Văn', first_name: 'Mẫu' });
+    expect(splitName('Mẫu')).toEqual({ last_name: '', first_name: 'Mẫu' });
   });
   it('hiển thị ngày dd/MM/yyyy', () => {
     expect(fmtDate('2026-09-09')).toBe('09/09/2026');

@@ -2535,7 +2535,7 @@ function detectMeta(aoa, headerRow){
   if ((m = /(\d{4})\s*[-–]\s*(\d{4})/.exec(text)))         out.schoolYear = m[1] + '-' + m[2];
   return out;
 }
-/** Tách 'Trần Văn Mẫu' → { lastName:'Trần Văn', firstName:'An' } (tên là từ cuối). */
+/** Tách 'Trần Văn Mẫu' → { lastName:'Trần Văn', firstName:'Mẫu' } (tên là từ cuối). */
 function splitName(full){
   const parts = String(full||'').trim().replace(/\s+/g,' ').split(' ');
   if (parts.length <= 1) return { lastName:'', firstName: parts[0] || '' };
@@ -3175,8 +3175,8 @@ function downloadTemplate(){
     ['Giữ nguyên dòng tiêu đề bên dưới. Mã SV nên định dạng Text để không bị Excel đổi thành số.'],
     [],
     ['STT','Mã SV','Họ và tên đệm','Tên','Ngày sinh','Lớp','Trạng thái','Số tiền','Ngày','Ghi chú'],
-    [1,'2400000001','Trần Văn','An', toDate('2006-07-20'), S.meta.className||'DCXDXD69_03B','Đã đóng',50000, toDate(todayISO()),''],
-    [2,'2400000002','Lê Thị','Anh', toDate('2006-06-05'), S.meta.className||'DCXDXD69_03B','Chưa đóng','','',''],
+    [1,'2400000001','Trần Văn','Mẫu', toDate('2005-01-15'), S.meta.className||'DCXDXD69_03B','Đã đóng',50000, toDate(todayISO()),''],
+    [2,'2400000002','Lê Thị','Thử', toDate('2005-02-20'), S.meta.className||'DCXDXD69_03B','Chưa đóng','','',''],
   ];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, mkSheet(aoa, { money:[7], dates:[4,8], headerRow:3 }), 'Danh sach lop');
@@ -3364,7 +3364,7 @@ function fakeClassSheet(){
     [], [],
     ['STT','Mã SV','Họ và tên SV', null,'Ngày sinh','Lớp ','Trạng thái','Số tiền ','Ngày','Mua','Phát sinh','Tổng tiền còn lại ','Tiền thiếu '],
   ];
-  const names = [['Trần Văn','An',38918],['Lê Thị','Anh',38873],['Hoàng Văn','Anh',38515],['Bùi Văn','Anh',38746]];
+  const names = [['Trần Văn','Mẫu',38918],['Lê Thị','Thử',38873],['Hoàng Văn','Bốn',38515],['Bùi Văn','Năm',38746]];
   for (let k = 0; k < 49; k++){
     const n = names[k % names.length];
     rows.push([k+1, 2400000001 + k, n[0], n[1] + (k>3?('_'+k):''), n[2] + k, 'DCXDXD69_03B',
@@ -3383,8 +3383,8 @@ function loadDemo(){
   const p2 = { id:uid(), name:'Quỹ Đoàn học kỳ I 2026-2027', fund:'QUY_DOAN', amountPerStudent:20000,
     openDate:'2026-09-01', dueDate:'2026-10-15', status:'OPEN', note:'', demo:true };
   const st = [
-    { lastName:'Trần Văn',  firstName:'An',  code:'2400000001', dob:'2005-01-15' },
-    { lastName:'Lê Thị',    firstName:'Anh', code:'2400000002', dob:'2005-02-20' },
+    { lastName:'Trần Văn',  firstName:'Mẫu', code:'2400000001', dob:'2005-01-15' },
+    { lastName:'Lê Thị',    firstName:'Thử', code:'2400000002', dob:'2005-02-20' },
     { lastName:'Phạm Minh',  firstName:'Nam', code:'2400000003', dob:'2005-03-25' },
   ].map((s,i) => Object.assign(s, { id:uid(), stt:i+1, fullName: fullNameOf(s),
       classCode: S.meta.className || 'DCXDXD69_03B', active:true, note:'', demo:true }));

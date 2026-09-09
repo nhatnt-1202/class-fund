@@ -10,9 +10,9 @@ update class_settings set
 where id = 1;
 
 insert into students (stt, code, last_name, first_name, dob, class_code) values
-  (1, '2400000001', 'Trần Văn',  'An',  '2005-01-15', 'DCXDXD69_03B'),
-  (2, '2400000002', 'Lê Thị',    'Anh', '2005-02-20', 'DCXDXD69_03B'),
-  (3, '2400000003', 'Phạm Minh',  'Nam', '2005-03-25', 'DCXDXD69_03B')
+  (1, '2400000001', 'Trần Văn',  'Mẫu',  '2005-01-15', 'DCXDXD69_03B'),
+  (2, '2400000002', 'Lê Thị',    'Thử', '2005-02-20', 'DCXDXD69_03B'),
+  (3, '2400000003', 'Phạm Minh', 'Ví', '2005-03-25', 'DCXDXD69_03B')
 on conflict do nothing;
 
 insert into periods (name, fund, amount_per_student, open_date, due_date) values

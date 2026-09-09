@@ -25,8 +25,8 @@ function fakeClassSheet(): Aoa {
     ['STT', 'Mã SV', 'Họ và tên SV', null, 'Ngày sinh', 'Lớp ', 'Trạng thái', 'Số tiền ', 'Ngày', 'Mua', 'Phát sinh'],
   ];
   const names: Array<[string, string, number]> = [
-    ['Trần Văn', 'An', 38918], ['Lê Thị', 'Anh', 38873],
-    ['Hoàng Văn', 'Anh', 38515], ['Bùi Văn', 'Anh', 38746],
+    ['Trần Văn', 'Mẫu', 38918], ['Lê Thị', 'Thử', 38873],
+    ['Hoàng Văn', 'Bốn', 38515], ['Bùi Văn', 'Năm', 38746],
   ];
   for (let k = 0; k < 49; k++) {
     const n = names[k % names.length]!;
@@ -82,7 +82,7 @@ describe('parser danh sách lớp', () => {
     expect(mapping[3]).toBe('first_name');
     expect(ex.rows[0]!.full_name).toBe('Trần Văn Mẫu');
     expect(ex.rows[0]!.last_name).toBe('Trần Văn');
-    expect(ex.rows[0]!.first_name).toBe('An');
+    expect(ex.rows[0]!.first_name).toBe('Mẫu');
   });
   it('đọc đúng 49 sinh viên và không lấy dòng tổng', () => {
     expect(ex.rows).toHaveLength(49);
@@ -104,8 +104,8 @@ describe('parser danh sách lớp', () => {
     // đã dừng ở 2 dòng trống trước dòng tổng)
     const withDup: Aoa = [
       ...aoa.slice(0, headerRow + 1),
-      [1, 2400000001, 'Trần Văn', 'An', 38918, 'DCXDXD69_03B'],
-      [2, 2400000001, 'Trần Văn', 'An', 38918, 'DCXDXD69_03B'],
+      [1, 2400000001, 'Trần Văn', 'Mẫu', 38918, 'DCXDXD69_03B'],
+      [2, 2400000001, 'Trần Văn', 'Mẫu', 38918, 'DCXDXD69_03B'],
       [3, null, '', '', null, 'DCXDXD69_03B'],
       [], [], ['Tổng quỹ :', null, null, null, null, null, null, 1000000],
     ];
@@ -141,7 +141,7 @@ describe('xuất Excel', () => {
       deleted_at: null, created_at: '', created_by: null,
     }],
     students: [{
-      id: 's1', stt: 1, code: '2400000001', last_name: 'Trần Văn', first_name: 'An', full_name: 'Trần Văn Mẫu',
+      id: 's1', stt: 1, code: '2400000001', last_name: 'Trần Văn', first_name: 'Mẫu', full_name: 'Trần Văn Mẫu',
       dob: '2005-01-15', class_code: 'DCXDXD69_03B', note: '', is_active: true, batch_id: null,
       deleted_at: null, created_at: '', created_by: null,
     }],
@@ -224,22 +224,38 @@ describe('xuất Excel', () => {
   });
 });
 
-/** Chỉ chạy khi máy có sẵn file danh sách lớp thật. */
-const REAL_FILE = path.join(os.homedir(), 'Downloads', 'Danh sách đóng góp quỹ lớp DCXDXD69_03B (2).xlsx');
+/**
+ * Chỉ chạy khi máy có sẵn file danh sách lớp thật (mỗi người tự đặt ở ~/Downloads).
+ * Cố ý CHỈ kiểm tra cấu trúc, không kỳ vọng tên hay mã sinh viên cụ thể: dữ liệu thật của
+ * sinh viên không nằm trong repo này.
+ */
+const REAL_FILE = process.env.CLASS_LIST_XLSX
+  ?? path.join(os.homedir(), 'Downloads', 'Danh sách đóng góp quỹ lớp DCXDXD69_03B (2).xlsx');
+
 describe.runIf(fs.existsSync(REAL_FILE))('file Excel thật', () => {
-  it('đọc đúng 49 sinh viên, đúng ngày sinh, đúng dòng tổng', () => {
+  it('dò đúng dòng tiêu đề, đọc trọn danh sách và không lấy dòng tổng', () => {
     const wb = XLSX.read(fs.readFileSync(REAL_FILE), { type: 'buffer' });
     const aoa = sheetToAoa(wb, wb.SheetNames[0]!);
     const hr = detectHeaderRow(aoa);
     const ex = extractRows(aoa, hr, autoMapping(aoa, hr));
     validateRows(ex.rows, new Set<string>());
-    expect(hr).toBe(9);
-    expect(ex.rows).toHaveLength(49);
-    expect(ex.footerTotal).toBe(1000000);
-    expect(ex.rows[0]!.code).toBe('2400000001');
-    expect(ex.rows[0]!.full_name).toBe('Trần Văn Mẫu');
-    expect(ex.rows[0]!.dob).toBe('2006-07-20');
+
+    expect(hr).toBeGreaterThanOrEqual(0);
+    expect(ex.rows.length).toBeGreaterThan(0);
+    // dòng tổng phải bị loại khỏi danh sách sinh viên nhưng vẫn đọc được riêng
+    expect(ex.rows.some((r) => /^(tong|cong)/i.test(r.full_name))).toBe(false);
+    expect(ex.footerTotal === null || ex.footerTotal > 0).toBe(true);
+    // mọi dòng đọc được phải hợp lệ và mã SV luôn là chuỗi số nguyên
     expect(ex.rows.filter((r) => r.errors.length)).toHaveLength(0);
-    expect(detectMeta(aoa, hr).class_name).toBe('DCXDXD69_03B');
+    expect(ex.rows.every((r) => /^\d+$/.test(r.code))).toBe(true);
+    expect(new Set(ex.rows.map((r) => r.code)).size).toBe(ex.rows.length);
+    // họ và tên được ghép từ hai cột bị merge ⇒ phải có ít nhất 2 từ
+    expect(ex.rows.every((r) => r.full_name.trim().split(/\s+/).length >= 2)).toBe(true);
+    // ngày sinh quy đổi được và nằm trong khoảng hợp lý của sinh viên
+    const dobs = ex.rows.map((r) => r.dob).filter(Boolean);
+    expect(dobs.length).toBeGreaterThan(0);
+    expect(dobs.every((d) => Number(d.slice(0, 4)) >= 1990 && Number(d.slice(0, 4)) <= 2015)).toBe(true);
+    // đọc được thông tin lớp từ phần tiêu đề hành chính
+    expect(detectMeta(aoa, hr).class_name ?? '').toMatch(/^[A-Z0-9_.-]*$/);
   });
 });
