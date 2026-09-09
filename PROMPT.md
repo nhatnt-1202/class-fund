@@ -19,6 +19,7 @@ Toàn bộ UI, nhãn, thông báo lỗi: **tiếng Việt**. Tiền: **VND**, hi
 | Form | **react-hook-form + zod** (mọi form đều validate bằng zod schema dùng chung với type) |
 | Backend | **Supabase**: Postgres + Auth + Row Level Security + Storage |
 | Excel | **SheetJS (xlsx)** cho import/export |
+| QR | **qrcode.react** (hoặc `qrcode-generator`) — vẽ QR tại client, không gọi API ngoài |
 | Ngày tháng | **date-fns** + locale `vi` |
 | Icon | **lucide-react** |
 | Deploy | Frontend tĩnh lên Netlify/Vercel; DB trên Supabase Cloud |
@@ -58,6 +59,7 @@ Cấu trúc project:
    Tính bằng **Postgres view** để mọi client đọc ra cùng một con số.
 4. **Không xoá cứng bất cứ thứ gì** (xem §12): mọi bảng có `deleted_at`, xoá = soft delete, vẫn còn trong audit log.
 5. **Mọi thao tác ghi đều để lại vết** trong `audit_logs` (xem §5) — do trigger DB ghi, không phụ thuộc frontend.
+6. **Tiền chỉ vào quỹ khi có người có quyền xác nhận đã nhận** — sinh viên quét QR chuyển khoản rồi thủ quỹ xác nhận, hoặc thủ quỹ thu tiền mặt. **Không** lấy cột `Trạng thái`/`Số tiền` của file Excel import để cộng vào quỹ; file Excel chỉ dùng nhập danh sách lớp.
 
 ---
 
@@ -371,21 +373,28 @@ Bảng: STT · Mã SV · Họ và tên · Ngày sinh (ẩn với guest) · Lớp
 - Tìm kiếm **bỏ dấu vẫn khớp** ("tran van mau" → "Trần Văn Mẫu"), lọc theo đợt/quỹ/còn nợ/đã đủ, sort mọi cột, ghim header, virtualize nếu > 200 dòng.
 - Thêm/sửa SV, vô hiệu hoá SV (không xoá cứng).
 
-### 9.3. Thu — "Thêm khoản thu"
+### 9.3. Thu qua QR chuyển khoản (cách nộp chính)
+- Bảng `class_settings` (hoặc `meta`) giữ **một** tài khoản nhận tiền: `bank_bin`, `bank_name`, `account_no`, `account_name`, `note_template` (biến `{ma} {ten} {dot} {quy} {lop}`). Chỉ `admin`/`owner` sửa được; RLS chỉ cho đọc các trường cần để dựng QR.
+- Client dựng **payload VietQR (Napas 247)** theo EMVCo và tự vẽ QR: `00` phiên bản · `01` kiểu (`11`/`12`) · `38` (GUID `A000000727` + BIN + số TK + `QRIBFTTA`) · `53`=`704` · `54` số tiền · `58`=`VN` · `62.08` nội dung · `63` CRC16/CCITT-FALSE. Nội dung chuyển khoản: bỏ dấu, in hoa, ≤ 25 ký tự, luôn chứa mã SV.
+- **Mỗi sinh viên × mỗi đợt một QR riêng**, gắn sẵn số tiền còn phải nộp. `member` đăng nhập chỉ thấy QR **của chính mình** (RLS theo `profiles.student_id`); `guest` không thấy QR của ai.
+- Nút **"Đã nhận được tiền"** chỉ hiện với `treasurer`/`admin`/`owner`; bấm vào tạo bản ghi thu `method = TRANSFER`, ghi chú `Chuyển khoản QR`, và sinh audit log nêu rõ ai xác nhận.
+- **"QR cả lớp"** cho một đợt: lưới QR của mọi SV còn nợ + nút in. Sheet `QR chuyen khoan` trong file Excel xuất ra để đối chiếu sao kê.
+
+### 9.4. Thu tay — "Thêm khoản thu"
 `Ngày` (mặc định hôm nay) · `Quỹ` **(bắt buộc, nổi bật)** · `Đợt thu` (lọc theo quỹ) · `Sinh viên` (combobox tìm theo tên/mã, hoặc "Nguồn khác" → gõ tên người nộp) · `Số tiền` (mặc định = mức thu của đợt, cho sửa để nộp thiếu/nộp bù) · `Hình thức` · `Người thu` (mặc định = tên account đang đăng nhập) · `Ghi chú`.
 - **Thu theo lô**: chọn 1 đợt → tick nhiều SV → ghi nhận 1 lần (mỗi SV 1 bản ghi riêng), có progress từng dòng.
 - Cảnh báo (không chặn) nếu tổng nộp của SV trong đợt vượt mức phải nộp.
 - Lịch sử thu: lọc theo quỹ/đợt/SV/khoảng ngày, hiện dòng tổng của kết quả đang lọc.
 
-### 9.4. Chi — "Thêm khoản chi" (nhật ký mua sắm)
+### 9.5. Chi — "Thêm khoản chi" (nhật ký mua sắm)
 `Ngày` · `Quỹ` **(rút từ Quỹ Lớp hay Quỹ Đoàn — bắt buộc, hiển thị nổi bật)** · `Nội dung/Mua món gì` · `Danh mục` · `Người đi mua` **(bắt buộc)** · `Số tiền` · `Ảnh hoá đơn` (upload lên Supabase Storage, xem lightbox) · `Ghi chú`.
 - **Cảnh báo vượt quỹ**: nếu số chi > tồn quỹ hiện tại của quỹ đó → cảnh báo đỏ nêu rõ tồn quỹ và số thiếu; vẫn cho lưu khi người dùng xác nhận (thực tế có ứng trước), bản ghi được đánh dấu ⚠ trong danh sách và trong export.
 - Nhật ký chi mặc định mới → cũ; lọc theo quỹ/danh mục/người mua/khoảng ngày; dòng tổng theo kết quả lọc.
 
-### 9.5. Đợt thu
+### 9.6. Đợt thu
 CRUD, đóng/mở đợt, nhân bản đợt cho kỳ sau, trang chi tiết đợt (đã đóng / chưa đóng / đóng thiếu, thu thực tế vs dự kiến).
 
-### 9.6. Cài đặt (admin)
+### 9.7. Cài đặt (admin)
 Tên lớp, khoa, học kỳ, năm học · công tắc "Ẩn tên SV với khách" · danh mục chi tuỳ chỉnh · cỡ chữ / chế độ dễ đọc / giảm chuyển động · sao lưu & phục hồi.
 
 ---
@@ -401,7 +410,7 @@ File mẫu: `Danh sách đóng góp quỹ lớp DCXDXD69_03B (2).xlsx`. Parser *
 - **Ô "Họ và tên SV" bị merge 2 cột (C10:D10)**: họ + đệm ở cột C, tên ở cột D → phải **ghép `C + " " + D`** thành `full_name`, đồng thời giữ `last_name` / `first_name`. Chuẩn hoá: trim, bỏ khoảng trắng kép, giữ nguyên hoa/thường tiếng Việt.
 - **Mã SV lưu dạng số** → đọc ra thành `2.400000001E9`. Phải ép về **string số nguyên**, không dấu thập phân, không ký hiệu khoa học, giữ số 0 đầu nếu có → `"2400000001"`.
 - **Ngày sinh là serial Excel hệ 1900** (gốc `1899-12-30`): `38918 → 2006-07-20`, `38873 → 2006-06-05`, `38399 → 2005-02-16`, `39077 → 2006-12-26`. Nếu ô là chuỗi thì nhận cả `dd/MM/yyyy` và `d/M/yy`. Ngày sinh sau quy đổi phải nằm trong 2000–2010, lệch ra ngoài thì **cảnh báo dòng đó** thay vì ghi bừa.
-- **Cột `Trạng thái` có khoảng trắng cuối**: `"Đã đóng "`, `"Chưa đóng "`, hoặc trống → trim + so sánh bỏ dấu, không phân biệt hoa thường. Nếu `Đã đóng` và cột `Số tiền` có giá trị → **cho tick chọn** tạo luôn bản ghi Thu vào đợt đích (ngày = cột `Ngày` nếu có). `Đã đóng` mà `Số tiền` trống → dùng mức thu của đợt + ghi chú "suy ra từ file import".
+- **Cột `Trạng thái` có khoảng trắng cuối**: `"Đã đóng "`, `"Chưa đóng "`, hoặc trống → trim + so sánh bỏ dấu, không phân biệt hoa thường. Hai cột `Trạng thái` và `Số tiền` **chỉ hiển thị để đối chiếu**, **không** tạo bản ghi Thu (xem §1.6).
 - **Dòng cuối là dòng tổng**: `Tổng quỹ : … 1000000`, cách bảng vài dòng trống → dừng đọc khi gặp ≥ 2 dòng trống liên tiếp hoặc ô bắt đầu bằng `Tổng`/`Cộng`. **Tuyệt đối không** biến dòng tổng thành sinh viên. Sau import, đối chiếu: *"Tổng trong file: 1.000.000 ₫ / Hệ thống tính được: … ₫"* và cảnh báo nếu lệch.
 - File mẫu có **49 SV (dòng 11–59)** → thông báo kết quả phải ghi rõ `Đọc được 49 sinh viên`.
 
@@ -465,6 +474,7 @@ Viết test (Vitest cho logic, Playwright cho luồng chính) phủ tối thiể
 6. Tổng `Còn thiếu` = `Σ(số SV × mức thu mỗi đợt) − Σ đã nộp`, đúng theo từng quỹ.
 7. **RLS**: dùng `anon key` thử `insert` vào `incomes` → **bị chặn**; `member` thử `update` `expenses` → **bị chặn**; `treasurer` thử đổi role người khác → **bị chặn**; `anon` thử `select audit_logs` → **rỗng/bị chặn**. Test này chạy trực tiếp trên DB, không qua UI.
 8. Mỗi thao tác ghi sinh đúng 1 audit log với `summary` tiếng Việt đúng nội dung.
+8b. `crc16('123456789') === '29B1'`; payload VietQR bóc TLV đúng cấu trúc và CRC tự khớp; QR không số tiền ⇒ `01=11`, không có trường `54`; import file mẫu ⇒ **0** bản ghi thu được tạo.
 9. Không thể vô hiệu hoá `owner` cuối cùng.
 10. `prefers-reduced-motion: reduce` → không còn animation trượt/scale (kiểm bằng Playwright emulate).
 11. Lighthouse: Accessibility ≥ 95, Performance ≥ 90 trên mobile; `axe-core` không lỗi serious/critical.

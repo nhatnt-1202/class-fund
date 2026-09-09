@@ -1,6 +1,6 @@
 # PROMPT: Hệ thống Quản lý Tài chính Lớp học (All-in-One, 1 file)
 
-Bạn là senior frontend engineer. Hãy tạo cho tôi **một ứng dụng web quản lý thu – chi quỹ lớp, gói gọn trong DUY NHẤT MỘT FILE `index.html`** (HTML + CSS + JS inline, không build, không npm, mở bằng double-click là chạy được, chạy offline sau lần load đầu). Chỉ được dùng thư viện ngoài qua CDN: **SheetJS (xlsx)** cho import/export Excel. Không dùng framework nặng; vanilla JS là đủ.
+Bạn là senior frontend engineer. Hãy tạo cho tôi **một ứng dụng web quản lý thu – chi quỹ lớp, gói gọn trong DUY NHẤT MỘT FILE `index.html`** (HTML + CSS + JS inline, không build, không npm, mở bằng double-click là chạy được, chạy offline sau lần load đầu). Thư viện ngoài chỉ qua CDN: **SheetJS (xlsx)** cho import/export Excel và **qrcode-generator** để vẽ QR ngay trên máy. Không dùng framework nặng; vanilla JS là đủ.
 
 Toàn bộ giao diện, nhãn, thông báo lỗi: **tiếng Việt**. Tiền tệ: **VND**, hiển thị dạng `1.250.000 ₫` (dấu chấm nhóm nghìn), nhập liệu cho phép gõ `50000` hoặc `50.000`. Ngày tháng: hiển thị `dd/MM/yyyy`, lưu nội bộ `YYYY-MM-DD`.
 
@@ -14,6 +14,7 @@ Toàn bộ giao diện, nhãn, thông báo lỗi: **tiếng Việt**. Tiền t�
 4. **Công thức tồn quỹ** (tự tính lại mỗi lần render, không cache):
    `Tồn quỹ(quỹ X) = Σ Thu(quỹ X) − Σ Chi(quỹ X)`
 5. Dữ liệu lưu ở `localStorage` (key `classFund.v1`), kèm nút **Sao lưu JSON / Phục hồi JSON** để không bao giờ mất dữ liệu khi đổi máy.
+6. **Tiền chỉ vào quỹ khi có người xác nhận đã nhận**: sinh viên quét **QR chuyển khoản** rồi thủ quỹ bấm xác nhận, hoặc thủ quỹ thu tiền mặt và nhập tay. **Tuyệt đối không** lấy cột `Trạng thái` / `Số tiền` trong file Excel import để tự cộng vào quỹ — file Excel chỉ dùng để nhập **danh sách lớp**.
 
 ---
 
@@ -73,18 +74,27 @@ Bảng: STT, Mã SV, Họ và tên, Ngày sinh, Lớp, và **cột động cho t
 - Lọc: theo đợt, theo quỹ, chỉ SV còn nợ, chỉ SV đã đóng đủ.
 - Thêm / sửa / ẩn SV; sắp xếp mọi cột; ghim hàng tiêu đề.
 
-### 2.3. THU – "Add Thu"
+### 2.3. THU qua QR chuyển khoản (cách nộp chính)
+Thủ quỹ cấu hình **một** tài khoản nhận tiền ở Cài đặt: ngân hàng (danh sách BIN Napas), số tài khoản, tên chủ tài khoản, và **mẫu nội dung chuyển khoản** với biến `{ma} {ten} {dot} {quy} {lop}`.
+- App tự dựng **payload VietQR (Napas 247)** theo chuẩn EMVCo và **tự vẽ QR trên máy** — số tài khoản không được gửi ra dịch vụ ngoài nào. Cấu trúc: `00` phiên bản · `01` kiểu (`11` tĩnh / `12` có sẵn số tiền) · `38` thông tin thụ hưởng (GUID `A000000727` + BIN + số TK + `QRIBFTTA`) · `53` = `704` · `54` số tiền · `58` = `VN` · `62.08` nội dung · `63` **CRC16/CCITT-FALSE**.
+- **QR riêng cho từng sinh viên, từng đợt**: đã gắn sẵn đúng số tiền còn phải nộp và nội dung có mã SV ⇒ không ai chuyển nhầm, thủ quỹ đối chiếu sao kê được ngay. Nội dung chuyển khoản phải **bỏ dấu, in hoa, ≤ 25 ký tự**.
+- Chỗ nào mở được QR: bấm vào ô công nợ của sinh viên trong Danh sách lớp · nút QR ở mỗi hàng · chi tiết đợt thu · trong form thêm thu.
+- **"QR cả lớp"** cho một đợt: lưới QR của mọi sinh viên còn nợ, kèm nút **In tất cả** (mở cửa sổ in riêng) để dán bảng hoặc chụp gửi nhóm lớp.
+- Trong hộp thoại QR: sửa được số tiền (QR vẽ lại ngay), sao chép nội dung CK / số tài khoản, và 2 nút kết thúc: **"Đã nhận được tiền — ghi nhận thu"** (tạo bản ghi thu `method=TRANSFER`, ghi chú `Chuyển khoản QR`) hoặc **"Nộp tiền mặt…"** (mở form thu tay).
+- Chưa cấu hình tài khoản thì mọi chỗ mở QR đều dẫn người dùng sang Cài đặt, không báo lỗi khô khan.
+
+### 2.4. THU – "Add Thu" (thu tay / nguồn khác)
 Form nhanh (modal): `Ngày` (mặc định hôm nay) · `Quỹ` (Lớp/Đoàn, **bắt buộc**) · `Đợt thu` (lọc theo quỹ đã chọn) · `Sinh viên` (combobox tìm theo tên/mã, hoặc chọn "Nguồn khác" rồi gõ tên người nộp) · `Số tiền` (mặc định = `amountPerStudent` của đợt, cho sửa để nộp thiếu/nộp bù) · `Hình thức` · `Người thu` · `Ghi chú`.
 - **Thu theo lô**: chọn 1 đợt → tick nhiều SV → 1 cú click ghi nhận tất cả (mỗi SV 1 bản ghi riêng).
 - Cảnh báo (không chặn) nếu tổng nộp của SV trong đợt vượt `amountPerStudent`.
 - Bảng lịch sử thu: lọc theo quỹ / đợt / SV / khoảng ngày; sửa, xoá (xác nhận 2 bước).
 
-### 2.4. CHI – "Add Chi" (nhật ký mua sắm)
+### 2.5. CHI – "Add Chi" (nhật ký mua sắm)
 Form: `Ngày` · `Quỹ` (rút từ Quỹ Lớp hay Quỹ Đoàn – **bắt buộc, hiển thị nổi bật**) · `Nội dung / Mua món gì` · `Danh mục` · `Người đi mua` (**bắt buộc**) · `Số tiền` · `Có hoá đơn?` · `Ghi chú`.
 - **Cảnh báo vượt quỹ**: nếu số chi > tồn quỹ hiện tại của quỹ đó, hiện cảnh báo đỏ nêu rõ số tồn và số thiếu; vẫn cho lưu nếu người dùng xác nhận (thực tế có ứng trước), và bản ghi đó được đánh dấu ⚠ trong danh sách.
 - Bảng nhật ký chi: mặc định sắp xếp mới → cũ; lọc theo quỹ / danh mục / người mua / khoảng ngày; hiển thị dòng tổng của kết quả đang lọc.
 
-### 2.5. Quản lý đợt thu
+### 2.6. Quản lý đợt thu
 CRUD đợt thu; đóng/mở đợt; nhân bản đợt cho học kỳ sau; xem chi tiết một đợt: danh sách đã đóng, chưa đóng, đóng thiếu, tổng thu thực tế / tổng dự kiến.
 
 ---
@@ -102,7 +112,7 @@ File mẫu tham chiếu: `Danh sách đóng góp quỹ lớp DCXDXD69_03B (2).xl
 - **Ô `Họ và tên SV` bị merge 2 cột (C10:D10)**: họ + đệm ở cột C, tên ở cột D. → Nếu cột kế bên cột tên có dữ liệu chữ và không khớp header nào khác, phải **ghép `C + " " + D`** thành `fullName`, đồng thời giữ `lastName`/`firstName`. Chuẩn hoá: bỏ khoảng trắng kép, trim, giữ nguyên hoa/thường tiếng Việt.
 - **Mã SV bị lưu dạng số** (`2400000001` đọc ra có thể thành `2.400000001E9` / `2400000001.0`). → Luôn ép về **string số nguyên, không dấu chấm thập phân, không ký hiệu khoa học**, giữ số 0 ở đầu nếu có.
 - **Ngày sinh là serial date của Excel** (VD `38918`). → Đổi sang ngày thật theo hệ 1900 (có xử lý bug 1900 leap year của Excel), xuất `YYYY-MM-DD`. Nếu ô là chuỗi thì nhận cả `dd/MM/yyyy` và `d/M/yy`.
-- **Cột `Trạng thái` có khoảng trắng ở cuối**: `"Đã đóng "`, `"Chưa đóng "`, hoặc trống. → trim + so sánh không phân biệt hoa thường/dấu. Nếu là `Đã đóng` và cột `Số tiền` có giá trị → **cho phép (tuỳ chọn tick) tạo luôn bản ghi Thu** vào đợt đích với số tiền đó, ngày = cột `Ngày` nếu có, nếu không thì ngày người dùng chọn. `Đã đóng` nhưng `Số tiền` trống → dùng `amountPerStudent` của đợt và ghi chú "suy ra từ file import".
+- **Cột `Trạng thái` có khoảng trắng ở cuối**: `"Đã đóng "`, `"Chưa đóng "`, hoặc trống. → trim + so sánh không phân biệt hoa thường/dấu. Hai cột `Trạng thái` và `Số tiền` **chỉ được hiển thị để đối chiếu**, **không** tạo bản ghi Thu (xem §0.6). Bước xem trước phải nói rõ điều này bằng chữ.
 - **Dòng cuối là dòng tổng** (`Tổng quỹ :` … `1000000`, nằm cách bảng vài dòng trống). → Dừng đọc khi gặp dòng trống liên tiếp ≥ 2 hoặc gặp ô bắt đầu bằng `Tổng`/`Cộng`; **tuyệt đối không** biến dòng tổng thành sinh viên. Sau import, đối chiếu: "Tổng trong file: 1.000.000 ₫ / Tổng hệ thống tính được: … ₫" và cảnh báo nếu lệch.
 - File mẫu có 49 SV (dòng 11–59) → thông báo kết quả phải nói rõ: `Đọc được 49 sinh viên`.
 
@@ -121,7 +131,7 @@ Yêu cầu chung cho luồng import:
 3. **Xem trước trước khi ghi**: bảng preview 20 dòng đầu + thống kê `hợp lệ / lỗi / trùng`, và **chỉ ghi vào dữ liệu khi bấm "Xác nhận import"**.
 4. **Chống trùng**: khoá theo `Mã SV` (nếu thiếu mã thì theo `fullName + ngày sinh`). Cho chọn: `Bỏ qua dòng trùng` / `Cập nhật thông tin SV đã có` / `Thêm mới hết`.
 5. Bỏ qua dòng rỗng, dòng chỉ có STT, dòng lặp lại header.
-6. Cho chọn **quỹ đích + đợt thu đích** (hoặc tạo đợt mới ngay trong dialog) khi tick "tạo bản ghi thu từ cột Trạng thái/Số tiền".
+6. Import **chỉ** tạo/cập nhật sinh viên. Kết thúc phải hướng dẫn bước tiếp theo: tạo đợt thu → "QR cả lớp".
 7. Kết thúc: hiện báo cáo `Thêm mới: n · Cập nhật: n · Bỏ qua: n · Lỗi: n (kèm số dòng và lý do)`, và nút **Hoàn tác lần import này** (undo toàn bộ batch vừa ghi).
 8. Kèm nút **"Tải file mẫu import"** (xuất .xlsx đúng định dạng chuẩn) để lần sau nhập cho nhanh.
 
@@ -140,6 +150,7 @@ Workbook xuất ra phải có các sheet sau, **đúng thứ tự và đúng tê
 5. **`Ma tran dot thu`** — ma trận SV × đợt, ô ghi `Đã đóng` / `Thiếu x` / `Chưa đóng`.
 6. **`Danh sach lop`** — dữ liệu SV thuần để tái import.
 7. **`Nhat ky theo ngay`** — gộp thu & chi theo thứ tự thời gian: Ngày, Loại (Thu/Chi), Quỹ, Nội dung/Người nộp, Số tiền thu, Số tiền chi, Số dư luỹ kế của quỹ tương ứng.
+8. **`QR chuyen khoan`** (chỉ khi đã cấu hình tài khoản) — Mã SV, Họ tên, Đợt thu, Quỹ, Còn phải nộp, Nội dung chuyển khoản, Ngân hàng, Số tài khoản, và **payload VietQR** dạng text; dùng để đối chiếu sao kê ngân hàng hoặc sinh QR ở chỗ khác.
 
 Quy ước xuất:
 - Tên file: `QuyLop_<MaLop>_<phamvi>_<yyyyMMdd-HHmm>.xlsx`, ví dụ `QuyLop_DCXDXD69_03B_20260901-20260930_20260909-1530.xlsx`.
@@ -169,6 +180,10 @@ Trong file, thêm một mục **"Tự kiểm tra"** (ẩn sau nút Debug) chạy
 6. Import 2 lần cùng file với chế độ "Bỏ qua trùng" → vẫn 49 SV.
 7. Export theo 1 ngày cụ thể chỉ chứa bản ghi của ngày đó.
 8. Tổng cột `Còn thiếu` = `Σ(số SV × mức thu mỗi đợt) − Σ đã nộp` cho từng quỹ.
+9. `crc16('123456789') === '29B1'` (test vector chuẩn của CRC16/CCITT-FALSE).
+10. Payload VietQR: bóc TLV ra phải đúng `01=12`, `53=704`, `54=<số tiền>`, `58=VN`, BIN và số TK đúng, `QRIBFTTA` có mặt, và 4 ký tự CRC cuối khớp với `crc16(payload_không_gồm_CRC)`.
+11. QR không có số tiền ⇒ `01=11` và **không** có trường `54`. Chưa cấu hình tài khoản ⇒ `buildVietQR()` trả chuỗi rỗng.
+12. Import file mẫu (có 22 dòng ghi 50.000 ở cột Số tiền) ⇒ **0 khoản thu** được tạo, tồn quỹ vẫn bằng 0.
 
 ## 7. Bàn giao
 - Xuất ra **1 file `index.html`** duy nhất, chạy được ngay, có sẵn dữ liệu demo nhỏ (2 đợt thu, 3 SV, 2 khoản chi) kèm nút **"Xoá dữ liệu demo"**.
