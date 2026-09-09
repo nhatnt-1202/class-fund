@@ -256,6 +256,26 @@
   }
   .row-flash { animation: flash 1.8s cubic-bezier(0.22, 1, 0.36, 1); }
   /*
+   * Chữ gợi ý cho ô chọn ngày. input[type=date] không nhận `placeholder`, và iOS vẽ ô rỗng
+   * thành hộp trắng trống trơn. Khi rỗng: ẩn editor ngày của WebKit và vẽ chữ gợi ý bằng
+   * ::after; khi có giá trị hoặc đang focus thì trả lại editor thật.
+   */
+  .date-box { position: relative; display: inline-flex; }
+  .date-box[data-empty='true']::after {
+    content: attr(data-label);
+    position: absolute;
+    inset: 0 auto 0 0.75rem;
+    display: flex;
+    align-items: center;
+    color: rgb(var(--c-text-3));
+    font-size: 0.8125rem;
+    pointer-events: none;
+  }
+  .date-box[data-empty='true'] input::-webkit-datetime-edit { opacity: 0; }
+  .date-box[data-empty='true'] input:focus::-webkit-datetime-edit { opacity: 1; }
+  .date-box[data-empty='true'] input:focus + ::after,
+  .date-box[data-empty='true']:focus-within::after { content: ''; }
+  /*
    * Drawer menu trên điện thoại — LUÔN có trong DOM, đóng/mở bằng transform + visibility.
    *
    * Cố ý KHÔNG dùng mount/unmount qua AnimatePresence: nếu vì bất kỳ lý do gì animation exit
@@ -316,6 +336,12 @@ body.no-motion *, body.no-motion *::before, body.no-motion *::after {
  */
 @media (hover: none) {
   .backdrop-blur-md, .backdrop-blur-\[7px\] { backdrop-filter: none !important; }
+  /*
+   * Không có kính mờ thì nền mờ 80% để lộ nội dung chạy phía sau: trên điện thoại tiêu đề
+   * trang hiện xuyên qua thanh tiêu đề, đọc thành hai lớp chữ chồng nhau. Nên trên thiết bị
+   * chạm thanh tiêu đề dùng nền ĐỤC.
+   */
+  .app-bar { background: rgb(var(--c-surface)) !important; }
 }
 
 @media print {

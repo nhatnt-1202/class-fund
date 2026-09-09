@@ -40,10 +40,10 @@ VITE_SUPABASE_ANON_KEY=sb_publishable_xxxxxxxxxxxxxxxxxxxx
 
 Không đặt dấu ngoặc kép, không có dấu `/` ở cuối URL. File `.env` đã được `.gitignore`.
 
-### 3. Chạy 9 migration
+### 3. Chạy 10 migration
 
 **Cách A — không cài gì thêm** (nhanh nhất): Dashboard → **SQL Editor** → *New query* → dán
-**toàn bộ** file `supabase/setup_all.sql` → *Run*. File này là bản gộp của cả 9 migration nên
+**toàn bộ** file `supabase/setup_all.sql` → *Run*. File này là bản gộp của cả 10 migration nên
 chỉ phải dán một lần; thành công thì SQL Editor báo *“Success. No rows returned”*.
 
 Muốn dán từng file (dễ soi lỗi hơn) thì theo **đúng thứ tự** này, mỗi file *Run* một lần:
@@ -57,6 +57,7 @@ Muốn dán từng file (dễ soi lỗi hơn) thì theo **đúng thứ tự** n�
 7. `supabase/migrations/0007_class_officers.sql` — công bố ban quản lý lớp để đánh dấu trong danh sách
 8. `supabase/migrations/0008_no_email_confirm.sql` — không bao giờ phải xác nhận email
 9. `supabase/migrations/0009_guest_qr.sql` — khách cũng quét được QR để chuyển khoản
+10. `supabase/migrations/0010_audit_admin_only.sql` — lịch sử thao tác chỉ cho quản trị lớp
 
 Sửa migration thì chạy `npm run db:bundle` để sinh lại `setup_all.sql`.
 
@@ -92,7 +93,7 @@ Dashboard → **Authentication**:
 
 ```bash
 npm install
-npm run check     # xác nhận URL/khoá đúng, đã chạy đủ 9 migration, và RLS đang chặn đúng chỗ
+npm run check     # xác nhận URL/khoá đúng, đã chạy đủ 10 migration, và RLS đang chặn đúng chỗ
 npm run dev
 ```
 
@@ -187,8 +188,8 @@ Cách vận hành:
 |---|---|
 | **Khách** (chưa đăng nhập) | Chọn một lớp công khai và xem tổng thu / tổng chi / tồn quỹ từng quỹ, danh sách thu chi, tiến độ đợt thu, công nợ; **quét QR để chuyển khoản**. **Không** thấy ngày sinh, email, lịch sử thao tác, danh sách thành viên — và không ghi được gì. |
 | **Thành viên** của lớp | Xem đầy đủ dữ liệu lớp mình + công nợ của chính mình + xuất Excel + xem QR của chính mình |
-| **Thủ quỹ** của lớp | + thêm/sửa thu, chi, sinh viên, nhập danh sách lớp, xác nhận đã nhận chuyển khoản. Chỉ xoá được bản ghi **do chính mình tạo, trong 24 giờ** |
-| **Quản trị lớp** | + đợt thu, cấu hình lớp và tài khoản nhận tiền, thêm/rút thành viên của lớp, phục hồi bản ghi đã xoá — **chỉ trong lớp của mình** |
+| **Thủ quỹ** của lớp | + thêm/sửa thu, chi, sinh viên, nhập danh sách lớp, xác nhận đã nhận chuyển khoản. Chỉ xoá được bản ghi **do chính mình tạo, trong 24 giờ**. **Không** xem được lịch sử thao tác |
+| **Quản trị lớp** | + đợt thu, cấu hình lớp và tài khoản nhận tiền, thêm/rút thành viên của lớp, **lịch sử thao tác**, phục hồi bản ghi đã xoá — **chỉ trong lớp của mình** |
 | **Tài khoản gốc** | + mở lớp mới, giao quản trị cho từng lớp, xem mọi lớp (vai cứu hộ khi một lớp mất quản trị) |
 
 Những việc **quản trị lớp cố tình không làm được**, chặn ngay ở tầng dữ liệu:
@@ -268,10 +269,10 @@ Hai chi tiết dễ sai đã được xử lý:
 ```bash
 npm test              # 49 phép kiểm tra logic + smoke test mount App (vitest)
 npm run build         # tsc strict + vite build
-bash ../tests/db/run.sh   # 141 phép kiểm tra RLS/nghiệp vụ trên Postgres 17 thật (cần Docker)
+bash ../tests/db/run.sh   # 145 phép kiểm tra RLS/nghiệp vụ trên Postgres 17 thật (cần Docker)
 ```
 
-E2E bằng Playwright — 61 phép kiểm tra × 3 cấu hình (desktop sáng, desktop tối, Pixel 7):
+E2E bằng Playwright — 64 phép kiểm tra × 3 cấu hình (desktop sáng, desktop tối, Pixel 7):
 
 ```bash
 npx playwright install chromium     # một lần
@@ -292,9 +293,9 @@ chặn và trả dữ liệu mẫu. Nhờ vậy test chạy offline, không ph�
 | `quyen.spec.ts` | Khách xem được số liệu nhưng không có nút ghi chép, không thấy menu quản trị, không thấy cột ngày sinh, che tên khi bật công tắc · danh sách lớp đánh dấu thủ quỹ / quản trị lớp · thành viên chỉ xem QR của chính mình · thủ quỹ không tạo được đợt thu · quản trị tạo được |
 | `qr.spec.ts` | Khách chưa đăng nhập cũng quét được QR và chuyển khoản (lớp bật che tên thì không, vì nội dung chuyển khoản sẽ vô danh) · QR mang đúng số còn thiếu, số tài khoản và mã SV · xác nhận đã nhận tiền ghi khoản thu dạng chuyển khoản · QR cả lớp đúng số người còn nợ |
 | `dang-ky.spec.ts` | Đăng ký xong rồi bấm Back vẫn ở trong app và không có request nào ra máy chủ (phát hiện điều hướng bằng `window.location`, thứ chỉ nhìn URL sẽ không thấy) · mọi liên kết ở khu đăng nhập/đăng ký đều là điều hướng trong app |
-| `giao-dien.spec.ts` | Đường dẫn tiếng Anh và link tiếng Việt cũ vẫn mở đúng trang (giữ cả hash của link đặt lại mật khẩu) · hộp thoại đúng tâm màn hình · mọi ô nhập cao bằng nhau · không cuộn ngang · Esc đóng hộp thoại · bảng có `<caption>` · đổi sáng/tối |
+| `giao-dien.spec.ts` | Sáng/tối đi theo hệ thống và không có nút đổi trong app · đường dẫn tiếng Anh và link tiếng Việt cũ vẫn mở đúng trang (giữ cả hash của link đặt lại mật khẩu) · hộp thoại đúng tâm màn hình · mọi ô nhập cao bằng nhau · không cuộn ngang · Esc đóng hộp thoại · bảng có `<caption>` · đổi sáng/tối |
 | `nhieu-lop.spec.ts` | Gắn tài khoản với sinh viên trong danh sách (bỏ gắn gửi `null`, không phải chuỗi rỗng) · quản trị lớp không thấy menu *Quản lý lớp* và vào thẳng URL cũng bị từ chối · mọi truy vấn số liệu đều kèm `class_id` của lớp đang xem · tài khoản gốc thấy mọi lớp, đổi lớp thì dữ liệu hỏi theo lớp mới · mở lớp mới gửi đúng `create_class` (email hạ chữ thường) · giao quản trị gửi đúng `grant_class_role` · chưa có lớp thì được dẫn đi mở lớp / được nói rõ vì sao chưa thấy gì |
-| `mobile.spec.ts` | **Bảng 12 cột (49 SV × 4 đợt) cuộn ngang thật và cột không bị bóp** (đo `scrollWidth`, bề rộng cột tên, chiều cao hàng, và `overflow-y` phải là `hidden`) · **cuộn trang rồi mở menu, đi trang khác thì không còn lớp phủ nào chặn thao tác** (đo bằng `elementFromPoint`) · **đóng hộp thoại lồng nhau không sót `pointer-events` trên body** · khách thấy nút đăng nhập trên thanh tiêu đề · menu hamburger điều hướng được · không trang nào cuộn ngang · hộp thoại vừa màn hình · form xếp một cột · vùng bấm ≥ 32px · mã QR ≥ 140px để quét được |
+| `mobile.spec.ts` | **Thanh tiêu đề đục** (kính mờ bị tắt trên thiết bị chạm nên nền mờ 80% sẽ để tiêu đề trang lộ xuyên qua) · **ô lọc ngày rỗng hiện chữ gợi ý** (`input[type=date]` không nhận `placeholder`, iOS vẽ ô rỗng thành hộp trắng trống trơn) · **Bảng 12 cột (49 SV × 4 đợt) cuộn ngang thật và cột không bị bóp** (đo `scrollWidth`, bề rộng cột tên, chiều cao hàng, và `overflow-y` phải là `hidden`) · **cuộn trang rồi mở menu, đi trang khác thì không còn lớp phủ nào chặn thao tác** (đo bằng `elementFromPoint`) · **đóng hộp thoại lồng nhau không sót `pointer-events` trên body** · khách thấy nút đăng nhập trên thanh tiêu đề · menu hamburger điều hướng được · không trang nào cuộn ngang · hộp thoại vừa màn hình · form xếp một cột · vùng bấm ≥ 32px · mã QR ≥ 140px để quét được |
 
 Soi giao diện bằng ảnh chụp thật, không cần Supabase:
 
@@ -310,7 +311,7 @@ của hộp thoại — hai thứ từng sai mà đọc code không thấy: fram
 làm hỏng cách căn giữa bằng `-translate-x/y-1/2`, và CSS chọn `input[type='text']` không khớp
 `<input>` không có thuộc tính `type`.
 
-Bộ DB dựng một Postgres sạch trong Docker, chạy cả 9 migration, rồi kiểm tra ma trận quyền của
+Bộ DB dựng một Postgres sạch trong Docker, chạy cả 10 migration, rồi kiểm tra ma trận quyền của
 mọi vai trò (kể cả `anon`), **cách ly dữ liệu giữa các lớp**, việc chỉ tài khoản gốc mở được lớp,
 đẳng thức tồn quỹ, tách biệt hai quỹ, quy tắc xoá mềm, bảo vệ tài khoản, nội dung audit log và
 RPC import. Đây là chỗ chứng minh phân quyền, chứ không phải giao diện.

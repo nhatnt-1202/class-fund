@@ -48,7 +48,12 @@ export const can = {
   confirmTransfer: (r: UiRole) => atLeast(r, 'treasurer'),
   writePeriod: (r: UiRole) => atLeast(r, 'admin'),
   manageUsers: (r: UiRole) => atLeast(r, 'admin'),
-  viewAudit: (r: UiRole) => atLeast(r, 'treasurer'),
+  /**
+   * Lịch sử thao tác là công cụ giám sát: chỉ quản trị lớp (và tài khoản gốc) đọc được.
+   * Thủ quỹ — người bị giám sát nhiều nhất — cố ý KHÔNG thấy trang này, và RLS ở
+   * 0010_audit_admin_only.sql chặn thật chứ không chỉ ẩn menu.
+   */
+  viewAudit: (r: UiRole) => atLeast(r, 'admin'),
   restoreRecords: (r: UiRole) => atLeast(r, 'admin'),
   editSettings: (r: UiRole) => atLeast(r, 'admin'),
   grantOwner: (r: UiRole) => atLeast(r, 'owner'),

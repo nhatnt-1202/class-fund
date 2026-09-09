@@ -114,6 +114,31 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
   },
 );
 
+/**
+ * Ô chọn ngày kèm chữ gợi ý.
+ *
+ * `placeholder` không có tác dụng với input[type=date], mà Safari trên iOS lại vẽ ô ngày rỗng
+ * thành một hộp trắng trống trơn — người dùng không biết đó là ô gì. Nên chữ gợi ý được vẽ
+ * bằng ::after của khung bọc, và phần editor ngày của WebKit (dd/mm/yyyy) được ẩn đi khi rỗng
+ * để hai thứ không chồng nhau. Xem `.date-box` trong index.css.
+ */
+export function DateBox({
+  label, value, onChange, id, className = '',
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  id?: string;
+  className?: string;
+}) {
+  return (
+    <span className={`date-box ${className}`} data-label={label} data-empty={!value}>
+      <input id={id} type="date" aria-label={label} title={label} value={value}
+        className="w-auto" onChange={(e) => onChange(e.target.value)} />
+    </span>
+  );
+}
+
 /** Ô nhập tiền: gõ 50000 hoặc 50.000 đều được, tự chèn dấu nhóm nghìn khi gõ. */
 export function MoneyInput({
   value, onChange, ...rest

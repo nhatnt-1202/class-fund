@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { useKlassContext } from '@/app/ClassProvider';
 import { useToast } from '@/app/ToastProvider';
 import {
-  Badge, Button, Card, ConfirmModal, EmptyState, FundBadge, Money, Select, TableSkeleton, TableWrap,
+  Badge, Button, Card, ConfirmModal, DateBox, EmptyState, FundBadge, Money, Select, TableSkeleton, TableWrap,
 } from '@/components/ui';
 import { useExpenses, useSoftDelete } from '@/data/api';
 import { fmtDate, fmtVnd, noAccent, toInt } from '@/lib/format';
@@ -64,10 +64,8 @@ export default function ExpensesPage() {
             <option value="">Mọi người mua</option>
             {buyers.map((b) => <option key={b} value={b}>{b}</option>)}
           </Select>
-          <label className="sr-only" htmlFor="exp-from">Từ ngày</label>
-          <input id="exp-from" type="date" className="w-auto" value={from} onChange={(e) => setFrom(e.target.value)} />
-          <label className="sr-only" htmlFor="exp-to">Đến ngày</label>
-          <input id="exp-to" type="date" className="w-auto" value={to} onChange={(e) => setTo(e.target.value)} />
+          <DateBox id="exp-from" label="Từ ngày" value={from} onChange={setFrom} />
+          <DateBox id="exp-to" label="Đến ngày" value={to} onChange={setTo} />
           {hasFilter && (
             <Button size="sm" variant="ghost"
               onClick={() => { setFund(''); setCategory(''); setBuyer(''); setFrom(''); setTo(''); }}>

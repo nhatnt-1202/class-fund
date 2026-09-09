@@ -40,7 +40,10 @@ describe('ma trận quyền của giao diện', () => {
     expect(can.writePeriod('treasurer')).toBe(false);
     expect(can.manageUsers('treasurer')).toBe(false);
     expect(can.restoreRecords('treasurer')).toBe(false);
-    expect(can.viewAudit('treasurer')).toBe(true);
+    // lịch sử thao tác là công cụ giám sát ⇒ người bị giám sát không đọc được
+    expect(can.viewAudit('treasurer')).toBe(false);
+    expect(can.viewAudit('admin')).toBe(true);
+    expect(can.viewAudit('owner')).toBe(true);
   });
 
   it('quản trị làm được mọi việc nghiệp vụ, trừ cấp quyền chủ sở hữu', () => {

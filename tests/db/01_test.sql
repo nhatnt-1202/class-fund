@@ -395,6 +395,26 @@ begin;
   select assert((select count(*) from audit_logs where class_id = :'class_a') = 0,
     'Quản trị lớp B KHÔNG xem được audit log của lớp A');
 commit;
+-- 0010: log là công cụ giám sát ⇒ chỉ tài khoản gốc và quản trị lớp đọc được
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'tq_jwt';
+  select assert((select count(*) from audit_logs) = 0,
+    'Thủ quỹ KHÔNG đọc được lịch sử thao tác, kể cả log của lớp mình');
+  select assert((select count(*) from audit_logs where actor_id = (select id from profiles where email = 'thuquy@lop.vn')) = 0,
+    'Kể cả log do CHÍNH MÌNH gây ra cũng không đọc được');
+commit;
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'sv_jwt';
+  select assert((select count(*) from audit_logs) = 0, 'Sinh viên KHÔNG đọc được lịch sử thao tác');
+commit;
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'qtb_jwt';
+  select assert((select count(*) from audit_logs where class_id = :'class_b') > 0,
+    'Quản trị lớp vẫn đọc được lịch sử của lớp mình');
+commit;
 begin;
   set local role authenticated;
   set local request.jwt.claims to :'owner_jwt';

@@ -121,7 +121,8 @@ test.describe('Trên điện thoại', () => {
     }), { timeout: 6000 }).toBe('bam-duoc');
 
     // và bấm thật cũng phải ăn
-    await page.getByRole('button', { name: /Đổi giao diện/ }).click({ timeout: 4000 });
+    await page.getByRole('button', { name: 'Mở menu' }).click({ timeout: 4000 });
+    await expect(page.locator('nav:visible').first()).toBeVisible();
   });
 
   test('đóng hộp thoại rồi vẫn tương tác được (không sót pointer-events trên body)', async ({ page }) => {
@@ -209,5 +210,49 @@ test.describe('Trên điện thoại', () => {
     // .qr-svg là khung bọc mã QR; svg đầu tiên trong hộp thoại chỉ là icon
     const size = await dialog.locator('.qr-svg svg').first().boundingBox();
     expect(size!.width, 'mã QR quá nhỏ để quét trên điện thoại').toBeGreaterThanOrEqual(140);
+  });
+
+  test('thanh tiêu đề đục, nội dung không lộ xuyên qua', async ({ page }) => {
+    /*
+     * Trên điện thoại kính mờ (backdrop-filter) bị tắt vì quá đắt với GPU, nên nền mờ 80%
+     * sẽ để tiêu đề trang chạy xuyên qua thanh tiêu đề — đọc thành hai lớp chữ chồng nhau.
+     * Thanh tiêu đề vì thế phải ĐỤC hoàn toàn.
+     */
+    await stubSupabase(page, { role: 'treasurer' });
+    await stubBulkClass(page);
+    await page.goto('/students');
+    await expect(page.locator('main table tbody tr').nth(10)).toBeVisible();
+    await page.mouse.move(200, 500);
+    await page.mouse.wheel(0, 800);
+    await expect.poll(() => page.evaluate(() => Math.round(window.scrollY))).toBeGreaterThan(200);
+
+    const bar = await page.evaluate(() => {
+      const el = document.querySelector('header.app-bar') as HTMLElement;
+      const cs = getComputedStyle(el);
+      const alpha = cs.backgroundColor.startsWith('rgba')
+        ? Number(cs.backgroundColor.split(',')[3]!.replace(')', '').trim())
+        : 1;
+      return { alpha, backdrop: cs.backdropFilter };
+    });
+    expect(bar.alpha).toBe(1);
+    expect(bar.backdrop).toBe('none');
+  });
+
+  test('ô lọc ngày còn rỗng thì hiện chữ gợi ý', async ({ page }) => {
+    /*
+     * input[type=date] không nhận `placeholder`, mà iOS vẽ ô rỗng thành hộp trắng trống trơn.
+     * Chữ gợi ý được vẽ bằng ::after của khung .date-box, và editor ngày của WebKit bị ẩn khi
+     * rỗng để hai thứ không chồng nhau.
+     */
+    await stubSupabase(page, { role: 'treasurer' });
+    await page.goto('/incomes');
+    const box = page.locator('.date-box').first();
+    await expect(box).toHaveAttribute('data-empty', 'true');
+    const hint = await box.evaluate((el) => getComputedStyle(el, '::after').content);
+    expect(hint).toMatch(/Từ ngày|attr\(data-label\)/);
+
+    // chọn ngày rồi thì trả lại editor thật, không còn chữ gợi ý
+    await box.locator('input').fill('2026-09-03');
+    await expect(box).toHaveAttribute('data-empty', 'false');
   });
 });

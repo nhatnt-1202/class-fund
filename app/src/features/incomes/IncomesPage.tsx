@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { useKlassContext } from '@/app/ClassProvider';
 import { useToast } from '@/app/ToastProvider';
 import {
-  Badge, Button, Card, ConfirmModal, EmptyState, FundBadge, Money, Select, TableSkeleton, TableWrap,
+  Badge, Button, Card, ConfirmModal, DateBox, EmptyState, FundBadge, Money, Select, TableSkeleton, TableWrap,
 } from '@/components/ui';
 import { useDebts, useIncomes, usePeriods, useSoftDelete, useStudents, type IncomeRow } from '@/data/api';
 import { fmtDate, fmtVnd, toInt } from '@/lib/format';
@@ -71,10 +71,8 @@ export default function IncomesPage() {
             {(periods.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             <option value="__none">Thu ngoài đợt</option>
           </Select>
-          <label className="sr-only" htmlFor="inc-from">Từ ngày</label>
-          <input id="inc-from" type="date" className="w-auto" value={from} onChange={(e) => setFrom(e.target.value)} />
-          <label className="sr-only" htmlFor="inc-to">Đến ngày</label>
-          <input id="inc-to" type="date" className="w-auto" value={to} onChange={(e) => setTo(e.target.value)} />
+          <DateBox id="inc-from" label="Từ ngày" value={from} onChange={setFrom} />
+          <DateBox id="inc-to" label="Đến ngày" value={to} onChange={setTo} />
           {hasFilter && (
             <Button size="sm" variant="ghost"
               onClick={() => { setFund(''); setPeriodId(''); setFrom(''); setTo(''); }}>

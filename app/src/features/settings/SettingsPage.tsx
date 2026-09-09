@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { QrCode } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useKlassContext } from '@/app/ClassProvider';
-import { usePrefs } from '@/app/ThemeProvider';
+import { usePrefs } from '@/app/PrefsProvider';
 import { useToast } from '@/app/ToastProvider';
 import { Badge, Button, Card, CardHead, Chip, Field, Input, Note, Select } from '@/components/ui';
 import { useSaveKlass } from '@/data/api';
@@ -214,13 +214,9 @@ export default function SettingsPage() {
       <Card>
         <CardHead title="Hiển thị & khả năng tiếp cận" sub="Tuỳ chọn này chỉ áp dụng cho máy của bạn." />
         <div className="p-4">
-          <Field label="Giao diện" group>
-            <div className="flex flex-wrap gap-2">
-              {([['light', 'Sáng'], ['dark', 'Tối'], ['auto', 'Theo hệ thống']] as const).map(([v, l]) => (
-                <Chip key={v} on={prefs.theme === v} onClick={() => prefs.set({ theme: v })}>{l}</Chip>
-              ))}
-            </div>
-          </Field>
+          <p className="mb-3 text-[13px] text-ink3">
+            Giao diện sáng/tối đi theo cài đặt của máy bạn — đổi ở hệ điều hành là app đổi theo.
+          </p>
           <Field label="Cỡ chữ" group>
             <div className="flex flex-wrap gap-2">
               {([[1, 'Vừa'], [1.12, 'Lớn'], [1.25, 'Rất lớn']] as const).map(([v, l]) => (

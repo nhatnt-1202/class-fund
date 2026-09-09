@@ -7,7 +7,7 @@ import { Button, Card, Note } from '@/components/ui';
 import { isConfigured } from '@/lib/supabase';
 import { AuthProvider, useAuth } from './AuthProvider';
 import { ClassProvider, useKlassContext } from './ClassProvider';
-import { ThemeProvider } from './ThemeProvider';
+import { PrefsProvider } from './PrefsProvider';
 import { ToastProvider } from './ToastProvider';
 import { ForgotPasswordPage, LoginPage, ResetPasswordPage, SignupPage } from '@/features/auth/AuthPages';
 import ProfilePage from '@/features/auth/ProfilePage';
@@ -186,7 +186,7 @@ function ConfigWarning() {
 
 export default function App() {
   return (
-    <ThemeProvider>
+    <PrefsProvider>
       <QueryClientProvider client={queryClient}>
         <ToastProvider>
           <AuthProvider>
@@ -215,6 +215,6 @@ export default function App() {
           </AuthProvider>
         </ToastProvider>
       </QueryClientProvider>
-    </ThemeProvider>
+    </PrefsProvider>
   );
 }

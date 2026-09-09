@@ -36,8 +36,12 @@ describe('App', () => {
     });
     expect(el.textContent).toContain('Chưa kết nối Supabase');
     expect(el.textContent).toContain('VITE_SUPABASE_URL');
-    // Provider hiển thị đã chạy: thẻ html được đánh dấu theme, body có font token
-    expect(document.documentElement.dataset.theme).toBeTruthy();
+    /*
+     * Provider tuỳ chọn hiển thị đã chạy: nó đặt --fs-scale và XOÁ data-theme (sáng/tối giờ
+     * do hệ điều hành quyết định, app không ghim nữa).
+     */
+    expect(document.documentElement.style.getPropertyValue('--fs-scale')).toBe('1');
+    expect(document.documentElement.hasAttribute('data-theme')).toBe(false);
     await act(async () => { root.unmount(); });
   });
 });

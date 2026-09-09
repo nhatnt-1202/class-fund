@@ -117,8 +117,18 @@ test.describe('Thủ quỹ và quản trị', () => {
     });
   });
 
-  test('thủ quỹ xem được lịch sử thao tác', async ({ page }) => {
+  test('thủ quỹ KHÔNG xem được lịch sử thao tác', async ({ page }) => {
+    // Log là công cụ giám sát: người bị giám sát không đọc được (RLS chặn thật, 0010)
     await stubSupabase(page, { role: 'treasurer' });
+    await page.goto('/');
+    const nav = page.getByRole('navigation').first();
+    await expect(nav.getByRole('link', { name: 'Lịch sử thao tác' })).toHaveCount(0);
+    await page.goto('/audit-log');
+    await expect(page.getByText(/Trang này chỉ dành cho quản trị lớp|chỉ dành cho quản trị/)).toBeVisible();
+  });
+
+  test('quản trị lớp xem được lịch sử thao tác', async ({ page }) => {
+    await stubSupabase(page, { role: 'admin' });
     await page.goto('/audit-log');
     await expect(page.getByText(/đã ghi nhận thu 50.000 ₫ từ Trần Văn Mẫu vào Quỹ Lớp/)).toBeVisible();
   });

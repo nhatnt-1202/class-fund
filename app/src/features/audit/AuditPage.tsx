@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useKlassContext } from '@/app/ClassProvider';
 import { useToast } from '@/app/ToastProvider';
 import {
-  Badge, Button, Card, CardHead, EmptyState, Input, Modal, Note, Select, TableSkeleton,
+  Badge, Button, Card, CardHead, DateBox, EmptyState, Input, Modal, Note, Select, TableSkeleton,
 } from '@/components/ui';
 import { useAuditLogs, useMembers, useSoftDelete, type AuditFilter } from '@/data/api';
 import { fmtDateTime, fmtRelative, fmtVnd } from '@/lib/format';
@@ -52,7 +52,12 @@ export default function AuditPage() {
   if (!allowed) {
     return (
       <Card className="p-6">
-        <Note tone="warn"><span>Lịch sử thao tác chỉ dành cho thủ quỹ trở lên trong lớp này.</span></Note>
+        <Note tone="warn">
+          <span>
+            Trang này chỉ dành cho quản trị lớp. Lịch sử thao tác là công cụ giám sát nên không
+            mở cho thủ quỹ hay thành viên — cơ sở dữ liệu cũng chặn, không chỉ ẩn trang.
+          </span>
+        </Note>
       </Card>
     );
   }
@@ -107,12 +112,10 @@ export default function AuditPage() {
               </Select>
             </>
           )}
-          <label className="sr-only" htmlFor="au-from">Từ ngày</label>
-          <input id="au-from" type="date" className="w-auto" value={filter.from ?? ''}
-            onChange={(e) => setFilter((f) => ({ ...f, from: e.target.value }))} />
-          <label className="sr-only" htmlFor="au-to">Đến ngày</label>
-          <input id="au-to" type="date" className="w-auto" value={filter.to ?? ''}
-            onChange={(e) => setFilter((f) => ({ ...f, to: e.target.value }))} />
+          <DateBox id="au-from" label="Từ ngày" value={filter.from ?? ''}
+            onChange={(v) => setFilter((f) => ({ ...f, from: v }))} />
+          <DateBox id="au-to" label="Đến ngày" value={filter.to ?? ''}
+            onChange={(v) => setFilter((f) => ({ ...f, to: v }))} />
           {Object.values(filter).some(Boolean) && (
             <Button size="sm" variant="ghost" onClick={() => setFilter({})}>Xoá lọc</Button>
           )}

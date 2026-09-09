@@ -4,8 +4,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useKlassContext } from '@/app/ClassProvider';
 import {
-  Badge, Button, Card, CardHead, CountUp, EmptyState, FundBadge, Money, Note, Progress,
-  TableSkeleton, TableWrap,
+  Badge, Button, Card, CardHead, CountUp, DateBox, EmptyState, FundBadge, Money, Note, Progress, TableSkeleton, TableWrap,
 } from '@/components/ui';
 import { useBalances, useDebts, useExpenses, useIncomes, usePeriodProgress } from '@/data/api';
 import { fmtDate, fmtVnd, fmtVndSigned, toInt } from '@/lib/format';
@@ -113,13 +112,11 @@ export default function DashboardPage() {
         </div>
         {(mode === 'range' || mode === 'day') && (
           <div className="flex items-center gap-2">
-            <label className="sr-only" htmlFor="dash-from">{mode === 'day' ? 'Ngày' : 'Từ ngày'}</label>
-            <input id="dash-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-auto" />
+            <DateBox id="dash-from" label={mode === 'day' ? 'Ngày' : 'Từ ngày'} value={from} onChange={setFrom} />
             {mode === 'range' && (
               <>
                 <span className="text-sm text-ink3">→</span>
-                <label className="sr-only" htmlFor="dash-to">Đến ngày</label>
-                <input id="dash-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-auto" />
+                <DateBox id="dash-to" label="Đến ngày" value={to} onChange={setTo} />
               </>
             )}
           </div>

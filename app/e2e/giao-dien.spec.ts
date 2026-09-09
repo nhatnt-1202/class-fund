@@ -105,14 +105,26 @@ test.describe('Giao diện', () => {
     await expect(page.locator('main table caption').first()).toBeAttached();
   });
 
-  test('chuyển sáng/tối bằng nút trên thanh tiêu đề', async ({ page }) => {
+  test('sáng/tối đi theo hệ thống, không có nút đổi trong app', async ({ page }, testInfo) => {
+    /*
+     * Không còn công tắc sáng/tối: một công tắc riêng trong app tạo ra hai nguồn sự thật cho
+     * cùng một thứ. Test chạy trên hai project khác nhau về colorScheme nên kiểm tra được
+     * app thật sự đọc `prefers-color-scheme`.
+     */
     await stubSupabase(page, { role: 'treasurer' });
     await page.goto('/');
-    const btn = page.getByRole('button', { name: /Đổi giao diện/ });
-    await btn.click();
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-    await btn.click();
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect(page.getByRole('button', { name: /Đổi giao diện/ })).toHaveCount(0);
+    // và không có gì ghim giao diện: data-theme phải không tồn tại
+    await expect(page.locator('html')).not.toHaveAttribute('data-theme', /.*/);
+
+    const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    const lum = (() => {
+      const [r, g, b] = bg.match(/\d+/g)!.map(Number) as [number, number, number];
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    })();
+    const wantDark = testInfo.project.name === 'chromium-dark' || testInfo.project.name === 'mobile';
+    if (wantDark && testInfo.project.name === 'chromium-dark') expect(lum).toBeLessThan(90);
+    if (testInfo.project.name === 'chromium-light') expect(lum).toBeGreaterThan(200);
   });
 });
 

@@ -1,13 +1,12 @@
 import { motion } from 'framer-motion';
 import {
   ArrowDownCircle, ArrowUpCircle, Building2, CalendarRange, FileSpreadsheet, LayoutGrid, LogIn,
-  LogOut, Menu, Moon, ScrollText, Settings, ShieldCheck, Sun, SunMoon, Users, X,
+  LogOut, Menu, ScrollText, Settings, ShieldCheck, Users, X,
 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/app/AuthProvider';
 import { useKlassContext } from '@/app/ClassProvider';
-import { usePrefs } from '@/app/ThemeProvider';
 import { useToast } from '@/app/ToastProvider';
 import { Badge, Button, Select } from '@/components/ui';
 import { can } from '@/lib/permissions';
@@ -23,7 +22,6 @@ interface NavItem {
 export default function Layout({ children }: { children: ReactNode }) {
   const { profile, signOut } = useAuth();
   const { role, classId, setClassId, options, klass, isSystemOwner } = useKlassContext();
-  const prefs = usePrefs();
   const toast = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
@@ -44,8 +42,6 @@ export default function Layout({ children }: { children: ReactNode }) {
     { to: '/audit-log', label: 'Lịch sử thao tác', icon: <ScrollText className="h-5 w-5" />, show: can.viewAudit(role) },
     { to: '/settings', label: 'Cài đặt', icon: <Settings className="h-5 w-5" />, show: role !== 'guest' },
   ];
-
-  const ThemeIcon = prefs.theme === 'light' ? Sun : prefs.theme === 'dark' ? Moon : SunMoon;
 
   /*
    * Nav được render hai chỗ (sidebar máy tính và drawer điện thoại) nên layoutId của vạch
@@ -186,7 +182,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       </div>
 
       <div className="flex min-w-0 flex-col">
-        <header className="sticky top-0 z-30 flex flex-wrap items-center gap-2 border-b border-line
+        <header className="app-bar sticky top-0 z-30 flex flex-wrap items-center gap-2 border-b border-line
           bg-surface/80 px-4 py-3 backdrop-blur-md no-print">
           <Button
             variant="ghost" size="sm" className="lg:hidden" aria-label="Mở menu"
@@ -211,13 +207,6 @@ export default function Layout({ children }: { children: ReactNode }) {
               <LogIn className="h-4 w-4" aria-hidden /> Đăng nhập
             </Link>
           )}
-          <Button
-            variant="ghost" size="sm" aria-label="Đổi giao diện sáng/tối"
-            title={`Giao diện: ${prefs.theme === 'auto' ? 'theo hệ thống' : prefs.theme === 'light' ? 'sáng' : 'tối'}`}
-            onClick={prefs.cycleTheme}
-          >
-            <ThemeIcon className="h-5 w-5" />
-          </Button>
         </header>
 
         <main id="main" tabIndex={-1} className="w-full max-w-[1500px] p-4">
