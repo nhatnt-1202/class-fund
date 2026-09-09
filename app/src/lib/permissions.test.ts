@@ -39,9 +39,22 @@ describe('ma trận quyền của giao diện', () => {
     expect(can.grantOwner('owner')).toBe(true);
   });
 
+  it('thành viên chỉ xem được QR của chính mình', () => {
+    expect(can.showQrFor('member', 's1', 's1')).toBe(true);
+    expect(can.showQrFor('member', 's1', 's2')).toBe(false);
+    expect(can.showQrFor('member', null, 's1')).toBe(false);
+    expect(can.showQrFor('guest', 's1', 's1')).toBe(false);
+    // thủ quỹ trở lên xem được của mọi người vì chính họ đi thu
+    expect(can.showQrFor('treasurer', null, 's2')).toBe(true);
+    expect(can.showQrFor('admin', null, 's2')).toBe(true);
+  });
+
   it('quyền chỉ tăng theo vai trò, không có ngoại lệ ngược', () => {
-    for (const key of Object.keys(can) as Array<keyof typeof can>) {
-      const results = ALL.map((r) => can[key](r));
+    // showQrFor có tham số riêng nên kiểm tra ở phép trên, không đưa vào vòng lặp này
+    const simple = (Object.keys(can) as Array<keyof typeof can>).filter((k) => k !== 'showQrFor');
+    for (const key of simple) {
+      const fn = can[key] as (r: UiRole) => boolean;
+      const results = ALL.map((r) => fn(r));
       const firstTrue = results.indexOf(true);
       if (firstTrue >= 0) {
         expect(results.slice(firstTrue).every(Boolean)).toBe(true);

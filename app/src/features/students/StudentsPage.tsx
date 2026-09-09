@@ -18,7 +18,7 @@ import StudentDialog from './StudentDialog';
 type SortKey = 'stt' | 'code' | 'full_name' | 'dob' | 'paid' | 'remaining';
 
 export default function StudentsPage() {
-  const { role } = useAuth();
+  const { role, profile } = useAuth();
   const students = useStudents(role);
   const periods = usePeriods();
   const debts = useDebts(role);
@@ -191,7 +191,7 @@ export default function StudentsPage() {
                       const label = remaining === 0 ? 'Đã đóng' : paid > 0 ? `Thiếu ${fmtNum(remaining)}` : 'Chưa đóng';
                       return (
                         <td key={p.id}>
-                          {can.showQr(role) ? (
+                          {can.showQrFor(role, profile?.student_id, r.s.id) ? (
                             <button
                               type="button"
                               title={`Mở QR chuyển khoản cho đợt ${p.name}`}
@@ -212,7 +212,7 @@ export default function StudentsPage() {
                     </td>
                     <td>
                       <div className="flex justify-end gap-1 opacity-40 transition-opacity hover:opacity-100 focus-within:opacity-100">
-                        {can.showQr(role) && (
+                        {can.showQrFor(role, profile?.student_id, r.s.id) && (
                           <Button size="sm" variant="ghost" aria-label={`QR chuyển khoản của ${r.s.full_name}`}
                             onClick={() => {
                               const p = cols.find((c) => Math.max(toInt(c.amount_per_student) - paidOf(r.s.id, c.id), 0) > 0) ?? cols[0];

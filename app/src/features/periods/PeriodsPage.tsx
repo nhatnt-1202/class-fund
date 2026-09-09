@@ -17,7 +17,7 @@ import { QrDialog, QrSheetDialog } from '@/features/qr/QrDialogs';
 import PeriodDialog from './PeriodDialog';
 
 export default function PeriodsPage() {
-  const { role } = useAuth();
+  const { role, profile } = useAuth();
   const toast = useToast();
   const periods = usePeriods();
   const progress = usePeriodProgress();
@@ -158,7 +158,7 @@ export default function PeriodsPage() {
 
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button size="sm" icon={<Users className="h-4 w-4" />} onClick={() => setDetail(p)}>Xem chi tiết</Button>
-                  {can.showQr(role) && (
+                  {can.confirmTransfer(role) && (
                     <Button size="sm" variant="primary" icon={<QrCode className="h-4 w-4" />} onClick={() => setSheet(p)}>
                       QR cả lớp
                     </Button>
@@ -214,7 +214,7 @@ export default function PeriodsPage() {
                             </td>
                             <td className="text-right">
                               <div className="flex justify-end gap-1">
-                                {can.showQr(role) && r.remaining > 0 && (
+                                {can.showQrFor(role, profile?.student_id, r.student.id) && r.remaining > 0 && (
                                   <Button size="sm" variant="primary"
                                     onClick={() => { setDetail(null); setQr({ open: true, student: r.student, period: detail, amount: r.remaining }); }}>
                                     QR

@@ -19,6 +19,13 @@ export const can = {
   writeStudent: (r: UiRole) => atLeast(r, 'treasurer'),
   importStudents: (r: UiRole) => atLeast(r, 'treasurer'),
   showQr: (r: UiRole) => atLeast(r, 'member'),
+  /**
+   * Thành viên chỉ được xem QR chuyển khoản CỦA CHÍNH MÌNH — QR mang số tiền và mã SV của
+   * người khác thì không việc gì phải cho họ thấy. Thủ quỹ trở lên xem được của mọi người
+   * vì chính họ đi thu.
+   */
+  showQrFor: (r: UiRole, myStudentId: string | null | undefined, studentId: string) =>
+    atLeast(r, 'treasurer') || (r === 'member' && Boolean(myStudentId) && myStudentId === studentId),
   confirmTransfer: (r: UiRole) => atLeast(r, 'treasurer'),
   writePeriod: (r: UiRole) => atLeast(r, 'admin'),
   manageUsers: (r: UiRole) => atLeast(r, 'admin'),
