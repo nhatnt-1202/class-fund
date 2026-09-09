@@ -131,21 +131,52 @@
     border-radius: 4px;
   }
   /*
-   * Ô nhập và select mặc định.
+   * MỌI Ô NHẬP CAO ĐÚNG 44px — input, select và cả ô ngày.
+   *
+   * Vì sao phải ép chiều cao cố định thay vì min-height: <select> và input[type=date] có
+   * chiều cao nội tại riêng (select cộng thêm padding của nút mở, ô ngày cộng thêm chỗ cho
+   * icon lịch của Chrome), nên min-height không làm chúng bằng nhau. 44px cũng là kích thước
+   * vùng bấm tối thiểu trên điện thoại.
    *
    * Dùng `input:where(...)` chứ KHÔNG dùng `input[type='text']`: React render <input> không
-   * kèm thuộc tính type (type text là mặc định của HTML, không phải thuộc tính có mặt), nên
-   * selector theo [type] không khớp và ô nhập bị trơ về giao diện mặc định của trình duyệt.
-   * :where() còn giữ độ ưu tiên bằng 0 nên class utility (w-auto, h-14, text-right…) vẫn đè được.
+   * kèm thuộc tính type (text là mặc định của HTML, không phải thuộc tính có mặt) nên selector
+   * theo [type] không khớp và ô nhập bị trơ về giao diện mặc định của trình duyệt.
+   * :where() giữ độ ưu tiên bằng 0 nên class utility (h-14 của ô tiền, w-auto ở thanh lọc…)
+   * vẫn đè được.
+   * Viết liền một dòng: xuống dòng giữa các :not() sẽ thành dấu cách, tức quan hệ con cháu.
    */
-  /* Viết liền một dòng: xuống dòng giữa các :not() sẽ thành dấu cách, tức quan hệ con cháu,
-     và selector không khớp ô nhập nào cả. */
   input:where(:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='range']):not([type='submit']):not([type='button'])),
-  select,
-  textarea {
-    @apply w-full min-h-[42px] rounded-[10px] border border-lineStrong bg-surface px-3 py-2 text-ink;
+  select {
+    @apply h-11 w-full rounded-[10px] border border-lineStrong bg-surface px-3 text-ink;
+    font-size: 0.9375rem;
+    line-height: 1.25;
+    color-scheme: inherit;          /* để bảng chọn ngày và dropdown theo đúng sáng/tối */
     transition: border-color 0.14s, box-shadow 0.14s;
   }
+  textarea {
+    @apply min-h-[76px] w-full rounded-[10px] border border-lineStrong bg-surface px-3 py-2 text-ink;
+    font-size: 0.9375rem;
+    transition: border-color 0.14s, box-shadow 0.14s;
+  }
+
+  /* Select: bỏ mũi mặc định của trình duyệt rồi tự vẽ, để cao và padding giống input */
+  select {
+    @apply appearance-none bg-no-repeat pr-9;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238f97a9' stroke-width='2.2' stroke-linecap='round'><path d='M6 9l6 6 6-6'/></svg>");
+    background-position: right 0.7rem center;
+    background-size: 1rem 1rem;
+  }
+  select:disabled { background-image: none; }
+
+  /* Ô ngày: icon lịch của Chrome mờ đi cho bớt nặng, và đảo màu ở chế độ tối */
+  input[type='date'] { @apply pr-2.5; }
+  input[type='date']::-webkit-calendar-picker-indicator {
+    opacity: 0.5;
+    cursor: pointer;
+  }
+  input[type='date']::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+  input[type='date']::-webkit-datetime-edit { padding: 0; }
+
   input::placeholder, textarea::placeholder { @apply text-ink3; }
   input:disabled, select:disabled, textarea:disabled { @apply cursor-not-allowed bg-surface2 text-ink3; }
   input:focus, select:focus, textarea:focus {
@@ -183,6 +214,11 @@
   .qr-svg svg { display: block; width: 100%; height: auto; }
   .row-flash { animation: flash 1.8s cubic-bezier(0.22, 1, 0.36, 1); }
 }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) input[type='date']::-webkit-calendar-picker-indicator { filter: invert(1); }
+}
+:root[data-theme='dark'] input[type='date']::-webkit-calendar-picker-indicator { filter: invert(1); }
 
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
 @keyframes flash {

@@ -73,6 +73,12 @@ export function AmountField({
 }) {
   const [text, setText] = useState(value ? fmtNum(value) : '');
   useEffect(() => setText(value ? fmtNum(value) : ''), [value]);
+  // Bỏ chip trùng giá trị: "Còn thiếu" và "Cả đợt" thường bằng nhau khi SV chưa nộp gì,
+  // để hai chip cùng sáng thì người dùng tưởng đang chọn hai thứ khác nhau.
+  const chips = useMemo(() => {
+    const seen = new Set<number>();
+    return (quick ?? []).filter((q) => q.value > 0 && !seen.has(q.value) && (seen.add(q.value), true));
+  }, [quick]);
   return (
     <div>
       <div className="relative">
@@ -81,7 +87,7 @@ export function AmountField({
           inputMode="numeric"
           autoFocus={autoFocus}
           value={text}
-          aria-describedby={quick?.length ? `${id ?? 'amount'}-quick` : undefined}
+          aria-describedby={chips.length ? `${id ?? 'amount'}-quick` : undefined}
           onChange={(e) => {
             const n = parseMoney(e.target.value);
             setText(n ? fmtNum(n) : '');
@@ -94,9 +100,9 @@ export function AmountField({
           ₫
         </span>
       </div>
-      {quick && quick.length > 0 && (
+      {chips.length > 0 && (
         <div id={`${id ?? 'amount'}-quick`} className="mt-2 flex flex-wrap gap-1.5">
-          {quick.filter((q) => q.value > 0).map((q) => (
+          {chips.map((q) => (
             <button
               key={q.label}
               type="button"
@@ -168,7 +174,7 @@ export function PersonField({
             type="button"
             onClick={() => { setManual(false); onChange(''); }}
             title="Chọn từ danh sách"
-            className="flex min-h-[42px] items-center gap-1.5 whitespace-nowrap rounded-[10px] border
+            className="flex h-11 items-center gap-1.5 whitespace-nowrap rounded-[10px] border
               border-lineStrong px-2.5 text-[13px] hover:bg-surface2"
           >
             <ChevronsUpDown className="h-4 w-4" aria-hidden /> Danh sách
@@ -206,7 +212,7 @@ export function PersonField({
         type="button"
         onClick={() => { setManual(true); setTimeout(() => inputRef.current?.focus(), 30); }}
         title="Nhập tên bằng tay"
-        className="flex min-h-[42px] items-center gap-1.5 whitespace-nowrap rounded-[10px] border
+        className="flex h-11 items-center gap-1.5 whitespace-nowrap rounded-[10px] border
           border-lineStrong px-2.5 text-[13px] hover:bg-surface2"
       >
         <Pencil className="h-4 w-4" aria-hidden /> Nhập tay
@@ -248,7 +254,7 @@ export function StudentPicker({
         />
       </div>
       <ul
-        className="max-h-[210px] divide-y divide-line overflow-y-auto rounded-[10px] border border-line"
+        className="max-h-[184px] divide-y divide-line overflow-y-auto rounded-[10px] border border-line"
         role="listbox"
         aria-label="Danh sách sinh viên"
       >

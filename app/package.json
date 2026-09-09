@@ -16,7 +16,8 @@
     "check": "node scripts/check-connection.mjs",
     "db:bundle": "node scripts/bundle-migrations.mjs",
     "create:owner": "node scripts/create-owner.mjs",
-    "db:exec": "node scripts/db-exec.mjs"
+    "db:exec": "node scripts/db-exec.mjs",
+    "shot": "node scripts/screenshot.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -41,6 +42,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "jsdom": "^25.0.1",
+    "playwright": "^1.63.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.2",

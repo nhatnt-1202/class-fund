@@ -138,11 +138,11 @@ export default function ExpenseDialog({
                 { label: 'Sau khoản này còn', value: fmtVndSigned(remainAfter),
                   tone: remainAfter < 0 ? 'bad' : remainAfter < available * 0.2 ? 'warn' : 'ok' },
               ]} />
-              {available > 0 && (
+              {available > 0 && amount > 0 && (
                 <div className="mt-2">
                   <Progress value={Math.min(Math.max(amount / available, 0), 1)} fund={fund} />
                   <p className="mt-1 text-xs text-ink3">
-                    Khoản này chiếm {available > 0 ? Math.round(Math.min(amount / available, 1) * 100) : 0}% tồn quỹ hiện có
+                    Khoản này chiếm {Math.round(Math.min(amount / available, 1) * 100)}% tồn quỹ hiện có
                   </p>
                 </div>
               )}
@@ -152,6 +152,19 @@ export default function ExpenseDialog({
               <Field label="Quỹ" required>
                 <FundPicker value={fund} onChange={setFund} />
               </Field>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Ngày chi" required error={err.date}>
+                  <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                </Field>
+                <Field label="Hoá đơn">
+                  <Switch
+                    id="ex-receipt"
+                    checked={hasReceipt}
+                    onChange={setHasReceipt}
+                    label={hasReceipt ? 'Có hoá đơn' : 'Không có hoá đơn'}
+                  />
+                </Field>
+              </div>
             </Section>
           </div>
 
@@ -196,19 +209,6 @@ export default function ExpenseDialog({
                   placeholder="Tên người đi mua"
                 />
               </Field>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Ngày chi" required error={err.date}>
-                  <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-                </Field>
-                <Field label="Hoá đơn">
-                  <Switch
-                    id="ex-receipt"
-                    checked={hasReceipt}
-                    onChange={setHasReceipt}
-                    label={hasReceipt ? 'Có hoá đơn' : 'Không có hoá đơn'}
-                  />
-                </Field>
-              </div>
               <Field label="Ghi chú">
                 <Input value={note} onChange={(e) => setNote(e.target.value)}
                   placeholder="VD: mua ở căng tin, đã chia đôi với lớp bên" />

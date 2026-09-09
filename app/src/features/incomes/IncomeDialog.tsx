@@ -182,10 +182,13 @@ export default function IncomeDialog({
         </>
       }
     >
-      <div className="grid gap-3 lg:grid-cols-2">
-        {/* ----- cột trái: tiền và đợt thu ----- */}
-        <div>
-          <Section title="Số tiền" accent={fund}>
+      {/*
+        * Lưới 2×2 thay vì hai cột dựng dọc: xếp theo cột thì một bên luôn cao hơn hẳn
+        * (danh sách sinh viên rất cao), làm hộp thoại vượt chiều cao màn hình.
+        * Thứ tự khi màn hình hẹp: số tiền → ai nộp → đợt thu → chi tiết.
+        */}
+      <div className="grid items-start gap-3 lg:grid-cols-2">
+        <Section title="Số tiền" accent={fund}>
             <Field label="Số tiền nộp" required error={err.amount}>
               <AmountField
                 id="in-amount"
@@ -208,37 +211,7 @@ export default function IncomeDialog({
               ]} />
             )}
           </Section>
-
-          <Section title="Thuộc đợt thu nào">
-            <Field
-              label="Đợt thu"
-              hint={period
-                ? `${FUNDS[period.fund].label} · ${fmtVnd(period.amount_per_student)}/SV`
-                : 'Không thuộc đợt nào — chọn quỹ thủ công bên dưới'}
-            >
-              <Select value={periodId} onChange={(e) => changePeriod(e.target.value)}>
-                <option value="">— Thu ngoài đợt (tài trợ, nguồn khác) —</option>
-                {periods.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} · {fmtVnd(p.amount_per_student)}/SV{p.status === 'CLOSED' ? ' · đã đóng' : ''}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Thu vào quỹ nào?" required error={err.fund}>
-              <FundPicker
-                value={fund}
-                onChange={setFund}
-                disabled={Boolean(period)}
-                disabledHint="Quỹ đi theo đợt thu đã chọn — muốn đổi quỹ thì chọn đợt khác hoặc “Thu ngoài đợt”."
-              />
-            </Field>
-          </Section>
-        </div>
-
-        {/* ----- cột phải: ai nộp, ai thu ----- */}
-        <div>
-          <Section title="Ai nộp">
+        <Section title="Ai nộp">
             <div className="mb-2 flex gap-2">
               {([['student', 'Sinh viên trong lớp', Users], ['other', 'Nguồn khác', Wallet]] as const).map(
                 ([m, label, Icon]) => (
@@ -272,8 +245,32 @@ export default function IncomeDialog({
               </Field>
             )}
           </Section>
-
-          <Section title="Chi tiết ghi nhận">
+        <Section title="Thuộc đợt thu nào">
+            <Field
+              label="Đợt thu"
+              hint={period
+                ? `${FUNDS[period.fund].label} · ${fmtVnd(period.amount_per_student)}/SV`
+                : 'Không thuộc đợt nào — chọn quỹ thủ công bên dưới'}
+            >
+              <Select value={periodId} onChange={(e) => changePeriod(e.target.value)}>
+                <option value="">— Thu ngoài đợt (tài trợ, nguồn khác) —</option>
+                {periods.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} · {fmtVnd(p.amount_per_student)}/SV{p.status === 'CLOSED' ? ' · đã đóng' : ''}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Thu vào quỹ nào?" required error={err.fund}>
+              <FundPicker
+                value={fund}
+                onChange={setFund}
+                disabled={Boolean(period)}
+                disabledHint="Quỹ đi theo đợt thu đã chọn — muốn đổi quỹ thì chọn đợt khác hoặc “Thu ngoài đợt”."
+              />
+            </Field>
+          </Section>
+        <Section title="Chi tiết ghi nhận">
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Ngày nộp" required error={err.date}>
                 <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
@@ -298,7 +295,7 @@ export default function IncomeDialog({
                 placeholder="VD: nộp bù đợt trước" />
             </Field>
           </Section>
-
+        <div className="space-y-2 lg:col-span-2">
           {method === 'TRANSFER' && !editing && (
             <Note tone="info">
               <span>

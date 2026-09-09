@@ -89,7 +89,7 @@ export default function PeriodDialog({
           <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus
             placeholder="VD: Quỹ lớp học kỳ I 2026-2027" />
         </Field>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3">
           <Field label="Mức thu mỗi SV" required error={err.amount}>
             <AmountField
               id="p-amount"
@@ -102,6 +102,8 @@ export default function PeriodDialog({
               ]}
             />
           </Field>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Ngày mở">
             <Input type="date" value={openDate} onChange={(e) => setOpenDate(e.target.value)} />
           </Field>
@@ -109,9 +111,10 @@ export default function PeriodDialog({
             <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
           </Field>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className={`grid gap-3 ${editing ? 'sm:grid-cols-2' : ''}`}>
           <Field label="Ghi chú">
-            <Input value={note} onChange={(e) => setNote(e.target.value)} />
+            <Input value={note} onChange={(e) => setNote(e.target.value)}
+              placeholder="VD: thu để mua quà 20/11" />
           </Field>
           {editing && (
             <Field label="Trạng thái">

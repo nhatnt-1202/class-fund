@@ -185,10 +185,24 @@ Hai chi tiết dễ sai đã được xử lý:
 ## Kiểm thử
 
 ```bash
-npm test              # 45 phép kiểm tra logic + smoke test mount App (vitest)
+npm test              # 46 phép kiểm tra logic + smoke test mount App (vitest)
 npm run build         # tsc strict + vite build
 bash ../tests/db/run.sh   # 89 phép kiểm tra RLS/nghiệp vụ trên Postgres 17 thật (cần Docker)
 ```
+
+Soi giao diện bằng ảnh chụp thật, không cần Supabase:
+
+```bash
+npx playwright install chromium     # một lần
+npm run build && npx vite preview --port 4173 &
+npm run shot                        # ảnh vào screenshots/
+```
+
+`npm run shot` bơm một phiên đăng nhập giả và chặn network bằng dữ liệu mẫu, nên mở được cả
+các hộp thoại chỉ dành cho thủ quỹ. Nó còn **đo** chiều cao từng loại control và độ lệch tâm
+của hộp thoại — hai thứ từng sai mà đọc code không thấy: framer-motion ghi `transform` inline
+làm hỏng cách căn giữa bằng `-translate-x/y-1/2`, và CSS chọn `input[type='text']` không khớp
+`<input>` không có thuộc tính `type`.
 
 Bộ DB dựng một Postgres sạch trong Docker, chạy đúng 3 migration, rồi kiểm tra ma trận quyền của
 cả 5 vai trò (kể cả `anon`), đẳng thức tồn quỹ, tách biệt hai quỹ, quy tắc xoá mềm, bảo vệ tài
