@@ -99,9 +99,10 @@ test.describe('Giao diện', () => {
   test('bảng dữ liệu có caption cho trình đọc màn hình', async ({ page }) => {
     await stubSupabase(page, { role: 'treasurer' });
     await page.goto('/thu');
-    await page.waitForTimeout(400);
-    const captions = await page.locator('main table caption').count();
-    expect(captions).toBeGreaterThan(0);
+    // Chờ đúng bảng xuất hiện thay vì chờ theo thời gian: khi máy chạy nhiều test song song,
+    // 400ms có thể chưa đủ để dữ liệu về và bảng vẫn còn là skeleton ⇒ test flaky.
+    await expect(page.locator('main table')).toBeVisible();
+    await expect(page.locator('main table caption').first()).toBeAttached();
   });
 
   test('chuyển sáng/tối bằng nút trên thanh tiêu đề', async ({ page }) => {

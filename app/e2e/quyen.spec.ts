@@ -60,7 +60,7 @@ test.describe('Thành viên', () => {
   test('chỉ xem được QR của chính mình', async ({ page }) => {
     await stubSupabase(page, { role: 'member' });   // profile gắn với s2 = Lê Thị Thử
     await page.goto('/lop');
-    await page.waitForTimeout(400);
+    await expect(page.locator('main table')).toBeVisible();
     const rowMine = page.getByRole('row').filter({ hasText: 'Lê Thị Thử' });
     const rowOther = page.getByRole('row').filter({ hasText: 'Phạm Minh Ví' });
     await expect(rowMine.getByRole('button', { name: /QR chuyển khoản/ })).toHaveCount(1);

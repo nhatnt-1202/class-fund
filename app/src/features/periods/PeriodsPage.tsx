@@ -29,8 +29,8 @@ export default function PeriodsPage() {
   const [detail, setDetail] = useState<Period | null>(null);
   const [sheet, setSheet] = useState<Period | null>(null);
   const [batch, setBatch] = useState(false);
-  const [qr, setQr] = useState<{ open: boolean; student: Student | null; period: Period | null; amount: number }>(
-    { open: false, student: null, period: null, amount: 0 },
+  const [qr, setQr] = useState<{ open: boolean; student: Student | null; periodId: string }>(
+    { open: false, student: null, periodId: '' },
   );
   const [income, setIncome] = useState<{ open: boolean; studentId: string; periodId: string }>(
     { open: false, studentId: '', periodId: '' },
@@ -42,6 +42,11 @@ export default function PeriodsPage() {
     return m;
   }, [debts.data]);
   const paidOf = (s: string, p: string) => paidMap.get(`${s}|${p}`) ?? 0;
+  const remainingOf = (studentId: string, periodId: string) => {
+    const p = (periods.data ?? []).find((x) => x.id === periodId);
+    if (!p) return 0;
+    return Math.max(toInt(p.amount_per_student) - paidOf(studentId, periodId), 0);
+  };
 
   const rowsOf = (period: Period) =>
     (students.data ?? []).filter((s) => s.is_active).map((s) => {
@@ -216,7 +221,7 @@ export default function PeriodsPage() {
                               <div className="flex justify-end gap-1">
                                 {can.showQrFor(role, profile?.student_id, r.student.id) && r.remaining > 0 && (
                                   <Button size="sm" variant="primary"
-                                    onClick={() => { setDetail(null); setQr({ open: true, student: r.student, period: detail, amount: r.remaining }); }}>
+                                    onClick={() => { setDetail(null); setQr({ open: true, student: r.student, periodId: detail.id }); }}>
                                     QR
                                   </Button>
                                 )}
@@ -251,16 +256,19 @@ export default function PeriodsPage() {
         open={Boolean(sheet)}
         onOpenChange={(v) => !v && setSheet(null)}
         period={sheet}
-        rows={sheet ? rowsOf(sheet).map((r) => ({ student: r.student, remaining: r.remaining })) : []}
+        periods={list}
+        students={(students.data ?? []).filter((s) => s.is_active)}
+        remainingOf={remainingOf}
       />
 
       <QrDialog
         open={qr.open}
         onOpenChange={(v) => setQr((s) => ({ ...s, open: v }))}
         student={qr.student}
-        period={qr.period}
-        defaultAmount={qr.amount}
-        onCash={() => setIncome({ open: true, studentId: qr.student?.id ?? '', periodId: qr.period?.id ?? '' })}
+        periods={list}
+        remainingOf={remainingOf}
+        initialPeriodId={qr.periodId}
+        onCash={(periodId) => setIncome({ open: true, studentId: qr.student?.id ?? '', periodId })}
       />
 
       <IncomeDialog

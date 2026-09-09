@@ -31,8 +31,8 @@ export default function StudentsPage() {
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'stt', dir: 1 });
 
   const [studentDialog, setStudentDialog] = useState<{ open: boolean; editing: Student | null }>({ open: false, editing: null });
-  const [qr, setQr] = useState<{ open: boolean; student: Student | null; periodId: string; amount: number }>(
-    { open: false, student: null, periodId: '', amount: 0 },
+  const [qr, setQr] = useState<{ open: boolean; student: Student | null; periodId: string }>(
+    { open: false, student: null, periodId: '' },
   );
   const [income, setIncome] = useState<{ open: boolean; studentId: string; periodId: string }>(
     { open: false, studentId: '', periodId: '' },
@@ -44,6 +44,12 @@ export default function StudentsPage() {
     return m;
   }, [debts.data]);
   const paidOf = (studentId: string, periodId: string) => paidMap.get(`${studentId}|${periodId}`) ?? 0;
+  /** Số còn thiếu của một sinh viên ở một đợt — QrDialog cần để gộp nhiều đợt. */
+  const remainingOf = (studentId: string, periodId: string) => {
+    const p = (periods.data ?? []).find((x) => x.id === periodId);
+    if (!p) return 0;
+    return Math.max(toInt(p.amount_per_student) - paidOf(studentId, periodId), 0);
+  };
 
   const cols = (periods.data ?? [])
     .filter((p) => !fundFilter || p.fund === fundFilter)
@@ -195,7 +201,7 @@ export default function StudentsPage() {
                             <button
                               type="button"
                               title={`Mở QR chuyển khoản cho đợt ${p.name}`}
-                              onClick={() => setQr({ open: true, student: r.s, periodId: p.id, amount: remaining || must })}
+                              onClick={() => setQr({ open: true, student: r.s, periodId: p.id })}
                               className="rounded transition-transform hover:scale-105"
                             >
                               <Badge tone={tone}>{label}</Badge>
@@ -214,13 +220,9 @@ export default function StudentsPage() {
                       <div className="flex justify-end gap-1 opacity-40 transition-opacity hover:opacity-100 focus-within:opacity-100">
                         {can.showQrFor(role, profile?.student_id, r.s.id) && (
                           <Button size="sm" variant="ghost" aria-label={`QR chuyển khoản của ${r.s.full_name}`}
-                            onClick={() => {
-                              const p = cols.find((c) => Math.max(toInt(c.amount_per_student) - paidOf(r.s.id, c.id), 0) > 0) ?? cols[0];
-                              setQr({
-                                open: true, student: r.s, periodId: p?.id ?? '',
-                                amount: p ? Math.max(toInt(p.amount_per_student) - paidOf(r.s.id, p.id), 0) : 0,
-                              });
-                            }}>
+                            // Không truyền đợt cụ thể: hộp thoại sẽ mặc định gộp tất cả đợt
+                            // còn nợ. Bấm vào ô công nợ của một đợt thì mới chọn đúng đợt đó.
+                            onClick={() => setQr({ open: true, student: r.s, periodId: '' })}>
                             <QrCode className="h-4 w-4" />
                           </Button>
                         )}
@@ -260,9 +262,10 @@ export default function StudentsPage() {
         open={qr.open}
         onOpenChange={(v) => setQr((s) => ({ ...s, open: v }))}
         student={qr.student}
-        period={(periods.data ?? []).find((p) => p.id === qr.periodId) ?? null}
-        defaultAmount={qr.amount}
-        onCash={() => setIncome({ open: true, studentId: qr.student?.id ?? '', periodId: qr.periodId })}
+        periods={periods.data ?? []}
+        remainingOf={remainingOf}
+        initialPeriodId={qr.periodId}
+        onCash={(periodId) => setIncome({ open: true, studentId: qr.student?.id ?? '', periodId })}
       />
 
       <IncomeDialog

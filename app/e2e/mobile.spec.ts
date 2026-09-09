@@ -43,20 +43,21 @@ test.describe('Trên điện thoại', () => {
   test('bảng nhiều cột cuộn ngang trong khung riêng của nó', async ({ page }) => {
     await stubSupabase(page, { role: 'treasurer' });
     await page.goto('/lop');
-    await page.waitForTimeout(400);
-    const scrollable = await page.evaluate(() => {
+    await expect(page.locator('main table')).toBeVisible();
+
+    // Đo trong expect.poll: React có thể vẽ lại bảng ngay giữa lúc đo, làm querySelector
+    // trả null một nhịp và test hoá flaky.
+    await expect.poll(async () => page.evaluate(() => {
       const table = document.querySelector('main table');
-      if (!table) return null;
+      if (!table) return 'chua-co-bang';
       let el: HTMLElement | null = table.parentElement;
-      while (el) {
-        if (el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflowX !== 'visible') return true;
-        if (el.tagName === 'MAIN') break;
+      while (el && el.tagName !== 'MAIN') {
+        if (el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflowX !== 'visible') return 'cuon-trong-khung';
         el = el.parentElement;
       }
-      // bảng vừa khít cũng là hợp lệ
-      return table.scrollWidth <= (table.parentElement?.clientWidth ?? 0) + 1;
-    });
-    expect(scrollable, 'bảng phải cuộn trong khung riêng, không đẩy cả trang').toBe(true);
+      const parentWidth = table.parentElement?.clientWidth ?? 0;
+      return table.scrollWidth <= parentWidth + 1 ? 'vua-khit' : 'day-ca-trang';
+    }), { timeout: 8000 }).not.toBe('day-ca-trang');
   });
 
   test('hộp thoại thu vừa màn hình và cuộn được bên trong', async ({ page }) => {
@@ -113,7 +114,7 @@ test.describe('Trên điện thoại', () => {
   test('QR mở được và mã đủ lớn để quét', async ({ page }) => {
     await stubSupabase(page, { role: 'treasurer' });
     await page.goto('/lop');
-    await page.waitForTimeout(400);
+    await expect(page.locator('main table')).toBeVisible();
     await page.getByRole('row').filter({ hasText: 'Lê Thị Thử' })
       .getByRole('button', { name: /QR chuyển khoản của/ }).click();
     const dialog = page.getByRole('dialog');
