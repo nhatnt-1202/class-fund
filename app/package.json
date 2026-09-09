@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "db:push": "supabase db push",
     "db:types": "supabase gen types typescript --local > src/types/database.types.ts",
-    "check": "node scripts/check-connection.mjs"
+    "check": "node scripts/check-connection.mjs",
+    "db:bundle": "node scripts/bundle-migrations.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

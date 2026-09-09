@@ -42,12 +42,17 @@ Không đặt dấu ngoặc kép, không có dấu `/` ở cuối URL. File `.en
 
 ### 3. Chạy 3 migration
 
-**Cách A — không cài gì thêm** (nhanh nhất): Dashboard → **SQL Editor** → *New query*, dán
-lần lượt **đúng thứ tự**, mỗi file bấm *Run* một lần:
+**Cách A — không cài gì thêm** (nhanh nhất): Dashboard → **SQL Editor** → *New query* → dán
+**toàn bộ** file `supabase/setup_all.sql` → *Run*. File này là bản gộp của cả 3 migration nên
+chỉ phải dán một lần; thành công thì SQL Editor báo *“Success. No rows returned”*.
+
+Muốn dán từng file (dễ soi lỗi hơn) thì theo **đúng thứ tự** này, mỗi file *Run* một lần:
 
 1. `supabase/migrations/0001_schema.sql`
 2. `supabase/migrations/0002_functions.sql`
 3. `supabase/migrations/0003_rls.sql`
+
+Sửa migration thì chạy `npm run db:bundle` để sinh lại `setup_all.sql`.
 
 **Cách B — có Supabase CLI**:
 
