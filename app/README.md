@@ -7,38 +7,106 @@ Bản một file không cần cài đặt nằm ở `../index.html` (xem `../REA
 
 ---
 
-## Dựng trong 5 bước
+## Dựng lên
+
+### 1. Lấy URL và khoá công khai
+
+Trong **Supabase Dashboard**, mở project của bạn:
+
+- **Cách hiện tại**: `Project Settings` (bánh răng, góc dưới bên trái) → **API Keys** →
+  copy **Publishable key** (`sb_publishable_...`). URL nằm ở `Project Settings` → **General** →
+  *Project URL*, hoặc ngay trên trang API.
+- **Project cũ hơn**: `Project Settings` → **API** → mục *Project URL* và
+  *Project API keys* → dòng **`anon` `public`**.
+
+Cả hai loại khoá đều dùng được với app này (`supabase-js` v2 nhận cả `anon` key kiểu JWT và
+publishable key mới).
+
+> ⚠️ **Đừng lấy `service_role` hay `sb_secret_...`.** Khoá đó bỏ qua toàn bộ RLS, và mọi biến
+> `VITE_*` đều bị nhúng vào bundle nên ai mở web cũng đọc được. `npm run check` sẽ báo lỗi
+> nếu bạn dán nhầm.
+
+### 2. Điền vào `.env`
 
 ```bash
-# 1. Cài phụ thuộc
-npm install
-
-# 2. Tạo project trên https://supabase.com (bản miễn phí là đủ cho một lớp)
-
-# 3. Chạy 3 migration theo đúng thứ tự
-#    Cách A — có Supabase CLI:
-supabase link --project-ref <project-ref>
-supabase db push
-#    Cách B — không cài gì: mở Dashboard → SQL Editor, dán lần lượt
-#      ../supabase/migrations/0001_schema.sql
-#      ../supabase/migrations/0002_functions.sql
-#      ../supabase/migrations/0003_rls.sql
-
-# 4. Điền khoá vào .env (lấy ở Dashboard → Project Settings → API)
+cd app
 cp .env.example .env
+```
 
-# 5. Chạy
+```ini
+VITE_SUPABASE_URL=https://abcdefghijklmnop.supabase.co
+VITE_SUPABASE_ANON_KEY=sb_publishable_xxxxxxxxxxxxxxxxxxxx
+```
+
+Không đặt dấu ngoặc kép, không có dấu `/` ở cuối URL. File `.env` đã được `.gitignore`.
+
+### 3. Chạy 3 migration
+
+**Cách A — không cài gì thêm** (nhanh nhất): Dashboard → **SQL Editor** → *New query*, dán
+lần lượt **đúng thứ tự**, mỗi file bấm *Run* một lần:
+
+1. `supabase/migrations/0001_schema.sql`
+2. `supabase/migrations/0002_functions.sql`
+3. `supabase/migrations/0003_rls.sql`
+
+**Cách B — có Supabase CLI**:
+
+```bash
+supabase link --project-ref <project-ref>   # project-ref là phần abcdefghijklmnop trong URL
+supabase db push
+```
+
+Muốn có sẵn vài bản ghi để xem giao diện thì chạy thêm `supabase/seed.sql` (dữ liệu hư cấu).
+
+### 4. Cấu hình Authentication
+
+Dashboard → **Authentication**:
+
+- **Sign In / Providers → Email**: để bật (mặc định đã bật).
+- **Confirm email**: nếu bật (mặc định), người đăng ký phải mở link trong hộp thư mới đăng nhập
+  được. Dùng cho lớp thì **tắt** đi cho nhanh — đổi lại là email không được xác thực, nhưng
+  hệ thống này chỉ nhận email đã được mời nên rủi ro thấp.
+- **URL Configuration**: đặt *Site URL* = `http://localhost:5173` khi phát triển, và thêm vào
+  *Redirect URLs*:
+  `http://localhost:5173/doi-mat-khau` (link đặt lại mật khẩu trả về đây).
+  Khi deploy thì thêm domain thật, ví dụ `https://quy-lop.netlify.app/doi-mat-khau`.
+
+### 5. Kiểm tra rồi chạy
+
+```bash
+npm install
+npm run check     # xác nhận URL/khoá đúng, đã chạy đủ 3 migration, và RLS đang chặn đúng chỗ
 npm run dev
 ```
 
-**Người đăng ký đầu tiên tự động trở thành chủ sở hữu** — không cần chạy SQL tay để tạo admin.
-Mở `/dang-ky`, tạo tài khoản, rồi vào trang **Tài khoản** để mời những người còn lại.
+`npm run check` gọi thẳng REST API bằng anon key — đúng như trình duyệt của sinh viên — nên nó
+kiểm tra được cả việc **khách không đọc được** bảng `students`, `profiles`, `audit_logs`. Nếu
+bước này báo "anon ĐỌC ĐƯỢC bảng students" thì bạn chưa chạy `0003_rls.sql`, đừng dùng thật.
 
-> ⚠️ Không bao giờ đặt `service_role key` vào `.env`: mọi biến `VITE_*` đều bị nhúng vào bundle
-> và ai mở web cũng đọc được. Phân quyền đã do RLS trong Postgres thực thi nên không cần khoá đó.
+Mở `http://localhost:5173/dang-ky` — **người đăng ký đầu tiên tự động thành chủ sở hữu**,
+không cần chạy SQL tay. Sau đó vào trang **Tài khoản** để mời những người còn lại.
 
-Deploy: `npm run build` rồi đưa thư mục `dist/` lên Netlify / Vercel / Cloudflare Pages
-(nhớ khai báo 2 biến môi trường ở phần settings của nhà cung cấp, và bật SPA fallback về `index.html`).
+### Gặp lỗi?
+
+| Hiện tượng | Nguyên nhân |
+|---|---|
+| `npm run check` báo *không tìm thấy view v_class_public* | Chưa chạy `0001_schema.sql` |
+| Báo *không tìm thấy RPC log_event* | Chưa chạy `0002_functions.sql` |
+| Báo *anon ĐỌC ĐƯỢC bảng students* | Chưa chạy `0003_rls.sql` |
+| Đăng ký báo *Database error saving new user* | Email chưa được mời. Đây là trigger `handle_new_user()` chặn đúng thiết kế, nhưng Supabase đôi khi che câu tiếng Việt gốc ("Email … chưa được mời vào hệ thống Quỹ Lớp"). Người đầu tiên của hệ thống thì không cần lời mời. |
+| Đăng nhập được nhưng không thấy nút thêm thu/chi | Tài khoản đang là *thành viên*. Nhờ quản trị nâng lên *thủ quỹ* ở trang Tài khoản. |
+| Trang trắng sau khi deploy | Thiếu SPA fallback về `index.html`, hoặc chưa khai 2 biến môi trường ở nhà cung cấp hosting |
+
+### Deploy
+
+```bash
+npm run build     # ra thư mục dist/
+```
+
+Đưa `dist/` lên Netlify / Vercel / Cloudflare Pages. Nhớ:
+- khai `VITE_SUPABASE_URL` và `VITE_SUPABASE_ANON_KEY` trong phần environment variables,
+- bật **SPA fallback** (mọi đường dẫn trả về `index.html`) để `/thu`, `/lop`… không bị 404,
+- thêm domain thật vào *Redirect URLs* của Supabase.
 
 ---
 
