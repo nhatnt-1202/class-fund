@@ -2,11 +2,11 @@ import { motion } from 'framer-motion';
 import { FileSpreadsheet, Pencil, QrCode, UserPlus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '@/app/AuthProvider';
+import { useKlassContext } from '@/app/ClassProvider';
 import {
   Badge, Button, Card, EmptyState, Input, Money, Select, TableSkeleton, TableWrap,
 } from '@/components/ui';
-import { useClassInfo, useDebts, usePeriods, useStudents } from '@/data/api';
+import { useDebts, usePeriods, useStudents } from '@/data/api';
 import { fmtDate, fmtNum, fmtVnd, noAccent, toInt } from '@/lib/format';
 import { can } from '@/lib/permissions';
 import { pageVariants, rowStagger } from '@/lib/motion';
@@ -18,11 +18,11 @@ import StudentDialog from './StudentDialog';
 type SortKey = 'stt' | 'code' | 'full_name' | 'dob' | 'paid' | 'remaining';
 
 export default function StudentsPage() {
-  const { role, profile } = useAuth();
-  const students = useStudents(role);
-  const periods = usePeriods();
-  const debts = useDebts(role);
-  const { data: info } = useClassInfo(role);
+  const { role, classId, myStudentId } = useKlassContext();
+  const students = useStudents(classId, role);
+  const periods = usePeriods(classId);
+  const debts = useDebts(classId, role);
+  const { klass } = useKlassContext();
 
   const [q, setQ] = useState('');
   const [fundFilter, setFundFilter] = useState<Fund | ''>('');
@@ -197,7 +197,7 @@ export default function StudentsPage() {
                       const label = remaining === 0 ? 'Đã đóng' : paid > 0 ? `Thiếu ${fmtNum(remaining)}` : 'Chưa đóng';
                       return (
                         <td key={p.id}>
-                          {can.showQrFor(role, profile?.student_id, r.s.id) ? (
+                          {can.showQrFor(role, myStudentId, r.s.id) ? (
                             <button
                               type="button"
                               title={`Mở QR chuyển khoản cho đợt ${p.name}`}
@@ -218,7 +218,7 @@ export default function StudentsPage() {
                     </td>
                     <td>
                       <div className="flex justify-end gap-1 opacity-40 transition-opacity hover:opacity-100 focus-within:opacity-100">
-                        {can.showQrFor(role, profile?.student_id, r.s.id) && (
+                        {can.showQrFor(role, myStudentId, r.s.id) && (
                           <Button size="sm" variant="ghost" aria-label={`QR chuyển khoản của ${r.s.full_name}`}
                             // Không truyền đợt cụ thể: hộp thoại sẽ mặc định gộp tất cả đợt
                             // còn nợ. Bấm vào ô công nợ của một đợt thì mới chọn đúng đợt đó.
@@ -254,7 +254,7 @@ export default function StudentsPage() {
         open={studentDialog.open}
         onOpenChange={(v) => setStudentDialog((s) => ({ ...s, open: v }))}
         editing={studentDialog.editing}
-        defaultClassCode={info?.class_name ?? ''}
+        defaultClassCode={klass?.code ?? ''}
         existingCodes={new Map((students.data ?? []).map((s) => [s.code, s.id]))}
       />
 

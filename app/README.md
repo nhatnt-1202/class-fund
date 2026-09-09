@@ -1,7 +1,7 @@
 # Class Fund v2 — Supabase + React
 
-Bản đầy đủ của hệ thống quản lý thu chi quỹ lớp: **có tài khoản, phân quyền 5 vai trò,
-audit log** và thu tiền bằng **QR chuyển khoản VietQR**.
+Bản đầy đủ của hệ thống quản lý thu chi quỹ lớp: **nhiều lớp trong một hệ thống, có tài khoản,
+phân quyền theo từng lớp, audit log** và thu tiền bằng **QR chuyển khoản VietQR**.
 
 Bản một file không cần cài đặt nằm ở `../index.html` (xem `../README.md`).
 
@@ -40,10 +40,10 @@ VITE_SUPABASE_ANON_KEY=sb_publishable_xxxxxxxxxxxxxxxxxxxx
 
 Không đặt dấu ngoặc kép, không có dấu `/` ở cuối URL. File `.env` đã được `.gitignore`.
 
-### 3. Chạy 3 migration
+### 3. Chạy 6 migration
 
 **Cách A — không cài gì thêm** (nhanh nhất): Dashboard → **SQL Editor** → *New query* → dán
-**toàn bộ** file `supabase/setup_all.sql` → *Run*. File này là bản gộp của cả 3 migration nên
+**toàn bộ** file `supabase/setup_all.sql` → *Run*. File này là bản gộp của cả 6 migration nên
 chỉ phải dán một lần; thành công thì SQL Editor báo *“Success. No rows returned”*.
 
 Muốn dán từng file (dễ soi lỗi hơn) thì theo **đúng thứ tự** này, mỗi file *Run* một lần:
@@ -51,6 +51,9 @@ Muốn dán từng file (dễ soi lỗi hơn) thì theo **đúng thứ tự** n�
 1. `supabase/migrations/0001_schema.sql`
 2. `supabase/migrations/0002_functions.sql`
 3. `supabase/migrations/0003_rls.sql`
+4. `supabase/migrations/0004_multiclass.sql` — chuyển sang nhiều lớp (bảng `classes`, `memberships`)
+5. `supabase/migrations/0005_multiclass_rls.sql` — RLS theo từng lớp
+6. `supabase/migrations/0006_root_governance.sql` — chỉ tài khoản gốc mở lớp và giao quản trị lớp
 
 Sửa migration thì chạy `npm run db:bundle` để sinh lại `setup_all.sql`.
 
@@ -68,9 +71,10 @@ Muốn có sẵn vài bản ghi để xem giao diện thì chạy thêm `supabas
 Dashboard → **Authentication**:
 
 - **Sign In / Providers → Email**: để bật (mặc định đã bật).
-- **Confirm email**: nếu bật (mặc định), người đăng ký phải mở link trong hộp thư mới đăng nhập
-  được. Dùng cho lớp thì **tắt** đi cho nhanh — đổi lại là email không được xác thực, nhưng
-  hệ thống này chỉ nhận email đã được mời nên rủi ro thấp.
+- **Confirm email**: **TẮT**. Sinh viên đăng ký bằng email trường dạng
+  `<mã SV>@student.humg.edu.vn` và đăng nhập được ngay, không phải mở hộp thư. Rủi ro thấp vì
+  trigger `handle_new_user()` chỉ nhận đúng hai loại email: đúng định dạng mã sinh viên của
+  trường, hoặc email đã được quản trị lớp thêm sẵn — email lạ bị chặn ngay khi đăng ký.
 - **URL Configuration**: đặt *Site URL* = `http://localhost:5173` khi phát triển, và thêm vào
   *Redirect URLs*:
   `http://localhost:5173/doi-mat-khau` (link đặt lại mật khẩu trả về đây).
@@ -80,7 +84,7 @@ Dashboard → **Authentication**:
 
 ```bash
 npm install
-npm run check     # xác nhận URL/khoá đúng, đã chạy đủ 3 migration, và RLS đang chặn đúng chỗ
+npm run check     # xác nhận URL/khoá đúng, đã chạy đủ 6 migration, và RLS đang chặn đúng chỗ
 npm run dev
 ```
 
@@ -88,8 +92,14 @@ npm run dev
 kiểm tra được cả việc **khách không đọc được** bảng `students`, `profiles`, `audit_logs`. Nếu
 bước này báo "anon ĐỌC ĐƯỢC bảng students" thì bạn chưa chạy `0003_rls.sql`, đừng dùng thật.
 
-Mở `http://localhost:5173/dang-ky` — **người đăng ký đầu tiên tự động thành chủ sở hữu**,
-không cần chạy SQL tay. Sau đó vào trang **Tài khoản** để mời những người còn lại.
+Mở `http://localhost:5173/dang-ky` — **người đăng ký đầu tiên tự động thành tài khoản gốc**
+(chủ sở hữu hệ thống), không cần chạy SQL tay. Sau đó:
+
+1. Vào **Quản lý lớp** → *Mở lớp mới*, điền mã lớp và **email của người sẽ quản trị lớp đó**.
+   Email chưa có tài khoản cũng được: hệ thống giữ sẵn quyền, họ đăng ký là có ngay.
+2. Người quản trị lớp đăng nhập, vào **Nhập / Xuất** để nhập danh sách lớp từ Excel.
+3. Sinh viên tự đăng ký bằng `<mã SV>@student.humg.edu.vn` và **tự vào đúng lớp** có mã sinh
+   viên đó trong danh sách — không cần ai mời.
 
 ### Gặp lỗi?
 
@@ -98,8 +108,10 @@ không cần chạy SQL tay. Sau đó vào trang **Tài khoản** để mời nh
 | `npm run check` báo *không tìm thấy view v_class_public* | Chưa chạy `0001_schema.sql` |
 | Báo *không tìm thấy RPC log_event* | Chưa chạy `0002_functions.sql` |
 | Báo *anon ĐỌC ĐƯỢC bảng students* | Chưa chạy `0003_rls.sql` |
-| Đăng ký báo *Database error saving new user* | Email chưa được mời. Đây là trigger `handle_new_user()` chặn đúng thiết kế, nhưng Supabase đôi khi che câu tiếng Việt gốc ("Email … chưa được mời vào hệ thống Class Fund"). Người đầu tiên của hệ thống thì không cần lời mời. |
-| Đăng nhập được nhưng không thấy nút thêm thu/chi | Tài khoản đang là *thành viên*. Nhờ quản trị nâng lên *thủ quỹ* ở trang Tài khoản. |
+| Đăng ký báo *Database error saving new user* | Email không đúng dạng `<mã SV>@student.humg.edu.vn` và cũng chưa được quản trị lớp thêm sẵn. Đây là trigger `handle_new_user()` chặn đúng thiết kế, nhưng Supabase đôi khi che câu tiếng Việt gốc. Người đầu tiên của hệ thống thì vào được bằng email nào cũng được. |
+| Đăng nhập được nhưng *chưa thuộc lớp nào* | Lớp chưa nhập danh sách nên chưa khớp được mã sinh viên trong email, hoặc cần quản trị lớp thêm bạn vào lớp. Nhập danh sách xong là tài khoản tự vào lớp. |
+| Đăng nhập được nhưng không thấy nút thêm thu/chi | Tài khoản đang là *thành viên* của lớp. Nhờ quản trị lớp nâng lên *thủ quỹ* ở trang Tài khoản. |
+| Không thấy menu *Quản lý lớp* | Menu đó chỉ dành cho tài khoản gốc. Quản trị lớp không mở được lớp mới — đúng thiết kế. |
 | Trang trắng sau khi deploy | Thiếu SPA fallback về `index.html`, hoặc chưa khai 2 biến môi trường ở nhà cung cấp hosting |
 
 ### Deploy
@@ -115,19 +127,47 @@ npm run build     # ra thư mục dist/
 
 ---
 
-## Năm vai trò
+## Nhiều lớp, và ai quản lý cái gì
+
+Một hệ thống chạy cho **nhiều lớp**. Mỗi lớp có quỹ, đợt thu, danh sách sinh viên, lịch sử thao
+tác và **số tài khoản nhận chuyển khoản riêng** — không dùng chung gì cả.
+
+Quyền chia làm hai tầng, và đây là chỗ dễ hiểu sai nhất nên nói rõ:
+
+| Tầng | Ở đâu trong DB | Nghĩa |
+|---|---|---|
+| **Hệ thống** | `profiles.role = 'owner'` | Tài khoản gốc. Mở lớp và giao lớp cho người khác. |
+| **Trong từng lớp** | `memberships(user_id, class_id, role)` | Vai trò chỉ có hiệu lực **trong đúng lớp đó**. |
+
+Cách vận hành:
+
+1. **Tài khoản gốc** (người đăng ký đầu tiên) mở lớp và chỉ định **một tài khoản quản trị** cho
+   mỗi lớp. Nó không tham gia thu chi hằng ngày.
+2. **Quản trị lớp** toàn quyền trong lớp được giao và **không thấy lớp nào khác**. Một người có
+   thể được giao nhiều lớp; ở mỗi lớp vai trò tính riêng (thủ quỹ lớp A, thành viên lớp B).
+3. Quản trị lớp tự thêm **thủ quỹ / thành viên** cho lớp mình.
+4. **Sinh viên** tự đăng ký bằng email trường, tự vào đúng lớp có mã sinh viên đó.
 
 | Vai trò | Làm được gì |
 |---|---|
-| **Khách** (chưa đăng nhập) | Xem tổng thu / tổng chi / tồn quỹ từng quỹ, danh sách thu chi, tiến độ đợt thu, công nợ. **Không** thấy ngày sinh, số tài khoản, lịch sử thao tác, danh sách tài khoản. |
-| **Thành viên** | Xem đầy đủ + xem công nợ của chính mình + xuất Excel + xem QR của mình |
-| **Thủ quỹ** | + thêm/sửa thu, chi, sinh viên, nhập danh sách lớp, xác nhận đã nhận chuyển khoản. Chỉ xoá được bản ghi **do chính mình tạo, trong 24 giờ** |
-| **Quản trị** | + đợt thu, cấu hình lớp và tài khoản nhận tiền, quản lý tài khoản, phục hồi bản ghi đã xoá |
-| **Chủ sở hữu** | + cấp và thu quyền chủ sở hữu. Hệ thống luôn giữ ít nhất một chủ sở hữu đang hoạt động |
+| **Khách** (chưa đăng nhập) | Chọn một lớp công khai và xem tổng thu / tổng chi / tồn quỹ từng quỹ, danh sách thu chi, tiến độ đợt thu, công nợ. **Không** thấy ngày sinh, số tài khoản, lịch sử thao tác, danh sách tài khoản. |
+| **Thành viên** của lớp | Xem đầy đủ dữ liệu lớp mình + công nợ của chính mình + xuất Excel + xem QR của chính mình |
+| **Thủ quỹ** của lớp | + thêm/sửa thu, chi, sinh viên, nhập danh sách lớp, xác nhận đã nhận chuyển khoản. Chỉ xoá được bản ghi **do chính mình tạo, trong 24 giờ** |
+| **Quản trị lớp** | + đợt thu, cấu hình lớp và tài khoản nhận tiền, thêm/rút thành viên của lớp, phục hồi bản ghi đã xoá — **chỉ trong lớp của mình** |
+| **Tài khoản gốc** | + mở lớp mới, giao quản trị cho từng lớp, xem mọi lớp (vai cứu hộ khi một lớp mất quản trị) |
+
+Những việc **quản trị lớp cố tình không làm được**, chặn ngay ở tầng dữ liệu:
+
+- mở lớp mới (`create_class` đòi `is_system_owner()`, và policy `classes_insert_owner` chặn cả
+  việc chèn thẳng vào bảng),
+- đọc hay sửa bất cứ gì của lớp khác,
+- giao quyền ở lớp khác, hay chuyển một `membership` từ lớp mình sang lớp khác,
+- tự đổi vai trò của chính mình, hay hạ nốt người quản trị cuối cùng của lớp.
 
 Phân quyền được thực thi bằng **Row Level Security trong Postgres**, không phải bằng việc ẩn nút:
 kể cả gọi API trực tiếp bằng anon key cũng không vượt qua được. `src/lib/permissions.ts` chỉ để
-giao diện biết nút nào nên hiện, và phải luôn khớp với `supabase/migrations/0003_rls.sql`.
+giao diện biết nút nào nên hiện, và phải luôn khớp với `supabase/migrations/0005_multiclass_rls.sql`
+cùng `0006_root_governance.sql`.
 
 ---
 
@@ -185,12 +225,12 @@ Hai chi tiết dễ sai đã được xử lý:
 ## Kiểm thử
 
 ```bash
-npm test              # 46 phép kiểm tra logic + smoke test mount App (vitest)
+npm test              # 47 phép kiểm tra logic + smoke test mount App (vitest)
 npm run build         # tsc strict + vite build
-bash ../tests/db/run.sh   # 89 phép kiểm tra RLS/nghiệp vụ trên Postgres 17 thật (cần Docker)
+bash ../tests/db/run.sh   # 114 phép kiểm tra RLS/nghiệp vụ trên Postgres 17 thật (cần Docker)
 ```
 
-E2E bằng Playwright — 37 phép kiểm tra × 3 cấu hình (desktop sáng, desktop tối, Pixel 7):
+E2E bằng Playwright — 47 phép kiểm tra × 3 cấu hình (desktop sáng, desktop tối, Pixel 7):
 
 ```bash
 npx playwright install chromium     # một lần
@@ -211,6 +251,7 @@ chặn và trả dữ liệu mẫu. Nhờ vậy test chạy offline, không ph�
 | `quyen.spec.ts` | Khách xem được số liệu nhưng không có nút ghi chép, không thấy menu quản trị, không thấy cột ngày sinh, che tên khi bật công tắc · thành viên chỉ xem QR của chính mình · thủ quỹ không tạo được đợt thu · quản trị tạo được |
 | `qr.spec.ts` | QR mang đúng số còn thiếu, số tài khoản và mã SV · xác nhận đã nhận tiền ghi khoản thu dạng chuyển khoản · QR cả lớp đúng số người còn nợ |
 | `giao-dien.spec.ts` | Hộp thoại đúng tâm màn hình · mọi ô nhập cao bằng nhau · không cuộn ngang · Esc đóng hộp thoại · bảng có `<caption>` · đổi sáng/tối |
+| `nhieu-lop.spec.ts` | Quản trị lớp không thấy menu *Quản lý lớp* và vào thẳng URL cũng bị từ chối · mọi truy vấn số liệu đều kèm `class_id` của lớp đang xem · tài khoản gốc thấy mọi lớp, đổi lớp thì dữ liệu hỏi theo lớp mới · mở lớp mới gửi đúng `create_class` (email hạ chữ thường) · giao quản trị gửi đúng `grant_class_role` · chưa có lớp thì được dẫn đi mở lớp / được nói rõ vì sao chưa thấy gì |
 | `mobile.spec.ts` | Khách thấy nút đăng nhập trên thanh tiêu đề · menu hamburger điều hướng được · không trang nào cuộn ngang · bảng cuộn trong khung riêng · hộp thoại vừa màn hình · form xếp một cột · vùng bấm ≥ 32px · mã QR ≥ 140px để quét được |
 
 Soi giao diện bằng ảnh chụp thật, không cần Supabase:
@@ -227,9 +268,10 @@ của hộp thoại — hai thứ từng sai mà đọc code không thấy: fram
 làm hỏng cách căn giữa bằng `-translate-x/y-1/2`, và CSS chọn `input[type='text']` không khớp
 `<input>` không có thuộc tính `type`.
 
-Bộ DB dựng một Postgres sạch trong Docker, chạy đúng 3 migration, rồi kiểm tra ma trận quyền của
-cả 5 vai trò (kể cả `anon`), đẳng thức tồn quỹ, tách biệt hai quỹ, quy tắc xoá mềm, bảo vệ tài
-khoản, nội dung audit log và RPC import.
+Bộ DB dựng một Postgres sạch trong Docker, chạy cả 6 migration, rồi kiểm tra ma trận quyền của
+mọi vai trò (kể cả `anon`), **cách ly dữ liệu giữa các lớp**, việc chỉ tài khoản gốc mở được lớp,
+đẳng thức tồn quỹ, tách biệt hai quỹ, quy tắc xoá mềm, bảo vệ tài khoản, nội dung audit log và
+RPC import. Đây là chỗ chứng minh phân quyền, chứ không phải giao diện.
 
 ---
 

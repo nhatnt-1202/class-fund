@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { Layers, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { useAuth } from '@/app/AuthProvider';
+import { useKlassContext } from '@/app/ClassProvider';
 import { useToast } from '@/app/ToastProvider';
 import {
   Badge, Button, Card, ConfirmModal, EmptyState, FundBadge, Money, Select, TableSkeleton, TableWrap,
@@ -15,13 +15,13 @@ import BatchCollectDialog from './BatchCollectDialog';
 import IncomeDialog from './IncomeDialog';
 
 export default function IncomesPage() {
-  const { role } = useAuth();
+  const { role, classId } = useKlassContext();
   const toast = useToast();
-  const incomes = useIncomes(role);
-  const students = useStudents(role);
-  const periods = usePeriods();
-  const debts = useDebts(role);
-  const softDelete = useSoftDelete('incomes');
+  const incomes = useIncomes(classId, role);
+  const students = useStudents(classId, role);
+  const periods = usePeriods(classId);
+  const debts = useDebts(classId, role);
+  const softDelete = useSoftDelete('incomes', classId);
 
   const [fund, setFund] = useState<Fund | ''>('');
   const [periodId, setPeriodId] = useState('');

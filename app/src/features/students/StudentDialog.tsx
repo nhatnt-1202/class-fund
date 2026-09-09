@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useToast } from '@/app/ToastProvider';
 import { Button, Field, Input, Modal } from '@/components/ui';
+import { useKlassContext } from '@/app/ClassProvider';
 import { useSaveStudent } from '@/data/api';
 import { normCode } from '@/lib/format';
 import type { Student } from '@/types/db';
@@ -15,7 +16,8 @@ export default function StudentDialog({
   existingCodes: Map<string, string>;   // code → id, để chặn trùng ngay trên form
 }) {
   const toast = useToast();
-  const save = useSaveStudent();
+  const { classId } = useKlassContext();
+  const save = useSaveStudent(classId);
   const [stt, setStt] = useState('');
   const [code, setCode] = useState('');
   const [lastName, setLastName] = useState('');

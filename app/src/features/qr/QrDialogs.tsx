@@ -16,29 +16,29 @@
 import { Copy, Printer, Wallet } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '@/app/AuthProvider';
+import { useKlassContext } from '@/app/ClassProvider';
 import { useToast } from '@/app/ToastProvider';
 import { Badge, Button, Field, FundBadge, MoneyInput, Modal, Note, Select } from '@/components/ui';
-import { logEvent, useSaveIncomesBatch, useSettings, type NewIncome } from '@/data/api';
+import { logEvent, useSaveIncomesBatch, type NewIncome } from '@/data/api';
 import { fmtVnd, toInt } from '@/lib/format';
 import { can } from '@/lib/permissions';
 import { buildVietQr, qrSvg, transferNote } from '@/lib/vietqr';
-import { FUNDS, type ClassSettings, type Period, type Student } from '@/types/db';
+import { FUNDS, type Klass, type Period, type Student } from '@/types/db';
 
 const ALL = '__all';
 
-function noteFor(settings: ClassSettings, student: Student | null, periodLabel: string) {
-  return transferNote(settings.note_template, {
+function noteFor(klass: Klass, student: Student | null, periodLabel: string) {
+  return transferNote(klass.note_template, {
     code: student?.code ?? '',
     name: student?.full_name ?? '',
     period: periodLabel,
     fund: '',
-    className: settings.class_name,
+    className: klass.code,
   });
 }
 
-const bankReady = (s: ClassSettings | null | undefined) =>
-  Boolean(s && /^\d{6}$/.test(s.bank_bin) && s.account_no);
+const bankReady = (k: Klass | null | undefined) =>
+  Boolean(k && /^\d{6}$/.test(k.bank_bin) && k.account_no);
 
 async function copyText(text: string, onDone: () => void) {
   try {
@@ -56,12 +56,12 @@ async function copyText(text: string, onDone: () => void) {
 
 /** Mở cửa sổ in riêng, không phụ thuộc CSS của app. */
 function printQrCards(
-  settings: ClassSettings,
+  klass: Klass,
   items: Array<{ student: Student; note: string; amount: number }>,
   title: string,
 ) {
   const cards = items.map(({ student, note, amount }) => {
-    const svg = qrSvg(buildVietQr({ bin: settings.bank_bin, accountNo: settings.account_no, amount, description: note }), 4);
+    const svg = qrSvg(buildVietQr({ bin: klass.bank_bin, accountNo: klass.account_no, amount, description: note }), 4);
     return `<div class="c"><div class="q">${svg}</div>
       <div class="n">${student.full_name}</div>
       <div class="s">${student.code} · ${fmtVnd(amount)}</div>
@@ -79,8 +79,8 @@ function printQrCards(
     .q svg{width:100%;height:auto}.n{font-weight:700;font-size:12px;margin-top:4px}.s{font-size:11px;color:#444}
     @media print{.noprint{display:none}}
     </style></head><body>
-    <h1>QR chuyển khoản quỹ lớp ${settings.class_name} — ${title}</h1>
-    <div class="meta">${settings.bank_name} · ${settings.account_no}${settings.account_name ? ` · ${settings.account_name}` : ''}
+    <h1>QR chuyển khoản quỹ lớp ${klass.code} — ${title}</h1>
+    <div class="meta">${klass.bank_name} · ${klass.account_no}${klass.account_name ? ` · ${klass.account_name}` : ''}
       · in lúc ${new Date().toLocaleString('vi-VN')}</div>
     <button class="noprint" onclick="window.print()">In trang này</button>
     <div class="g">${cards}</div></body></html>`);
@@ -89,7 +89,7 @@ function printQrCards(
 }
 
 function NeedBankSetup({ onClose }: { onClose: () => void }) {
-  const { role } = useAuth();
+  const { role } = useKlassContext();
   return (
     <div className="space-y-3">
       <Note tone="warn">
@@ -126,10 +126,9 @@ export function QrDialog({
   initialPeriodId?: string;
   onCash?: (periodId: string) => void;
 }) {
-  const { role } = useAuth();
+  const { role, classId, klass } = useKlassContext();
   const toast = useToast();
-  const { data: settings } = useSettings(role);
-  const saveBatch = useSaveIncomesBatch();
+  const saveBatch = useSaveIncomesBatch(classId);
 
   const [selection, setSelection] = useState<string>(initialPeriodId ?? '');
   const [amount, setAmount] = useState(0);
@@ -188,10 +187,10 @@ export function QrDialog({
   const periodLabel = selection === ALL
     ? `${allocation.length} DOT`
     : periods.find((p) => p.id === selection)?.name ?? '';
-  const ready = bankReady(settings);
-  const note = ready && settings ? noteFor(settings, student, periodLabel) : '';
-  const payload = ready && settings
-    ? buildVietQr({ bin: settings.bank_bin, accountNo: settings.account_no, amount, description: note })
+  const ready = bankReady(klass);
+  const note = ready && klass ? noteFor(klass, student, periodLabel) : '';
+  const payload = ready && klass
+    ? buildVietQr({ bin: klass.bank_bin, accountNo: klass.account_no, amount, description: note })
     : '';
   const svg = qrSvg(payload, 5);
 
@@ -211,7 +210,7 @@ export function QrDialog({
       payer_name: student.full_name,
       amount: r.amount,
       method: 'TRANSFER',
-      collected_by: settings?.account_name || '',
+      collected_by: klass?.account_name || '',
       note: allocation.length > 1 ? `Chuyển khoản QR (gộp ${allocation.length} đợt)` : 'Chuyển khoản QR',
     }));
     try {
@@ -253,7 +252,7 @@ export function QrDialog({
         ) : undefined
       }
     >
-      {!ready || !settings ? (
+      {!ready || !klass ? (
         <NeedBankSetup onClose={() => onOpenChange(false)} />
       ) : (
         <div className="space-y-3">
@@ -301,9 +300,9 @@ export function QrDialog({
               </Field>
               <dl className="text-sm">
                 {[
-                  ['Ngân hàng', settings.bank_name || settings.bank_bin],
-                  ['Số tài khoản', settings.account_no],
-                  ...(settings.account_name ? [['Chủ tài khoản', settings.account_name]] : []),
+                  ['Ngân hàng', klass.bank_name || klass.bank_bin],
+                  ['Số tài khoản', klass.account_no],
+                  ...(klass.account_name ? [['Chủ tài khoản', klass.account_name]] : []),
                   ['Nội dung', note || '(không có)'],
                 ].map(([k, v]) => (
                   <div key={k} className="flex justify-between gap-3 border-b border-dashed border-line py-1">
@@ -346,15 +345,15 @@ export function QrDialog({
               Sao chép nội dung
             </Button>
             <Button size="sm" icon={<Copy className="h-4 w-4" />}
-              onClick={() => void copyText(settings.account_no, () => toast.ok('Đã sao chép số tài khoản'))}>
+              onClick={() => void copyText(klass.account_no, () => toast.ok('Đã sao chép số tài khoản'))}>
               Sao chép số tài khoản
             </Button>
             <Button size="sm" variant="ghost" icon={<Printer className="h-4 w-4" />}
               onClick={() => {
                 if (!student) return;
-                const done = printQrCards(settings, [{ student, note, amount }], periodLabel || 'Chuyển khoản quỹ lớp');
+                const done = printQrCards(klass, [{ student, note, amount }], periodLabel || 'Chuyển khoản quỹ lớp');
                 if (!done) toast.err('Trình duyệt đã chặn cửa sổ in', 'Cho phép pop-up rồi thử lại.');
-                else void logEvent('VIEW_QR', `Đã in QR cho ${student.full_name}`);
+                else void logEvent('VIEW_QR', `Đã in QR cho ${student.full_name}`, classId);
               }}>
               In / lưu ảnh
             </Button>
@@ -385,10 +384,9 @@ export function QrSheetDialog({
   students: Student[];
   remainingOf: (studentId: string, periodId: string) => number;
 }) {
-  const { role } = useAuth();
+  const { klass } = useKlassContext();
   const toast = useToast();
-  const { data: settings } = useSettings(role);
-  const ready = bankReady(settings);
+  const ready = bankReady(klass);
   const [mode, setMode] = useState<'period' | 'all'>('period');
 
   useEffect(() => {
@@ -397,7 +395,7 @@ export function QrSheetDialog({
 
   /** Mỗi sinh viên một mã: hoặc cho đúng đợt đang mở, hoặc gộp mọi đợt còn nợ. */
   const cards = useMemo(() => {
-    if (!ready || !settings) return [];
+    if (!ready || !klass) return [];
     return students
       .map((student) => {
         const targets = (mode === 'all' ? periods : period ? [period] : [])
@@ -406,14 +404,14 @@ export function QrSheetDialog({
         const amount = targets.reduce((a, x) => a + x.left, 0);
         if (amount <= 0) return null;
         const label = mode === 'all' && targets.length > 1 ? `${targets.length} DOT` : targets[0]!.p.name;
-        const note = noteFor(settings, student, label);
+        const note = noteFor(klass, student, label);
         return { student, amount, note, count: targets.length, svg: qrSvg(buildVietQr({
-          bin: settings.bank_bin, accountNo: settings.account_no, amount, description: note,
+          bin: klass.bank_bin, accountNo: klass.account_no, amount, description: note,
         }), 3) };
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, settings, mode, period?.id, periods, students, remainingOf]);
+  }, [ready, klass, mode, period?.id, periods, students, remainingOf]);
 
   const title = mode === 'all' ? 'tất cả đợt còn nợ' : (period?.name ?? '');
   const total = cards.reduce((a, c) => a + c.amount, 0);
@@ -427,7 +425,7 @@ export function QrSheetDialog({
       sub={`${cards.length}/${students.length} sinh viên còn phải nộp · mỗi mã đã gắn sẵn số tiền và nội dung riêng`}
       footer={<Button onClick={() => onOpenChange(false)}>Đóng</Button>}
     >
-      {!ready || !settings ? (
+      {!ready || !klass ? (
         <NeedBankSetup onClose={() => onOpenChange(false)} />
       ) : (
         <div className="space-y-3">
@@ -460,9 +458,9 @@ export function QrSheetDialog({
                   size="sm"
                   icon={<Printer className="h-4 w-4" />}
                   onClick={() => {
-                    const done = printQrCards(settings, cards, title);
+                    const done = printQrCards(klass, cards, title);
                     if (!done) toast.err('Trình duyệt đã chặn cửa sổ in', 'Cho phép pop-up rồi thử lại.');
-                    else void logEvent('VIEW_QR', `Đã in ${cards.length} mã QR — ${title}`);
+                    else void logEvent('VIEW_QR', `Đã in ${cards.length} mã QR — ${title}`, klass.id);
                   }}
                 >
                   In tất cả

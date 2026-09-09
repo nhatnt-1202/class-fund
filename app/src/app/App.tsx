@@ -1,15 +1,17 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AnimatePresence } from 'framer-motion';
 import { Suspense, lazy } from 'react';
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import Layout from '@/components/Layout';
-import { Card, Note } from '@/components/ui';
+import { Button, Card, Note } from '@/components/ui';
 import { isConfigured } from '@/lib/supabase';
 import { AuthProvider, useAuth } from './AuthProvider';
+import { ClassProvider, useKlassContext } from './ClassProvider';
 import { ThemeProvider } from './ThemeProvider';
 import { ToastProvider } from './ToastProvider';
 import { ForgotPasswordPage, LoginPage, ResetPasswordPage, SignupPage } from '@/features/auth/AuthPages';
 import ProfilePage from '@/features/auth/ProfilePage';
+import ClassesPage from '@/features/classes/ClassesPage';
 import DashboardPage from '@/features/dashboard/DashboardPage';
 import ExpensesPage from '@/features/expenses/ExpensesPage';
 import IncomesPage from '@/features/incomes/IncomesPage';
@@ -57,6 +59,57 @@ function Lazy({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Toàn bộ app luôn làm việc trong phạm vi một lớp, nên khi chưa có lớp nào để xem thì các
+ * trang số liệu chỉ hiện bảng trống vô nghĩa. Cổng này nói rõ việc cần làm tiếp, khác nhau
+ * theo vai trò: tài khoản gốc thì mở lớp, người khác thì chờ được gán vào lớp.
+ */
+function ClassGate({ children }: { children: React.ReactNode }) {
+  const { loading, hasNoClass, isSystemOwner } = useKlassContext();
+  const { session } = useAuth();
+  const location = useLocation();
+
+  // Trang quản lý lớp và trang tài khoản của tôi phải vào được kể cả khi chưa có lớp nào
+  const bypass = location.pathname === '/lop-hoc' || location.pathname === '/toi';
+  if (loading || !hasNoClass || bypass) return <>{children}</>;
+
+  if (isSystemOwner) {
+    return (
+      <Card className="p-6">
+        <h2 className="font-head text-lg font-semibold">Chưa có lớp nào</h2>
+        <p className="mt-1 text-sm text-ink3">
+          Bạn là tài khoản gốc: hãy mở lớp đầu tiên và giao nó cho một tài khoản quản trị. Từ đó
+          họ tự nhập danh sách lớp và thu chi trong lớp của họ.
+        </p>
+        <Link to="/lop-hoc" className="mt-4 inline-block">
+          <Button variant="primary">Mở lớp mới</Button>
+        </Link>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-6">
+      <h2 className="font-head text-lg font-semibold">
+        {session ? 'Tài khoản của bạn chưa thuộc lớp nào' : 'Chưa có lớp nào được công khai'}
+      </h2>
+      <Note tone="info">
+        <span>
+          {session ? (
+            <>
+              Hai lý do thường gặp: lớp của bạn <b>chưa nhập danh sách sinh viên</b> nên hệ thống chưa
+              khớp được mã sinh viên trong email của bạn, hoặc bạn cần <b>quản trị lớp thêm bạn vào lớp</b>.
+              Nhập danh sách xong là tài khoản của bạn tự vào lớp, không cần đăng ký lại.
+            </>
+          ) : (
+            <>Hãy chờ quản trị lớp mở lớp và nhập danh sách, hoặc đăng nhập bằng email trường của bạn.</>
+          )}
+        </span>
+      </Note>
+    </Card>
+  );
+}
+
 function AppRoutes() {
   const location = useLocation();
   return (
@@ -70,6 +123,7 @@ function AppRoutes() {
         <Route path="/nhap-xuat" element={<Lazy><ImportExportPage /></Lazy>} />
         <Route path="/tai-khoan" element={<RequireLogin><Lazy><UsersPage /></Lazy></RequireLogin>} />
         <Route path="/lich-su" element={<RequireLogin><Lazy><AuditPage /></Lazy></RequireLogin>} />
+        <Route path="/lop-hoc" element={<RequireLogin><ClassesPage /></RequireLogin>} />
         <Route path="/cai-dat" element={<RequireLogin><SettingsPage /></RequireLogin>} />
         <Route path="/toi" element={<RequireLogin><ProfilePage /></RequireLogin>} />
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -114,7 +168,11 @@ export default function App() {
                   <Route path="/dang-ky" element={<SignupPage />} />
                   <Route path="/quen-mat-khau" element={<ForgotPasswordPage />} />
                   <Route path="/doi-mat-khau" element={<ResetPasswordPage />} />
-                  <Route path="*" element={<Layout><AppRoutes /></Layout>} />
+                  <Route path="*" element={
+                    <ClassProvider>
+                      <Layout><ClassGate><AppRoutes /></ClassGate></Layout>
+                    </ClassProvider>
+                  } />
                 </Routes>
               </BrowserRouter>
             )}

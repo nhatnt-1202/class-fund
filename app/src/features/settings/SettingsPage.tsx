@@ -1,26 +1,25 @@
 import { motion } from 'framer-motion';
 import { QrCode } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useAuth } from '@/app/AuthProvider';
+import { useKlassContext } from '@/app/ClassProvider';
 import { usePrefs } from '@/app/ThemeProvider';
 import { useToast } from '@/app/ToastProvider';
 import { Badge, Button, Card, CardHead, Chip, Field, Input, Note, Select } from '@/components/ui';
-import { useSaveSettings, useSettings } from '@/data/api';
+import { useSaveKlass } from '@/data/api';
 import { can } from '@/lib/permissions';
 import { pageVariants } from '@/lib/motion';
 import { BANKS, bankName, buildVietQr, qrSvg, transferNote } from '@/lib/vietqr';
 import { FUNDS } from '@/types/db';
 
 export default function SettingsPage() {
-  const { role } = useAuth();
+  const { role, classId, klass, loading: isLoading } = useKlassContext();
   const prefs = usePrefs();
   const toast = useToast();
-  const { data: settings, isLoading } = useSettings(role);
-  const save = useSaveSettings();
+  const save = useSaveKlass(classId);
   const editable = can.editSettings(role);
 
   const [form, setForm] = useState({
-    class_name: '', faculty: '', term: '', school_year: '',
+    code: '', name: '', faculty: '', term: '', school_year: '',
     bank_bin: '', account_no: '', account_name: '', note_template: '{ma} {dot}',
     hide_student_names_from_guest: false,
   });
@@ -28,21 +27,21 @@ export default function SettingsPage() {
   const [err, setErr] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    if (!settings) return;
+    if (!klass) return;
     setForm({
-      class_name: settings.class_name, faculty: settings.faculty, term: settings.term,
-      school_year: settings.school_year, bank_bin: settings.bank_bin, account_no: settings.account_no,
-      account_name: settings.account_name, note_template: settings.note_template,
-      hide_student_names_from_guest: settings.hide_student_names_from_guest,
+      code: klass.code, name: klass.name, faculty: klass.faculty, term: klass.term,
+      school_year: klass.school_year, bank_bin: klass.bank_bin, account_no: klass.account_no,
+      account_name: klass.account_name, note_template: klass.note_template,
+      hide_student_names_from_guest: klass.hide_student_names_from_guest,
     });
-    setOtherBin(Boolean(settings.bank_bin) && !BANKS.some((b) => b.bin === settings.bank_bin));
-  }, [settings]);
+    setOtherBin(Boolean(klass.bank_bin) && !BANKS.some((b) => b.bin === klass.bank_bin));
+  }, [klass]);
 
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
 
   const previewNote = transferNote(form.note_template, {
     code: '2400000001', name: 'Trần Văn Mẫu', period: 'Quỹ lớp HK1',
-    fund: FUNDS.QUY_LOP.label, className: form.class_name,
+    fund: FUNDS.QUY_LOP.label, className: form.code,
   });
   const previewQr = qrSvg(buildVietQr({
     bin: form.bank_bin, accountNo: form.account_no, amount: 50000, description: previewNote,
@@ -51,7 +50,7 @@ export default function SettingsPage() {
   const saveClass = () => {
     save.mutate(
       {
-        class_name: form.class_name.trim(), faculty: form.faculty.trim(),
+        code: form.code.trim().toUpperCase(), name: form.name.trim(), faculty: form.faculty.trim(),
         term: form.term.trim(), school_year: form.school_year.trim(),
         hide_student_names_from_guest: form.hide_student_names_from_guest,
       },
@@ -97,8 +96,12 @@ export default function SettingsPage() {
             <>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Mã lớp">
-                  <Input value={form.class_name} onChange={(e) => set('class_name', e.target.value)}
+                  <Input value={form.code} onChange={(e) => set('code', e.target.value)}
                     disabled={!editable} placeholder="DCXDXD69_03B" />
+                </Field>
+                <Field label="Tên lớp">
+                  <Input value={form.name} onChange={(e) => set('name', e.target.value)}
+                    disabled={!editable} placeholder="Lớp 03B" />
                 </Field>
                 <Field label="Khoa">
                   <Input value={form.faculty} onChange={(e) => set('faculty', e.target.value)}

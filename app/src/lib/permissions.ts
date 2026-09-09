@@ -1,11 +1,17 @@
 /**
- * Ma trận quyền dùng cho GIAO DIỆN (ẩn/hiện nút).
+ * Ma trận quyền dùng cho GIAO DIỆN (ẩn/hiện nút), xét TRONG LỚP đang xem.
  * Đây KHÔNG phải lớp bảo vệ: mọi quyền thật đều do RLS trong Postgres thực thi
- * (xem supabase/migrations/0003_rls.sql). Hai bên phải luôn khớp nhau.
+ * (xem supabase/migrations/0005_multiclass_rls.sql). Hai bên phải luôn khớp nhau.
+ *
+ * 'owner' là tài khoản gốc của hệ thống: coi như quản trị của MỌI lớp, và là người duy nhất
+ * mở lớp mới + chỉ định quản trị cho từng lớp. Quản trị lớp thì chỉ trong lớp được giao.
  */
 import type { UiRole } from '@/types/db';
 
 const RANK: Record<UiRole, number> = { guest: 0, member: 1, treasurer: 2, admin: 3, owner: 4 };
+
+/** Chủ sở hữu hệ thống hành xử như quản trị lớp ở mọi lớp. */
+export const isClassAdmin = (r: UiRole) => r === 'admin' || r === 'owner';
 
 export const atLeast = (role: UiRole, min: UiRole) => RANK[role] >= RANK[min];
 
@@ -33,13 +39,21 @@ export const can = {
   restoreRecords: (r: UiRole) => atLeast(r, 'admin'),
   editSettings: (r: UiRole) => atLeast(r, 'admin'),
   grantOwner: (r: UiRole) => atLeast(r, 'owner'),
+  /**
+   * Chỉ tài khoản gốc (chủ sở hữu hệ thống) mở lớp và chỉ định quản trị cho lớp đó.
+   * Nếu để ai cũng tạo được lớp thì một sinh viên tự mở lớp giả rồi tự làm quản trị.
+   */
+  createClass: (r: UiRole) => r === 'owner',
+  /** Trang danh sách mọi lớp trong hệ thống — chỉ tài khoản gốc. */
+  manageClasses: (r: UiRole) => r === 'owner',
+  switchClass: (r: UiRole) => atLeast(r, 'guest'),
 };
 
 /** Thông báo khi người dùng chạm vào chỗ vượt quyền — nói rõ cần vai trò nào. */
 export function needRoleMessage(min: UiRole): string {
   const label: Record<UiRole, string> = {
-    guest: 'khách', member: 'thành viên', treasurer: 'thủ quỹ',
-    admin: 'quản trị', owner: 'chủ sở hữu',
+    guest: 'khách', member: 'thành viên của lớp', treasurer: 'thủ quỹ',
+    admin: 'quản trị lớp', owner: 'chủ sở hữu hệ thống',
   };
-  return `Việc này cần quyền ${label[min]} trở lên. Hãy nhờ quản trị lớp cấp quyền cho bạn.`;
+  return `Việc này cần quyền ${label[min]} trở lên trong lớp này. Hãy nhờ quản trị lớp cấp quyền cho bạn.`;
 }

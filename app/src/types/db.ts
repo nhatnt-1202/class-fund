@@ -5,36 +5,31 @@
 export type Fund = 'QUY_LOP' | 'QUY_DOAN';
 export type PayMethod = 'CASH' | 'TRANSFER';
 export type PeriodStatus = 'OPEN' | 'CLOSED';
-export type AppRole = 'member' | 'treasurer' | 'admin' | 'owner';
-/** Vai trò dùng trong UI, có thêm "khách chưa đăng nhập". */
-export type UiRole = AppRole | 'guest';
+/** Vai trò HỆ THỐNG trong bảng profiles: chỉ 'owner' có nghĩa. */
+export type SystemRole = 'member' | 'owner';
+/** Vai trò TRONG MỘT LỚP (bảng memberships). */
+export type ClassRole = 'member' | 'treasurer' | 'admin';
+/**
+ * Vai trò dùng cho giao diện: vai trò trong lớp đang xem, cộng thêm 'guest' (chưa đăng nhập)
+ * và 'owner' (chủ sở hữu hệ thống — được coi như quản trị của mọi lớp).
+ */
+export type UiRole = 'guest' | ClassRole | 'owner';
 
 export interface Profile {
   id: string;
   email: string;
   full_name: string;
-  role: AppRole;
+  role: SystemRole;
   is_active: boolean;
-  student_id: string | null;
   created_at: string;
   last_sign_in_at: string | null;
 }
 
-export interface Invite {
+/** Một lớp học — đơn vị chứa toàn bộ dữ liệu thu chi. */
+export interface Klass {
   id: string;
-  email: string;
-  role: AppRole;
-  student_id: string | null;
-  note: string;
-  invited_by: string | null;
-  created_at: string;
-  accepted_at: string | null;
-  revoked_at: string | null;
-}
-
-export interface ClassSettings {
-  id: number;
-  class_name: string;
+  code: string;
+  name: string;
   faculty: string;
   term: string;
   school_year: string;
@@ -45,21 +40,49 @@ export interface ClassSettings {
   account_no: string;
   account_name: string;
   note_template: string;
-  updated_at: string;
+  is_active: boolean;
+  created_at: string;
 }
 
-/** Những gì khách chưa đăng nhập được biết về lớp (không có số tài khoản). */
-export interface ClassPublic {
-  class_name: string;
+/** Những gì khách chưa đăng nhập được biết về một lớp (không có số tài khoản). */
+export interface KlassPublic {
+  class_id: string;
+  code: string;
+  name: string;
   faculty: string;
   term: string;
   school_year: string;
   hide_student_names_from_guest: boolean;
   bank_configured: boolean;
+  student_count: number;
+}
+
+/** Ai thuộc lớp nào với vai trò gì. */
+export interface Membership {
+  id: string;
+  user_id: string;
+  class_id: string;
+  role: ClassRole;
+  student_id: string | null;
+  created_at: string;
+}
+
+export interface Invite {
+  id: string;
+  email: string;
+  class_id: string;
+  role: ClassRole;
+  student_id: string | null;
+  note: string;
+  invited_by: string | null;
+  created_at: string;
+  accepted_at: string | null;
+  revoked_at: string | null;
 }
 
 export interface Student {
   id: string;
+  class_id: string;
   stt: number | null;
   code: string;
   last_name: string;
@@ -85,6 +108,7 @@ export interface StudentPublic {
 
 export interface Period {
   id: string;
+  class_id: string;
   name: string;
   fund: Fund;
   amount_per_student: number;
@@ -99,6 +123,7 @@ export interface Period {
 
 export interface Income {
   id: string;
+  class_id: string;
   date: string;
   fund: Fund;
   period_id: string | null;
@@ -126,6 +151,7 @@ export interface IncomePublic {
 
 export interface Expense {
   id: string;
+  class_id: string;
   date: string;
   fund: Fund;
   item: string;
@@ -153,6 +179,7 @@ export interface ExpensePublic {
 }
 
 export interface FundBalance {
+  class_id: string;
   fund: Fund;
   total_income: number;
   total_expense: number;
@@ -160,6 +187,7 @@ export interface FundBalance {
 }
 
 export interface StudentDebt {
+  class_id: string;
   student_id: string;
   code: string;
   full_name: string;
@@ -172,6 +200,7 @@ export interface StudentDebt {
 }
 
 export interface PeriodProgress {
+  class_id: string;
   period_id: string;
   name: string;
   fund: Fund;
@@ -189,6 +218,7 @@ export interface PeriodProgress {
 }
 
 export interface LedgerRow {
+  class_id: string;
   id: string;
   date: string;
   fund: Fund;
@@ -205,6 +235,7 @@ export type AuditAction =
 
 export interface AuditLog {
   id: number;
+  class_id: string | null;
   at: string;
   actor_id: string | null;
   actor_email: string;
@@ -234,6 +265,14 @@ export const ROLE_LABEL: Record<UiRole, string> = {
   guest: 'Khách',
   member: 'Thành viên',
   treasurer: 'Thủ quỹ',
-  admin: 'Quản trị',
-  owner: 'Chủ sở hữu',
+  admin: 'Quản trị lớp',
+  owner: 'Chủ sở hữu hệ thống',
 };
+
+export const CLASS_ROLES: ClassRole[] = ['member', 'treasurer', 'admin'];
+
+/** Email trường: <mã SV>@student.humg.edu.vn — đăng ký tự do, không cần lời mời. */
+export interface AppConfig {
+  student_email_domain: string;
+  student_code_pattern: string;
+}

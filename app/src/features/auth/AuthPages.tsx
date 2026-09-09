@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { useAuth } from '@/app/AuthProvider';
+import { useAppConfig } from '@/data/api';
 import { useToast } from '@/app/ToastProvider';
 import { Button, Card, Field, Input, Note } from '@/components/ui';
 import { pageVariants } from '@/lib/motion';
@@ -54,8 +55,8 @@ export function LoginPage() {
   return (
     <Shell
       title="Đăng nhập"
-      sub="Dành cho lớp trưởng, thủ quỹ và sinh viên đã được mời."
-      foot={<>Chưa có tài khoản? <Link to="/dang-ky" className="underline">Đăng ký bằng email đã được mời</Link></>}
+      sub="Dành cho quản trị lớp, thủ quỹ và sinh viên của lớp."
+      foot={<>Chưa có tài khoản? <Link to="/dang-ky" className="underline">Đăng ký bằng email trường</Link></>}
     >
       <form
         onSubmit={form.handleSubmit(async (v) => {
@@ -90,23 +91,48 @@ export function LoginPage() {
   );
 }
 
+/**
+ * Đăng ký tự do bằng email trường, KHÔNG cần xác nhận email — nhưng phải đúng định dạng
+ * <mã sinh viên>@<tên miền của trường>, vì chính mã sinh viên trong email là thứ hệ thống
+ * dùng để gắn tài khoản vào đúng lớp (xem handle_new_user trong 0004_multiclass.sql).
+ * Email khác định dạng này chỉ vào được khi quản trị lớp đã thêm sẵn.
+ */
 const signupSchema = z.object({
   fullName: z.string().min(2, 'Nhập họ tên của bạn'),
   email: z.string().min(1, 'Nhập email').email('Email không đúng định dạng'),
   password: z.string().min(8, 'Mật khẩu cần ít nhất 8 ký tự'),
 });
 
+/** Tách mã sinh viên trong email nếu đúng tên miền của trường. */
+export function studentCodeFromEmail(email: string, domain: string, pattern: string): string | null {
+  const [local, host] = email.trim().toLowerCase().split('@');
+  if (!local || host !== domain.toLowerCase()) return null;
+  try {
+    return new RegExp(pattern).test(local) ? local : null;
+  } catch {
+    return /^[0-9]{8,12}$/.test(local) ? local : null;
+  }
+}
+
 export function SignupPage() {
   const { signUp } = useAuth();
+  const { data: config } = useAppConfig();
   const [err, setErr] = useState('');
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState<{ email: string; code: string | null } | null>(null);
   const form = useForm<z.infer<typeof signupSchema>>({ resolver: zodResolver(signupSchema) });
+
+  const domain = config?.student_email_domain ?? 'student.humg.edu.vn';
+  const pattern = config?.student_code_pattern ?? '^[0-9]{8,12}$';
+  const typed = form.watch('email') ?? '';
+  const code = studentCodeFromEmail(typed, domain, pattern);
 
   if (done) {
     return (
-      <Shell title="Kiểm tra hộp thư" sub="Tài khoản đã được tạo.">
+      <Shell title="Đăng ký xong" sub="Không cần xác nhận email — đăng nhập được ngay.">
         <Note tone="ok">
-          Nếu hệ thống yêu cầu xác nhận email, hãy mở link trong hộp thư rồi đăng nhập.
+          {done.code
+            ? `Tài khoản ${done.email} đã tạo. Hệ thống tự đưa bạn vào lớp có mã sinh viên ${done.code} trong danh sách. Nếu lớp chưa nhập danh sách thì bạn sẽ vào lớp ngay sau khi lớp nhập.`
+            : `Tài khoản ${done.email} đã tạo. Bạn sẽ thấy lớp mà quản trị lớp đã thêm bạn vào.`}
         </Note>
         <Button variant="primary" className="mt-4 w-full" onClick={() => { window.location.href = '/dang-nhap'; }}>
           Tới trang đăng nhập
@@ -118,7 +144,7 @@ export function SignupPage() {
   return (
     <Shell
       title="Đăng ký"
-      sub="Chỉ email đã được quản trị lớp mời mới đăng ký được. Người đăng ký đầu tiên của hệ thống trở thành chủ sở hữu."
+      sub={`Sinh viên tự đăng ký bằng email trường dạng <mã SV>@${domain} — không cần ai mời, không cần xác nhận email.`}
       foot={<>Đã có tài khoản? <Link to="/dang-nhap" className="underline">Đăng nhập</Link></>}
     >
       <form
@@ -126,7 +152,7 @@ export function SignupPage() {
           setErr('');
           try {
             await signUp(v.email, v.password, v.fullName);
-            setDone(true);
+            setDone({ email: v.email.trim().toLowerCase(), code });
           } catch (e) {
             setErr(e instanceof Error ? e.message : 'Không đăng ký được');
           }
@@ -137,9 +163,31 @@ export function SignupPage() {
         <Field label="Họ và tên" required error={form.formState.errors.fullName?.message}>
           <Input autoFocus autoComplete="name" {...form.register('fullName')} />
         </Field>
-        <Field label="Email đã được mời" required error={form.formState.errors.email?.message}>
-          <Input type="email" autoComplete="email" {...form.register('email')} />
+        <Field
+          label="Email"
+          required
+          hint={`Ví dụ: 2421070527@${domain}`}
+          error={form.formState.errors.email?.message}
+        >
+          <Input type="email" autoComplete="email" placeholder={`2421070527@${domain}`}
+            {...form.register('email')} />
         </Field>
+        {/* Nói ngay khi đang gõ email có được nhận diện là email trường hay không: nếu không,
+            tài khoản chỉ vào được lớp khi quản trị lớp đã thêm sẵn email đó. */}
+        {typed.includes('@') && (
+          <div className="-mt-1 mb-3">
+            {code ? (
+              <p className="text-[12px] text-income">
+                Nhận diện mã sinh viên <b>{code}</b> — bạn sẽ tự vào lớp có mã này trong danh sách.
+              </p>
+            ) : (
+              <p className="text-[12px] text-warn">
+                Email này không đúng dạng <b>&lt;mã SV&gt;@{domain}</b>. Vẫn đăng ký được nếu quản trị
+                lớp đã thêm email của bạn vào lớp, còn không thì hệ thống sẽ từ chối.
+              </p>
+            )}
+          </div>
+        )}
         <Field label="Mật khẩu" required hint="Ít nhất 8 ký tự."
           error={form.formState.errors.password?.message}>
           <Input type="password" autoComplete="new-password" {...form.register('password')} />

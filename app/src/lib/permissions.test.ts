@@ -39,6 +39,20 @@ describe('ma trận quyền của giao diện', () => {
     expect(can.grantOwner('owner')).toBe(true);
   });
 
+  it('chỉ tài khoản gốc mở lớp; quản trị lớp chỉ quản lý trong lớp mình', () => {
+    // Nếu quản trị lớp (hay thấp hơn) mở được lớp thì ai cũng tự lập lớp giả rồi tự làm chủ
+    expect(can.createClass('admin')).toBe(false);
+    expect(can.createClass('treasurer')).toBe(false);
+    expect(can.createClass('member')).toBe(false);
+    expect(can.createClass('guest')).toBe(false);
+    expect(can.createClass('owner')).toBe(true);
+    expect(can.manageClasses('admin')).toBe(false);
+    expect(can.manageClasses('owner')).toBe(true);
+    // nhưng quản trị lớp vẫn tự quản thành viên và cấu hình LỚP CỦA MÌNH
+    expect(can.manageUsers('admin')).toBe(true);
+    expect(can.editSettings('admin')).toBe(true);
+  });
+
   it('thành viên chỉ xem được QR của chính mình', () => {
     expect(can.showQrFor('member', 's1', 's1')).toBe(true);
     expect(can.showQrFor('member', 's1', 's2')).toBe(false);

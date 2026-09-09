@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/app/AuthProvider';
+import { useKlassContext } from '@/app/ClassProvider';
 import { useToast } from '@/app/ToastProvider';
 import { Badge, Button, Card, CardHead, Field, FundBadge, Input, Money, Note, TableWrap } from '@/components/ui';
 import { useDebts, usePeriods, useStudents, useUpdateProfile } from '@/data/api';
@@ -9,12 +10,13 @@ import { pageVariants } from '@/lib/motion';
 import { ROLE_LABEL } from '@/types/db';
 
 export default function ProfilePage() {
-  const { profile, role, updatePassword, refreshProfile } = useAuth();
+  const { profile, updatePassword, refreshProfile } = useAuth();
+  const { role, classId, klass, myStudentId, options } = useKlassContext();
   const toast = useToast();
   const update = useUpdateProfile();
-  const debts = useDebts(role);
-  const students = useStudents(role);
-  const periods = usePeriods();
+  const debts = useDebts(classId, role);
+  const students = useStudents(classId, role);
+  const periods = usePeriods(classId);
 
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
@@ -29,14 +31,18 @@ export default function ProfilePage() {
     );
   }
 
-  const myStudent = (students.data ?? []).find((s) => s.id === profile.student_id);
-  const myDebts = (debts.data ?? []).filter((d) => d.student_id === profile.student_id);
+  const myStudent = (students.data ?? []).find((s) => s.id === myStudentId);
+  const myDebts = (debts.data ?? []).filter((d) => d.student_id === myStudentId);
   const totalRemaining = myDebts.reduce((a, d) => a + d.remaining, 0);
 
   return (
     <motion.div variants={pageVariants} initial="hidden" animate="show" className="grid gap-4 xl:grid-cols-2">
       <Card>
-        <CardHead title="Tài khoản của tôi" actions={<Badge tone="brand">{ROLE_LABEL[role]}</Badge>} />
+        <CardHead
+          title="Tài khoản của tôi"
+          sub={options.length > 1 ? `Bạn thuộc ${options.length} lớp` : undefined}
+          actions={<Badge tone="brand">{ROLE_LABEL[role]}</Badge>}
+        />
         <div className="p-4">
           <Field label="Email">
             <Input value={profile.email} disabled />
@@ -89,15 +95,18 @@ export default function ProfilePage() {
       <Card className="xl:col-span-2">
         <CardHead
           title="Công nợ của tôi"
-          sub={myStudent ? `${myStudent.full_name} — ${myStudent.code}` : undefined}
+          sub={myStudent
+            ? `${myStudent.full_name} — ${myStudent.code} · lớp ${klass?.code ?? ''}`
+            : klass ? `Lớp ${klass.code}` : undefined}
           actions={totalRemaining > 0 ? <Badge tone="warn">Còn nợ {fmtVnd(totalRemaining)}</Badge> : <Badge tone="ok">Đã nộp đủ</Badge>}
         />
-        {!profile.student_id ? (
+        {!myStudentId ? (
           <div className="p-4">
             <Note tone="info">
               <span>
-                Tài khoản của bạn chưa được gắn với sinh viên nào trong danh sách lớp, nên chưa xem được công nợ
-                riêng. Hãy nhờ quản trị lớp gắn giúp trong trang Tài khoản.
+                Tài khoản của bạn chưa được gắn với sinh viên nào trong lớp đang xem, nên chưa xem được công nợ
+                riêng. Nếu bạn đăng ký bằng email trường thì hệ thống tự gắn khi lớp nhập danh sách; nếu không,
+                hãy nhờ quản trị lớp gắn giúp trong trang Tài khoản.
               </span>
             </Note>
           </div>

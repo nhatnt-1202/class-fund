@@ -1,12 +1,13 @@
 import { QrCode, Users, Wallet } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/app/AuthProvider';
+import { useKlassContext } from '@/app/ClassProvider';
 import { useToast } from '@/app/ToastProvider';
 import { Badge, Button, Field, Input, Modal, Note, Select } from '@/components/ui';
 import {
   AmountField, FundPicker, PersonField, Section, StudentPicker, SummaryBar,
 } from '@/components/form';
-import { useSaveIncome, useSettings, type IncomeRow } from '@/data/api';
+import { useSaveIncome, type IncomeRow } from '@/data/api';
 import { fmtVnd, toInt } from '@/lib/format';
 import { can } from '@/lib/permissions';
 import { FUNDS, METHOD_LABEL, type Fund, type PayMethod, type Period, type Student } from '@/types/db';
@@ -27,10 +28,11 @@ export default function IncomeDialog({
   /** Những người đã từng đứng tên thu, để gợi ý trong ô "người thu". */
   collectors?: string[];
 }) {
-  const { role, profile } = useAuth();
+  const { profile } = useAuth();
+  const { role, classId, klass } = useKlassContext();
   const toast = useToast();
-  const save = useSaveIncome();
-  const { data: settings } = useSettings(role);
+  const save = useSaveIncome(classId);
+
 
   const [periodId, setPeriodId] = useState('');
   const [fund, setFund] = useState<Fund>('QUY_LOP');
@@ -300,7 +302,7 @@ export default function IncomeDialog({
             <Note tone="info">
               <span>
                 Chọn <b>Chuyển khoản</b> nghĩa là bạn đã thấy tiền về tài khoản
-                {settings?.account_no ? ` ${settings.account_no}` : ''}. Nếu chưa, hãy dùng
+                {klass?.account_no ? ` ${klass.account_no}` : ''}. Nếu chưa, hãy dùng
                 {' '}<b>Xem QR chuyển khoản</b> để gửi mã cho sinh viên trước.
               </span>
             </Note>

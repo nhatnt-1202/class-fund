@@ -1,12 +1,12 @@
 import { motion } from 'framer-motion';
 import { RotateCcw } from 'lucide-react';
 import { useState } from 'react';
-import { useAuth } from '@/app/AuthProvider';
+import { useKlassContext } from '@/app/ClassProvider';
 import { useToast } from '@/app/ToastProvider';
 import {
   Badge, Button, Card, CardHead, EmptyState, Input, Modal, Note, Select, TableSkeleton,
 } from '@/components/ui';
-import { useAuditLogs, useProfiles, useSoftDelete, type AuditFilter } from '@/data/api';
+import { useAuditLogs, useMembers, useSoftDelete, type AuditFilter } from '@/data/api';
 import { fmtDateTime, fmtRelative, fmtVnd } from '@/lib/format';
 import { can } from '@/lib/permissions';
 import { pageVariants, rowStagger } from '@/lib/motion';
@@ -38,21 +38,21 @@ function showValue(field: string, v: unknown): string {
 }
 
 export default function AuditPage() {
-  const { role } = useAuth();
+  const { role, classId } = useKlassContext();
   const toast = useToast();
   const allowed = can.viewAudit(role);
   const [filter, setFilter] = useState<AuditFilter>({});
   const [detail, setDetail] = useState<AuditLog | null>(null);
   const [showJson, setShowJson] = useState(false);
-  const logs = useAuditLogs(filter, allowed);
-  const profiles = useProfiles(can.manageUsers(role));
-  const restoreIncome = useSoftDelete('incomes');
-  const restoreExpense = useSoftDelete('expenses');
+  const logs = useAuditLogs(classId, filter, allowed);
+  const members = useMembers(classId, can.manageUsers(role));
+  const restoreIncome = useSoftDelete('incomes', classId);
+  const restoreExpense = useSoftDelete('expenses', classId);
 
   if (!allowed) {
     return (
       <Card className="p-6">
-        <Note tone="warn"><span>Lịch sử thao tác chỉ dành cho thủ quỹ trở lên.</span></Note>
+        <Note tone="warn"><span>Lịch sử thao tác chỉ dành cho thủ quỹ trở lên trong lớp này.</span></Note>
       </Card>
     );
   }
@@ -75,7 +75,7 @@ export default function AuditPage() {
       <Card>
         <CardHead
           title="Lịch sử thao tác"
-          sub="Do database ghi tự động và không ai sửa được — kể cả chủ sở hữu."
+          sub="Chỉ hiện thao tác của lớp đang xem. Do database ghi tự động và không ai sửa được — kể cả chủ sở hữu."
         />
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3">
           <label className="sr-only" htmlFor="au-q">Tìm trong diễn giải</label>
@@ -99,8 +99,10 @@ export default function AuditPage() {
               <Select id="au-actor" className="w-auto" value={filter.actor ?? ''}
                 onChange={(e) => setFilter((f) => ({ ...f, actor: e.target.value }))}>
                 <option value="">Mọi người</option>
-                {(profiles.data ?? []).map((p) => (
-                  <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
+                {(members.data ?? []).map((m) => (
+                  <option key={m.user_id} value={m.user_id}>
+                    {m.profile?.full_name || m.profile?.email || m.user_id}
+                  </option>
                 ))}
               </Select>
             </>

@@ -1,14 +1,12 @@
 import type { Session } from '@supabase/supabase-js';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { friendlyError, isConfigured, supabase } from '@/lib/supabase';
-import type { Profile, UiRole } from '@/types/db';
+import type { Profile } from '@/types/db';
 
 interface AuthCtx {
   loading: boolean;
   session: Session | null;
   profile: Profile | null;
-  /** Vai trò dùng cho giao diện: 'guest' khi chưa đăng nhập hoặc tài khoản bị vô hiệu hoá. */
-  role: UiRole;
   configured: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string) => Promise<void>;
@@ -101,13 +99,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw new Error(friendlyError(error));
   }, []);
 
-  const role: UiRole = !session || !profile || !profile.is_active ? 'guest' : profile.role;
-
   const value = useMemo<AuthCtx>(() => ({
-    loading, session, profile, role, configured: isConfigured,
+    loading, session, profile, configured: isConfigured,
     signIn, signUp, signOut, sendReset, updatePassword,
     refreshProfile: () => loadProfile(session?.user.id),
-  }), [loading, session, profile, role, signIn, signUp, signOut, sendReset, updatePassword, loadProfile]);
+  }), [loading, session, profile, signIn, signUp, signOut, sendReset, updatePassword, loadProfile]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

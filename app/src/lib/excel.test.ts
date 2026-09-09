@@ -130,27 +130,27 @@ describe('xuất Excel', () => {
       { fund: 'QUY_DOAN', total_income: 0, total_expense: 0, balance: 0 },
     ],
     incomes: [{
-      id: 'i1', date: '2026-09-03', fund, period_id: 'p1', student_id: 's1', payer_name: 'Trần Văn Mẫu',
+      id: 'i1', class_id: 'c1', date: '2026-09-03', fund, period_id: 'p1', student_id: 's1', payer_name: 'Trần Văn Mẫu',
       amount: 50000, method: 'TRANSFER', collected_by: 'Thủ quỹ', note: 'Chuyển khoản QR', batch_id: null,
       deleted_at: null, created_at: '', created_by: null,
       student_code: '2400000001', student_name: 'Trần Văn Mẫu', period_name: 'Quỹ lớp HK1',
     }],
     expenses: [{
-      id: 'e1', date: '2026-09-05', fund, item: 'Nước + bánh', category: 'Sinh hoạt', buyer: 'Phạm Minh Ví',
+      id: 'e1', class_id: 'c1', date: '2026-09-05', fund, item: 'Nước + bánh', category: 'Sinh hoạt', buyer: 'Phạm Minh Ví',
       amount: 30000, has_receipt: false, receipt_url: null, overdraft: false, note: '',
       deleted_at: null, created_at: '', created_by: null,
     }],
     students: [{
-      id: 's1', stt: 1, code: '2400000001', last_name: 'Trần Văn', first_name: 'Mẫu', full_name: 'Trần Văn Mẫu',
+      id: 's1', class_id: 'c1', stt: 1, code: '2400000001', last_name: 'Trần Văn', first_name: 'Mẫu', full_name: 'Trần Văn Mẫu',
       dob: '2005-01-15', class_code: 'DCXDXD69_03B', note: '', is_active: true, batch_id: null,
       deleted_at: null, created_at: '', created_by: null,
     }],
     periods: [{
-      id: 'p1', name: 'Quỹ lớp HK1', fund, amount_per_student: 50000, open_date: '2026-09-01',
+      id: 'p1', class_id: 'c1', name: 'Quỹ lớp HK1', fund, amount_per_student: 50000, open_date: '2026-09-01',
       due_date: null, status: 'OPEN', note: '', deleted_at: null, created_at: '', created_by: null,
     }],
     debts: [{
-      student_id: 's1', code: '2400000001', full_name: 'Trần Văn Mẫu', period_id: 'p1',
+      class_id: 'c1', student_id: 's1', code: '2400000001', full_name: 'Trần Văn Mẫu', period_id: 'p1',
       period_name: 'Quỹ lớp HK1', fund, must_pay: 50000, paid: 50000, remaining: 0,
     }],
     ledger: [{

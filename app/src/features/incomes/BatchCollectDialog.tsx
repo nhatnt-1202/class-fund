@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/app/ToastProvider';
 import { Badge, Button, Field, Input, Modal, MoneyInput, Select, TableWrap } from '@/components/ui';
+import { useKlassContext } from '@/app/ClassProvider';
 import { useSaveIncomesBatch } from '@/data/api';
 import { fmtVnd, toInt } from '@/lib/format';
 import { FUNDS, type Period, type Student } from '@/types/db';
@@ -16,7 +17,8 @@ export default function BatchCollectDialog({
   paidOf: (studentId: string, periodId: string) => number;
 }) {
   const toast = useToast();
-  const save = useSaveIncomesBatch();
+  const { classId } = useKlassContext();
+  const save = useSaveIncomesBatch(classId);
   const [periodId, setPeriodId] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [collectedBy, setCollectedBy] = useState('Thủ quỹ');

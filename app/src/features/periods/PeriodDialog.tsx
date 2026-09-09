@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useToast } from '@/app/ToastProvider';
 import { Button, Field, Input, Modal, Select } from '@/components/ui';
 import { AmountField, FundPicker, Section, SummaryBar } from '@/components/form';
+import { useKlassContext } from '@/app/ClassProvider';
 import { useSavePeriod } from '@/data/api';
 import { fmtVnd } from '@/lib/format';
 import { FUNDS, type Fund, type Period, type PeriodStatus } from '@/types/db';
@@ -15,7 +16,8 @@ export default function PeriodDialog({
   activeStudents: number;
 }) {
   const toast = useToast();
-  const save = useSavePeriod();
+  const { classId } = useKlassContext();
+  const save = useSavePeriod(classId);
   const [name, setName] = useState('');
   const [fund, setFund] = useState<Fund>('QUY_LOP');
   const [amount, setAmount] = useState(0);

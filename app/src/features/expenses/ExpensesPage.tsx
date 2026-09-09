@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { AlertTriangle, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { useAuth } from '@/app/AuthProvider';
+import { useKlassContext } from '@/app/ClassProvider';
 import { useToast } from '@/app/ToastProvider';
 import {
   Badge, Button, Card, ConfirmModal, EmptyState, FundBadge, Money, Select, TableSkeleton, TableWrap,
@@ -14,10 +14,10 @@ import { FUNDS, FUND_KEYS, type Expense, type Fund } from '@/types/db';
 import ExpenseDialog from './ExpenseDialog';
 
 export default function ExpensesPage() {
-  const { role } = useAuth();
+  const { role, classId } = useKlassContext();
   const toast = useToast();
-  const expenses = useExpenses(role);
-  const softDelete = useSoftDelete('expenses');
+  const expenses = useExpenses(classId, role);
+  const softDelete = useSoftDelete('expenses', classId);
 
   const [fund, setFund] = useState<Fund | ''>('');
   const [category, setCategory] = useState('');

@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { Copy, Lock, LockOpen, Pencil, Plus, QrCode, Users, Wallet } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { useAuth } from '@/app/AuthProvider';
+import { useKlassContext } from '@/app/ClassProvider';
 import { useToast } from '@/app/ToastProvider';
 import {
   Badge, Button, Card, EmptyState, FundBadge, Modal, Money, Progress, TableSkeleton, TableWrap,
@@ -17,13 +17,13 @@ import { QrDialog, QrSheetDialog } from '@/features/qr/QrDialogs';
 import PeriodDialog from './PeriodDialog';
 
 export default function PeriodsPage() {
-  const { role, profile } = useAuth();
+  const { role, classId, myStudentId } = useKlassContext();
   const toast = useToast();
-  const periods = usePeriods();
-  const progress = usePeriodProgress();
-  const students = useStudents(role);
-  const debts = useDebts(role);
-  const savePeriod = useSavePeriod();
+  const periods = usePeriods(classId);
+  const progress = usePeriodProgress(classId);
+  const students = useStudents(classId, role);
+  const debts = useDebts(classId, role);
+  const savePeriod = useSavePeriod(classId);
 
   const [dialog, setDialog] = useState<{ open: boolean; editing: Period | null }>({ open: false, editing: null });
   const [detail, setDetail] = useState<Period | null>(null);
@@ -219,7 +219,7 @@ export default function PeriodsPage() {
                             </td>
                             <td className="text-right">
                               <div className="flex justify-end gap-1">
-                                {can.showQrFor(role, profile?.student_id, r.student.id) && r.remaining > 0 && (
+                                {can.showQrFor(role, myStudentId, r.student.id) && r.remaining > 0 && (
                                   <Button size="sm" variant="primary"
                                     onClick={() => { setDetail(null); setQr({ open: true, student: r.student, periodId: detail.id }); }}>
                                     QR

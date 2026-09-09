@@ -3,13 +3,14 @@ import { Download, FileDown, RotateCcw, Upload } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { useAuth } from '@/app/AuthProvider';
+import { useKlassContext } from '@/app/ClassProvider';
 import { useToast } from '@/app/ToastProvider';
 import {
   Badge, Button, Card, CardHead, Chip, Field, Input, Modal, Note, Select, TableWrap,
 } from '@/components/ui';
 import {
   logEvent, useBalances, useDebts, useExpenses, useImportStudents, useIncomes, useLedger,
-  usePeriods, useSaveSettings, useSettings, useStudents, useUndoImport, type ImportResult,
+  usePeriods, useSaveKlass, useStudents, useUndoImport, type ImportResult,
 } from '@/data/api';
 import {
   autoMapping, buildTemplateWorkbook, buildWorkbook, detectHeaderRow, detectMeta, exportFileName,
@@ -24,18 +25,18 @@ import { FUNDS, FUND_KEYS, type Fund } from '@/types/db';
 type Step = 0 | 1 | 2;
 
 export default function ImportExportPage() {
-  const { role, profile } = useAuth();
+  const { profile } = useAuth();
+  const { role, classId, klass } = useKlassContext();
   const toast = useToast();
-  const students = useStudents(role);
-  const periods = usePeriods();
-  const debts = useDebts(role);
-  const incomes = useIncomes(role);
-  const expenses = useExpenses(role);
-  const balances = useBalances();
-  const ledger = useLedger(role);
-  const { data: settings } = useSettings(role);
-  const saveSettings = useSaveSettings();
-  const doImport = useImportStudents();
+  const students = useStudents(classId, role);
+  const periods = usePeriods(classId);
+  const debts = useDebts(classId, role);
+  const incomes = useIncomes(classId, role);
+  const expenses = useExpenses(classId, role);
+  const balances = useBalances(classId);
+  const ledger = useLedger(classId, role);
+  const saveKlass = useSaveKlass(classId);
+  const doImport = useImportStudents(classId);
   const undoImport = useUndoImport();
 
   /* ---------- import ---------- */
@@ -74,10 +75,10 @@ export default function ImportExportPage() {
     setMapping(autoMapping(rows, hr));
     const m = detectMeta(rows, hr < 0 ? 10 : hr);
     setMeta({
-      class_name: m.class_name ?? settings?.class_name ?? '',
-      faculty: m.faculty ?? settings?.faculty ?? '',
-      term: m.term ?? settings?.term ?? '',
-      school_year: m.school_year ?? settings?.school_year ?? '',
+      class_name: m.class_name ?? klass?.code ?? '',
+      faculty: m.faculty ?? klass?.faculty ?? '',
+      term: m.term ?? klass?.term ?? '',
+      school_year: m.school_year ?? klass?.school_year ?? '',
     });
   };
 
@@ -109,13 +110,15 @@ export default function ImportExportPage() {
         })),
       });
       setResult(res);
-      if (can.editSettings(role) && (meta.class_name || meta.faculty)) {
-        saveSettings.mutate({
-          class_name: meta.class_name, faculty: meta.faculty,
-          term: meta.term, school_year: meta.school_year,
-        });
+      // Chỉ điền phần còn trống của lớp: không ghi đè cấu hình lớp bằng dữ liệu trong file
+      if (can.editSettings(role) && klass) {
+        const patch: Record<string, string> = {};
+        if (!klass.faculty && meta.faculty) patch.faculty = meta.faculty;
+        if (!klass.term && meta.term) patch.term = meta.term;
+        if (!klass.school_year && meta.school_year) patch.school_year = meta.school_year;
+        if (Object.keys(patch).length > 0) saveKlass.mutate(patch);
       }
-      void logEvent('IMPORT', `Đã nhập danh sách lớp từ ${fileName}`, { file: fileName, ...res });
+      void logEvent('IMPORT', `Đã nhập danh sách lớp từ ${fileName}`, classId, { file: fileName, ...res });
       toast.ok(`Đã nhập ${res.added} sinh viên`, 'Tạo đợt thu rồi dùng QR để thu tiền.');
     } catch (e) {
       toast.err('Import thất bại', e instanceof Error ? e.message : undefined);
@@ -160,13 +163,13 @@ export default function ImportExportPage() {
     try {
       const book = buildWorkbook({
         meta: {
-          class_name: settings?.class_name ?? '', faculty: settings?.faculty ?? '',
-          term: settings?.term ?? '', school_year: settings?.school_year ?? '',
+          class_name: klass?.code ?? '', faculty: klass?.faculty ?? '',
+          term: klass?.term ?? '', school_year: klass?.school_year ?? '',
         },
-        bank: settings && settings.bank_bin && settings.account_no
+        bank: klass && klass.bank_bin && klass.account_no
           ? {
-            bin: settings.bank_bin, bank_name: settings.bank_name,
-            account_no: settings.account_no, note_template: settings.note_template,
+            bin: klass.bank_bin, bank_name: klass.bank_name,
+            account_no: klass.account_no, note_template: klass.note_template,
           }
           : null,
         balances: balances.data ?? [],
@@ -181,9 +184,9 @@ export default function ImportExportPage() {
         })),
         exportedBy: profile?.full_name || profile?.email || 'Khách',
       }, scope);
-      const name = exportFileName(settings?.class_name ?? '', scope);
+      const name = exportFileName(klass?.code ?? '', scope);
       XLSX.writeFile(book, name);
-      void logEvent('EXPORT', `Đã xuất Excel (${scopeMode}) — ${name}`, { scope, rows: scopedCount });
+      void logEvent('EXPORT', `Đã xuất Excel (${scopeMode}) — ${name}`, classId, { scope, rows: scopedCount });
       toast.ok('Đã xuất Excel', name);
     } catch (e) {
       toast.err('Xuất Excel thất bại', e instanceof Error ? e.message : undefined);
@@ -236,7 +239,7 @@ export default function ImportExportPage() {
             <div className="mt-3 flex flex-wrap gap-2">
               <Button size="sm" icon={<FileDown className="h-4 w-4" />}
                 onClick={() => {
-                  XLSX.writeFile(buildTemplateWorkbook(settings?.class_name ?? ''), 'FileMau_DanhSachLop.xlsx');
+                  XLSX.writeFile(buildTemplateWorkbook(klass?.code ?? ''), 'FileMau_DanhSachLop.xlsx');
                   toast.ok('Đã tải file mẫu', 'Điền theo đúng các cột rồi nhập lại.');
                 }}>
                 Tải file mẫu import
@@ -270,7 +273,7 @@ export default function ImportExportPage() {
         <CardHead
           title="Xuất Excel"
           sub={`Tổng quan · Thu · Chi · Công nợ · Ma trận đợt thu · Danh sách lớp · Nhật ký theo ngày${
-            settings?.bank_bin && settings?.account_no ? ' · QR chuyển khoản' : ''}`}
+            klass?.bank_bin && klass?.account_no ? ' · QR chuyển khoản' : ''}`}
         />
         <div className="p-4">
           <Field label="Phạm vi" group>

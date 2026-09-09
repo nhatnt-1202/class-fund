@@ -9,11 +9,12 @@ Repo có **hai bản dùng được**, chọn theo nhu cầu:
 |---|---|---|
 | Cài đặt | Không — double-click là chạy | `npm install` + một project Supabase |
 | Lưu dữ liệu | localStorage của một trình duyệt | Postgres trên Supabase |
-| Nhiều người dùng | Không — ai mở file cũng sửa được | Có — 5 vai trò, phân quyền bằng RLS |
+| Nhiều người dùng | Không — ai mở file cũng sửa được | Có — tài khoản, phân quyền theo từng lớp bằng RLS |
 | Audit log | Không | Có, do trigger DB ghi, không ai sửa được |
 | Thu qua QR VietQR | Có | Có |
 | Import / export Excel | Có | Có |
-| Phù hợp khi | Một người giữ quỹ, muốn dùng ngay | Cả lớp cùng xem, thủ quỹ và lớp trưởng cùng làm |
+| Số lớp | Một lớp trong một file | Nhiều lớp trong một hệ thống, tách biệt hoàn toàn |
+| Phù hợp khi | Một người giữ quỹ, muốn dùng ngay | Cả lớp cùng xem, thủ quỹ và lớp trưởng cùng làm; hoặc nhiều lớp dùng chung một hệ thống |
 
 Tài liệu bản 2: [`app/README.md`](app/README.md). Phần dưới đây nói về **bản 1**.
 
@@ -192,6 +193,6 @@ SELFTEST  bộ tự kiểm tra
 ## Tài liệu
 
 - `PROMPT.v1.md` — đặc tả của bản 1 (all-in-one 1 file).
-- `PROMPT.md` — đặc tả của bản 2 (Supabase + React, tài khoản, phân quyền, audit log).
+- `PROMPT.md` — đặc tả của bản 2 (Supabase + React, nhiều lớp, tài khoản, phân quyền, audit log).
 - `app/README.md` — hướng dẫn dựng và vận hành bản 2.
 - `tests/run.js` — kiểm thử bản 1 · `tests/db/run.sh` — kiểm thử database của bản 2.

@@ -460,4 +460,100 @@ begin;
 commit;
 
 \echo ''
+\echo '=== 17. Root mở lớp và giao cho quản trị lớp (0006) ==='
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'owner_jwt';
+  -- Root mở lớp C và giao ngay cho một email chưa có tài khoản ⇒ thành lời mời vai trò admin
+  select assert((create_class('DCXDXD69_05C', 'Lớp 05C', 'Xây dựng', 'Học kỳ I', '2026-2027',
+                              'lopTruong05C@lop.vn')).code = 'DCXDXD69_05C',
+    'Root mở được lớp mới và giao luôn quản trị');
+  select assert((select count(*) from invites i join classes c on c.id = i.class_id
+                 where c.code = 'DCXDXD69_05C' and lower(i.email) = 'loptruong05c@lop.vn'
+                   and i.role = 'admin' and i.accepted_at is null) = 1,
+    'Email chưa có tài khoản ⇒ để dành vai trò quản trị trong lời mời');
+  select assert_blocked($q$select create_class('DCXDXD69_05C', 'Trùng mã')$q$,
+    'Mã lớp trùng bị chặn');
+commit;
+
+select id as class_c from classes where code = 'DCXDXD69_05C' \gset
+
+-- Người được giao đăng ký ⇒ thành quản trị lớp C
+insert into auth.users (email, raw_user_meta_data)
+  values ('lopTruong05C@lop.vn', '{"full_name":"Phạm Lớp Trưởng"}');
+select assert((select m.role from memberships m join profiles p on p.id = m.user_id
+               where p.email = 'lopTruong05C@lop.vn' and m.class_id = :'class_c') = 'admin',
+  'Nhận lời mời ⇒ tự thành quản trị lớp C');
+select assert((select role from profiles where email = 'lopTruong05C@lop.vn') = 'member',
+  'Quản trị LỚP vẫn chỉ là thành viên ở cấp hệ thống (không phải root)');
+select format('{"sub":"%s"}', id) as adm_c_jwt from profiles where email = 'lopTruong05C@lop.vn' \gset
+
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'adm_c_jwt';
+  -- Phạm vi: chỉ lớp C
+  select assert((select count(*) from classes) = 1, 'Quản trị lớp C chỉ thấy đúng lớp C');
+  select assert((select count(*) from students where class_id = :'class_a') = 0,
+    'Quản trị lớp C không thấy sinh viên lớp A');
+  select assert((select count(*) from incomes) = 0, 'Quản trị lớp C không thấy khoản thu lớp khác');
+
+  -- Không mở được lớp mới, không tự chèn lớp
+  select assert_blocked($q$select create_class('LOP_TU_MO', 'Lớp tự mở')$q$,
+    'Quản trị lớp KHÔNG tạo được lớp mới (chỉ root được)');
+  select assert_blocked($q$insert into classes (code, name) values ('LOP_LEN', 'Chèn thẳng')$q$,
+    'Chèn thẳng vào bảng classes bị chặn');
+
+  -- Không giao quyền sang lớp khác
+  select assert_blocked(format($q$select grant_class_role('%s', 'lopTruong05C@lop.vn', 'admin')$q$, :'class_a'),
+    'Quản trị lớp C KHÔNG giao được quyền trong lớp A');
+  -- Nhưng thêm được thủ quỹ cho lớp mình
+  select assert((grant_class_role(:'class_c'::uuid, 'thuquy@lop.vn', 'treasurer'))->>'status' = 'granted',
+    'Quản trị lớp C thêm được thủ quỹ cho lớp C');
+  select assert((select m.role from memberships m join profiles p on p.id = m.user_id
+                 where p.email = 'thuquy@lop.vn' and m.class_id = :'class_c') = 'treasurer',
+    'Thủ quỹ lớp C được lưu đúng vai trò');
+  -- Chính RLS cũng che: quản trị lớp C chỉ thấy thành viên lớp C, không thấy lớp A của người đó
+  select assert((select count(distinct m.class_id) from memberships m join profiles p on p.id = m.user_id
+                 where p.email = 'thuquy@lop.vn') = 1,
+    'Quản trị lớp C chỉ thấy phần thuộc lớp C của một người đa lớp');
+
+  select assert_blocked(format($q$select revoke_class_role('%s', (select id from profiles where email = 'lopTruong05C@lop.vn'))$q$, :'class_c'),
+    'Quản trị lớp không tự rút mình khỏi lớp');
+  select assert_blocked(format($q$select revoke_class_role('%s', (select id from profiles where email = 'thuquy@lop.vn'))$q$, :'class_a'),
+    'Quản trị lớp C không rút được người khỏi lớp A');
+commit;
+
+\echo ''
+\echo '=== 18. Không mang quyền từ lớp này sang lớp khác ==='
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'adm_c_jwt';
+  select assert_blocked(format($q$update memberships set class_id = '%s'
+                                 where class_id = '%s' and user_id = (select id from profiles where email = 'thuquy@lop.vn')$q$,
+                               :'class_a', :'class_c'),
+    'Không đổi được class_id của membership để lấn sang lớp khác');
+  select assert_blocked(format($q$update memberships set student_id = '%s'
+                                 where class_id = '%s' and user_id = (select id from profiles where email = 'thuquy@lop.vn')$q$,
+                               :'sa1', :'class_c'),
+    'Không gắn được sinh viên lớp A vào membership lớp C');
+  select assert_blocked($q$insert into invites (email, role, class_id)
+                          values ('ai@do.vn', 'owner', (select id from classes limit 1))$q$,
+    'Không mời được ai với vai trò chủ sở hữu hệ thống');
+commit;
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'owner_jwt';
+  select assert((select count(distinct m.class_id) from memberships m join profiles p on p.id = m.user_id
+                 where p.email = 'thuquy@lop.vn') = 2,
+    'Một người tham gia nhiều lớp với vai trò riêng từng lớp (góc nhìn root)');
+  select revoke_class_role(:'class_c'::uuid, (select id from profiles where email = 'thuquy@lop.vn'));
+  select assert((select count(*) from memberships m join profiles p on p.id = m.user_id
+                 where p.email = 'thuquy@lop.vn' and m.class_id = :'class_c') = 0,
+    'Root rút được người khỏi lớp');
+  select assert(exists (select 1 from audit_logs where class_id = :'class_c'
+                        and table_name = 'memberships' and action = 'DELETE'),
+    'Việc rút người khỏi lớp được ghi vào lịch sử của đúng lớp');
+commit;
+
+\echo ''
 \echo '=== XONG: tất cả phép kiểm tra DB đều đạt ==='

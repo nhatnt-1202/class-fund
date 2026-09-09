@@ -1,10 +1,11 @@
 import { AlertTriangle, Receipt } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/app/AuthProvider';
+import { useKlassContext } from '@/app/ClassProvider';
 import { useToast } from '@/app/ToastProvider';
 import { Badge, Button, ConfirmModal, Field, Input, Modal, Note, Progress } from '@/components/ui';
 import { AmountField, FundPicker, PersonField, Section, SummaryBar, Switch } from '@/components/form';
-import { useBalances, useSaveExpense, useSettings, useStudents } from '@/data/api';
+import { useBalances, useSaveExpense, useStudents } from '@/data/api';
 import { fmtVnd, fmtVndSigned, toInt } from '@/lib/format';
 import { can } from '@/lib/permissions';
 import { FUNDS, type Expense, type Fund } from '@/types/db';
@@ -19,13 +20,13 @@ export default function ExpenseDialog({
   editing?: Expense | null;
   buyers: string[];
 }) {
-  const { role, profile } = useAuth();
+  const { profile } = useAuth();
+  const { role, classId, klass } = useKlassContext();
   const toast = useToast();
-  const save = useSaveExpense();
-  const balances = useBalances();
-  const students = useStudents(role);
-  const { data: settings } = useSettings(role);
-  const categories = settings?.categories?.length ? settings.categories : DEFAULT_CATEGORIES;
+  const save = useSaveExpense(classId);
+  const balances = useBalances(classId);
+  const students = useStudents(classId, role);
+  const categories = klass?.categories?.length ? klass.categories : DEFAULT_CATEGORIES;
 
   const [fund, setFund] = useState<Fund>('QUY_LOP');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));

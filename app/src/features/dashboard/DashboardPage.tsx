@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { ArrowDownRight, ArrowUpRight, Download } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '@/app/AuthProvider';
+import { useKlassContext } from '@/app/ClassProvider';
 import {
   Badge, Button, Card, CardHead, CountUp, EmptyState, FundBadge, Money, Note, Progress,
   TableSkeleton, TableWrap,
@@ -17,16 +17,16 @@ import MonthlyFacets, { type MonthPoint } from './MonthlyFacets';
 type RangeMode = 'all' | 'month' | 'range' | 'day';
 
 export default function DashboardPage() {
-  const { role } = useAuth();
+  const { role, classId } = useKlassContext();
   const [mode, setMode] = useState<RangeMode>('all');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
 
-  const balances = useBalances();
-  const progress = usePeriodProgress();
-  const incomes = useIncomes(role);
-  const expenses = useExpenses(role);
-  const debts = useDebts(role);
+  const balances = useBalances(classId);
+  const progress = usePeriodProgress(classId);
+  const incomes = useIncomes(classId, role);
+  const expenses = useExpenses(classId, role);
+  const debts = useDebts(classId, role);
 
   const inRange = (date: string) => {
     if (mode === 'all') return true;

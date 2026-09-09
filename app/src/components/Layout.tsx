@@ -1,17 +1,17 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  ArrowDownCircle, ArrowUpCircle, CalendarRange, FileSpreadsheet, LayoutGrid, LogIn, LogOut,
-  Menu, Moon, ScrollText, Settings, ShieldCheck, Sun, SunMoon, Users, X,
+  ArrowDownCircle, ArrowUpCircle, Building2, CalendarRange, FileSpreadsheet, LayoutGrid, LogIn,
+  LogOut, Menu, Moon, ScrollText, Settings, ShieldCheck, Sun, SunMoon, Users, X,
 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/app/AuthProvider';
+import { useKlassContext } from '@/app/ClassProvider';
 import { usePrefs } from '@/app/ThemeProvider';
 import { useToast } from '@/app/ToastProvider';
-import { Badge, Button } from '@/components/ui';
+import { Badge, Button, Select } from '@/components/ui';
 import { can } from '@/lib/permissions';
 import { DUR, EASE } from '@/lib/motion';
-import { useClassInfo } from '@/data/api';
 import { ROLE_LABEL } from '@/types/db';
 
 interface NavItem {
@@ -22,10 +22,10 @@ interface NavItem {
 }
 
 export default function Layout({ children }: { children: ReactNode }) {
-  const { role, profile, signOut } = useAuth();
+  const { profile, signOut } = useAuth();
+  const { role, classId, setClassId, options, klass, isSystemOwner } = useKlassContext();
   const prefs = usePrefs();
   const toast = useToast();
-  const { data: info } = useClassInfo(role);
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
 
@@ -39,6 +39,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     { to: '/dot-thu', label: 'Đợt thu', icon: <CalendarRange className="h-5 w-5" />, show: true },
     { to: '/nhap-xuat', label: 'Nhập / Xuất', icon: <FileSpreadsheet className="h-5 w-5" />, show: can.exportExcel(role) },
     { to: '/tai-khoan', label: 'Tài khoản', icon: <ShieldCheck className="h-5 w-5" />, show: can.manageUsers(role) },
+    { to: '/lop-hoc', label: 'Quản lý lớp', icon: <Building2 className="h-5 w-5" />, show: can.manageClasses(role) },
     { to: '/lich-su', label: 'Lịch sử thao tác', icon: <ScrollText className="h-5 w-5" />, show: can.viewAudit(role) },
     { to: '/cai-dat', label: 'Cài đặt', icon: <Settings className="h-5 w-5" />, show: role !== 'guest' },
   ];
@@ -54,10 +55,36 @@ export default function Layout({ children }: { children: ReactNode }) {
         </div>
         <div className="min-w-0">
           <div className="font-head text-[1.05rem] font-bold leading-tight">Class Fund</div>
-          <div className="truncate text-xs text-ink3">
-            {info?.class_name ? info.class_name : 'Chưa có thông tin lớp'}
-          </div>
+          <div className="truncate text-xs text-ink3">Quản lý thu chi quỹ lớp</div>
         </div>
+      </div>
+
+      {/* Chọn lớp: mọi số liệu bên dưới đều thuộc lớp đang chọn */}
+      <div className="mb-3 px-2">
+        <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink3"
+          htmlFor="class-switch">
+          Lớp đang xem
+        </label>
+        {options.length > 1 ? (
+          <Select id="class-switch" value={classId ?? ''} onChange={(e) => setClassId(e.target.value)}
+            className="text-[13px]">
+            {options.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.code}{o.myRole ? ` · ${ROLE_LABEL[o.myRole]}` : ''}
+              </option>
+            ))}
+          </Select>
+        ) : (
+          <div id="class-switch"
+            className="truncate rounded-[10px] border border-line bg-surface2 px-3 py-2 text-[13px] font-semibold">
+            {klass?.code || options[0]?.code || 'Chưa có lớp nào'}
+          </div>
+        )}
+        {isSystemOwner && (
+          <p className="mt-1 text-[11px] text-ink3">
+            Bạn là tài khoản gốc nên thấy mọi lớp. Quản trị lớp chỉ thấy đúng lớp được giao.
+          </p>
+        )}
       </div>
 
       {items.filter((i) => i.show).map((item) => (
