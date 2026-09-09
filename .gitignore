@@ -1,0 +1,16 @@
+# hệ điều hành / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# phụ thuộc & build (dùng cho bản Supabase + React ở bước 2)
+node_modules/
+dist/
+.env
+.env.local
+
+# dữ liệu người dùng — không commit sao lưu chứa thông tin sinh viên
+SaoLuu_QuyLop_*.json
+QuyLop_*.xlsx
+*.log
