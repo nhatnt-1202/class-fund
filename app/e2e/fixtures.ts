@@ -266,3 +266,50 @@ export async function stubSupabase(page: Page, opts: StubOptions = {}): Promise<
 
   return sent;
 }
+
+/**
+ * Nạp thêm dữ liệu cỡ thật cho một lớp: 49 sinh viên × 4 đợt thu (đúng cỡ lớp thật, và là
+ * cỡ làm lộ những lỗi mà 3 sinh viên mẫu không bao giờ lộ: bảng 12 cột bị bóp, trang dài
+ * phải cuộn, hàng nào cũng animate).
+ *
+ * Gọi SAU stubSupabase: route đăng ký sau được ưu tiên hơn trong Playwright.
+ */
+export async function stubBulkClass(page: Page, opts: { students?: number; periods?: number } = {}) {
+  const nStudents = opts.students ?? 49;
+  const nPeriods = opts.periods ?? 4;
+  const bulkStudents = Array.from({ length: nStudents }, (_, i) => ({
+    id: `bs${i}`, class_id: CLASS_ID, stt: i + 1, code: `24210705${String(i).padStart(2, '0')}`,
+    last_name: 'Nguyễn Thị Hoàng', first_name: `Anh ${i}`, full_name: `Nguyễn Thị Hoàng Anh ${i}`,
+    dob: '2005-01-15', class_code: CLASS_CODE, note: '', is_active: true, batch_id: null,
+    deleted_at: null, created_at: '', created_by: null,
+  }));
+  const bulkPeriods = Array.from({ length: nPeriods }, (_, i) => ({
+    id: `bp${i}`, class_id: CLASS_ID, name: `Đợt thu số ${i + 1} của lớp`,
+    fund: i % 2 === 1 ? 'QUY_DOAN' : 'QUY_LOP', amount_per_student: 50000 + i * 1000,
+    open_date: '2026-09-01', due_date: null, status: 'OPEN', note: '',
+    deleted_at: null, created_at: '', created_by: null,
+  }));
+  const bulkDebts = bulkStudents.flatMap((s) => bulkPeriods.map((p) => ({
+    class_id: CLASS_ID, student_id: s.id, code: s.code, full_name: s.full_name, period_id: p.id,
+    period_name: p.name, fund: p.fund, must_pay: p.amount_per_student, paid: 0,
+    remaining: p.amount_per_student,
+  })));
+
+  await page.route('**/rest/v1/**', async (route: Route) => {
+    const path = new URL(route.request().url()).pathname;
+    const table: Record<string, unknown> = {
+      '/rest/v1/students': bulkStudents,
+      '/rest/v1/v_students_public': bulkStudents,
+      '/rest/v1/periods': bulkPeriods,
+      '/rest/v1/v_student_debt': bulkDebts,
+      '/rest/v1/v_debt_public': bulkDebts,
+    };
+    if (route.request().method() === 'GET' && path in table) {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(table[path]) });
+      return;
+    }
+    await route.fallback();
+  });
+
+  return { students: bulkStudents, periods: bulkPeriods };
+}

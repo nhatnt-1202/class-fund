@@ -263,11 +263,21 @@ p{margin:0 0 .5rem} a{color:var(--brand)}
 .periodrow .top .amt{margin-left:auto;font-size:.875rem;color:var(--text-2)}
 
 /* ============================== TABLE ============================== */
-.tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
-table{width:100%;border-collapse:separate;border-spacing:0;font-size:.9rem}
+/* overflow-y phải khai rõ là hidden: theo CSS, một trục `auto` sẽ biến trục `visible` còn
+   lại thành `auto`, nên khung thành vùng cuộn cả hai chiều và cú kéo dọc trên điện thoại bị
+   mắc kẹt ở đây — không cuộn được gì mà cũng không nhường lại cho trang.
+   contain:inline-size để bảng rộng không làm phình thẻ chứa và tràn cả trang. */
+.tablewrap{
+  min-width:0;contain:inline-size;overflow-x:auto;overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;overscroll-behavior-x:contain
+}
+/* Bảng rộng hơn khung thì CUỘN, không bị bóp: mỗi cột đúng bề rộng nội dung. */
+table{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0;font-size:.9rem}
 caption{text-align:left;padding:.4rem .7rem;color:var(--text-3);font-size:.8125rem}
+/* KHÔNG sticky: vùng cuộn gần nhất là .tablewrap (cuộn ngang), nên sticky không giữ được
+   tiêu đề khi cuộn trang mà chỉ gây giật/kẹt khi cuộn ngang trên Safari iOS. */
 th{
-  position:sticky;top:0;z-index:5;background:var(--surface-2);color:var(--text-2);
+  background:var(--surface-2);color:var(--text-2);
   font-weight:600;font-size:.78rem;text-transform:uppercase;letter-spacing:.045em;
   text-align:left;padding:.6rem .7rem;border-bottom:1px solid var(--border);white-space:nowrap
 }
@@ -275,7 +285,7 @@ th.sortable{cursor:pointer;user-select:none}
 th.sortable:hover{color:var(--text);background:var(--surface-3)}
 th .arr{opacity:.35;font-size:.7rem;margin-left:.15rem}
 th.sorted .arr{opacity:1;color:var(--brand)}
-td{padding:.55rem .7rem;border-bottom:1px solid var(--border);vertical-align:middle}
+td{max-width:20rem;padding:.55rem .7rem;border-bottom:1px solid var(--border);vertical-align:middle}
 tbody tr{transition:background var(--dur-fast)}
 tbody tr:hover{background:var(--surface-2)}
 tbody tr.stag{animation:rowIn var(--dur) var(--ease-out) backwards;animation-delay:calc(var(--i,0) * 24ms)}

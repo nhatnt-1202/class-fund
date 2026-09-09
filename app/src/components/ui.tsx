@@ -237,6 +237,25 @@ export function Modal({
   footer?: ReactNode;
   wide?: boolean;
 }) {
+  /*
+   * Lưới an toàn cho `pointer-events` của <body>.
+   *
+   * Radix đặt body{pointer-events:none} suốt lúc hộp thoại mở để chặn tương tác phía sau, và
+   * tự dọn khi đóng. Nhưng khi hai hộp thoại nối nhau (QR → "Nộp tiền mặt…") hoặc khi trang
+   * chứa hộp thoại bị unmount giữa lúc đang đóng, phần dọn có thể không chạy — hậu quả là cả
+   * app không bấm được gì nữa mà nhìn thì vẫn bình thường. Đây là kiểu lỗi rất khó lần ra
+   * nên chặn thẳng: hết hộp thoại thì trả lại pointer-events cho body.
+   */
+  useEffect(() => {
+    if (open) return;
+    const t = setTimeout(() => {
+      if (!document.querySelector('[role="dialog"]') && document.body.style.pointerEvents === 'none') {
+        document.body.style.removeProperty('pointer-events');
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [open]);
+
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <AnimatePresence>
@@ -382,8 +401,13 @@ export function Chip({ on, children, ...rest }: { on?: boolean } & ButtonHTMLAtt
 }
 
 /** Bảng cuộn ngang trong khung riêng — thân trang không bao giờ cuộn ngang. */
+/**
+ * Khung cuộn ngang cho bảng. Xem `.table-wrap` trong index.css: overflow-y phải khai rõ là
+ * hidden, nếu không CSS tự bật cuộn dọc và cú kéo dọc trên điện thoại bị mắc kẹt ở đây.
+ */
 export function TableWrap({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <div className={`overflow-x-auto ${className}`}>{children}</div>;
+  return <div className={`table-wrap ${className}`} tabIndex={0} role="group"
+    aria-label="Bảng dữ liệu, cuộn ngang để xem thêm cột">{children}</div>;
 }
 
 export function useFieldId(prefix: string) {

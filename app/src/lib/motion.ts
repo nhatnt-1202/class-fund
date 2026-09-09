@@ -30,8 +30,14 @@ export const dialogVariants: Variants = {
   exit: { opacity: 0, y: 6, scale: 0.985, transition: { duration: DUR.fast, ease: EASE.in } },
 };
 
-/** Hàng bảng hiện lệch nhau 24ms, tối đa 12 hàng để không phải chờ lâu. */
-export const rowStagger = (i: number) => ({
+/**
+ * Hàng bảng hiện lệch nhau 24ms, tối đa 12 hàng để không phải chờ lâu.
+ *
+ * Từ hàng thứ 20 trở đi thì KHÔNG animate nữa: mỗi hàng đang animate được đặt
+ * `will-change: transform, opacity`, và một lớp 49 hàng như vậy đủ làm GPU điện thoại tầm
+ * trung nghẽn — cả trang khựng lại đúng lúc người dùng vừa mở danh sách lớp.
+ */
+export const rowStagger = (i: number) => (i >= 20 ? {} : {
   initial: { opacity: 0, y: 6 },
   animate: { opacity: 1, y: 0 },
   transition: { duration: DUR.base, ease: EASE.out, delay: Math.min(i, 12) * 0.024 },

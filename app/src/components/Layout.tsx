@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   ArrowDownCircle, ArrowUpCircle, Building2, CalendarRange, FileSpreadsheet, LayoutGrid, LogIn,
   LogOut, Menu, Moon, ScrollText, Settings, ShieldCheck, Sun, SunMoon, Users, X,
@@ -11,7 +11,6 @@ import { usePrefs } from '@/app/ThemeProvider';
 import { useToast } from '@/app/ToastProvider';
 import { Badge, Button, Select } from '@/components/ui';
 import { can } from '@/lib/permissions';
-import { DUR, EASE } from '@/lib/motion';
 import { ROLE_LABEL } from '@/types/db';
 
 interface NavItem {
@@ -48,7 +47,12 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   const ThemeIcon = prefs.theme === 'light' ? Sun : prefs.theme === 'dark' ? Moon : SunMoon;
 
-  const nav = (
+  /*
+   * Nav được render hai chỗ (sidebar máy tính và drawer điện thoại) nên layoutId của vạch
+   * chỉ mục phải khác nhau: hai phần tử cùng layoutId làm framer-motion cố animate layout
+   * giữa chúng, và một trong hai nằm trong cây đang unmount thì animation treo lại.
+   */
+  const renderNav = (scope: string) => (
     <nav className="flex h-full flex-col gap-1 overflow-y-auto p-3" aria-label="Điều hướng chính">
       <div className="flex items-center gap-3 px-2 pb-4">
         <div className="grid h-10 w-10 shrink-0 place-items-center rounded-[11px] bg-gradient-to-br
@@ -102,7 +106,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             <>
               {isActive && (
                 <motion.span
-                  layoutId="nav-indicator"
+                  layoutId={`nav-indicator-${scope}`}
                   className="absolute -left-3 h-6 w-[3px] rounded-r bg-brand"
                   transition={{ type: 'spring', stiffness: 420, damping: 32 }}
                 />
@@ -161,32 +165,25 @@ export default function Layout({ children }: { children: ReactNode }) {
       </a>
 
       {/* Sidebar cố định trên máy tính */}
-      <aside className="sticky top-0 hidden h-screen border-r border-line bg-surface lg:block">{nav}</aside>
+      <aside className="sticky top-0 hidden h-screen border-r border-line bg-surface lg:block">
+        {renderNav('sidebar')}
+      </aside>
 
-      {/* Sidebar dạng trượt trên điện thoại */}
-      <AnimatePresence>
-        {menuOpen && (
-          <>
-            <motion.div
-              className="fixed inset-0 z-[70] bg-[rgb(9_11_16/0.5)] lg:hidden"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setMenuOpen(false)}
-            />
-            <motion.aside
-              className="fixed inset-y-0 left-0 z-[80] w-[262px] border-r border-line bg-surface shadow-s2 lg:hidden"
-              initial={{ x: '-104%' }} animate={{ x: 0 }} exit={{ x: '-104%' }}
-              transition={{ duration: DUR.slow, ease: EASE.out }}
-            >
-              <div className="flex justify-end p-2">
-                <Button variant="ghost" size="sm" aria-label="Đóng menu" onClick={() => setMenuOpen(false)}>
-                  <X className="h-5 w-5" />
-                </Button>
-              </div>
-              {nav}
-            </motion.aside>
-          </>
-        )}
-      </AnimatePresence>
+      {/*
+        * Sidebar dạng trượt trên điện thoại: xem `.drawer` trong index.css. Luôn có trong
+        * DOM, đóng/mở bằng CSS, nên không có đường nào để lớp phủ "kẹt" lại chặn cả trang.
+        */}
+      <div className="drawer fixed inset-0 z-[70] lg:hidden" data-open={menuOpen} aria-hidden={!menuOpen}>
+        <div className="absolute inset-0 bg-[rgb(9_11_16/0.5)]" onClick={() => setMenuOpen(false)} aria-hidden />
+        <aside className="drawer-panel absolute inset-y-0 left-0 w-[262px] border-r border-line bg-surface shadow-s2">
+          <div className="flex justify-end p-2">
+            <Button variant="ghost" size="sm" aria-label="Đóng menu" onClick={() => setMenuOpen(false)}>
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
+          {renderNav('drawer')}
+        </aside>
+      </div>
 
       <div className="flex min-w-0 flex-col">
         <header className="sticky top-0 z-30 flex flex-wrap items-center gap-2 border-b border-line

@@ -271,7 +271,7 @@ npm run build         # tsc strict + vite build
 bash ../tests/db/run.sh   # 141 phép kiểm tra RLS/nghiệp vụ trên Postgres 17 thật (cần Docker)
 ```
 
-E2E bằng Playwright — 59 phép kiểm tra × 3 cấu hình (desktop sáng, desktop tối, Pixel 7):
+E2E bằng Playwright — 61 phép kiểm tra × 3 cấu hình (desktop sáng, desktop tối, Pixel 7):
 
 ```bash
 npx playwright install chromium     # một lần
@@ -294,7 +294,7 @@ chặn và trả dữ liệu mẫu. Nhờ vậy test chạy offline, không ph�
 | `dang-ky.spec.ts` | Đăng ký xong rồi bấm Back vẫn ở trong app và không có request nào ra máy chủ (phát hiện điều hướng bằng `window.location`, thứ chỉ nhìn URL sẽ không thấy) · mọi liên kết ở khu đăng nhập/đăng ký đều là điều hướng trong app |
 | `giao-dien.spec.ts` | Đường dẫn tiếng Anh và link tiếng Việt cũ vẫn mở đúng trang (giữ cả hash của link đặt lại mật khẩu) · hộp thoại đúng tâm màn hình · mọi ô nhập cao bằng nhau · không cuộn ngang · Esc đóng hộp thoại · bảng có `<caption>` · đổi sáng/tối |
 | `nhieu-lop.spec.ts` | Gắn tài khoản với sinh viên trong danh sách (bỏ gắn gửi `null`, không phải chuỗi rỗng) · quản trị lớp không thấy menu *Quản lý lớp* và vào thẳng URL cũng bị từ chối · mọi truy vấn số liệu đều kèm `class_id` của lớp đang xem · tài khoản gốc thấy mọi lớp, đổi lớp thì dữ liệu hỏi theo lớp mới · mở lớp mới gửi đúng `create_class` (email hạ chữ thường) · giao quản trị gửi đúng `grant_class_role` · chưa có lớp thì được dẫn đi mở lớp / được nói rõ vì sao chưa thấy gì |
-| `mobile.spec.ts` | Khách thấy nút đăng nhập trên thanh tiêu đề · menu hamburger điều hướng được · không trang nào cuộn ngang · bảng cuộn trong khung riêng · hộp thoại vừa màn hình · form xếp một cột · vùng bấm ≥ 32px · mã QR ≥ 140px để quét được |
+| `mobile.spec.ts` | **Bảng 12 cột (49 SV × 4 đợt) cuộn ngang thật và cột không bị bóp** (đo `scrollWidth`, bề rộng cột tên, chiều cao hàng, và `overflow-y` phải là `hidden`) · **cuộn trang rồi mở menu, đi trang khác thì không còn lớp phủ nào chặn thao tác** (đo bằng `elementFromPoint`) · **đóng hộp thoại lồng nhau không sót `pointer-events` trên body** · khách thấy nút đăng nhập trên thanh tiêu đề · menu hamburger điều hướng được · không trang nào cuộn ngang · hộp thoại vừa màn hình · form xếp một cột · vùng bấm ≥ 32px · mã QR ≥ 140px để quét được |
 
 Soi giao diện bằng ảnh chụp thật, không cần Supabase:
 

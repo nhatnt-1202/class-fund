@@ -188,15 +188,26 @@
     border-color: rgb(var(--c-expense));
     box-shadow: 0 0 0 3px rgb(var(--c-expense) / 0.18);
   }
-  table { @apply w-full text-sm; border-collapse: separate; border-spacing: 0; }
+  /*
+   * Bảng rộng hơn khung thì CUỘN, không bị bóp: width:max-content cho mỗi cột đúng bề rộng
+   * nội dung, min-width:100% để bảng hẹp vẫn phủ hết khung. Trước đây bảng là w-full nên
+   * trên điện thoại 12 cột chen nhau trong 378px, tên sinh viên gãy 2–3 dòng và không có gì
+   * để cuộn — người dùng tưởng bảng bị treo.
+   */
+  table { @apply text-sm; width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; }
   th {
-    @apply sticky top-0 z-[5] bg-surface2 text-ink2 text-left px-3 py-2 border-b border-line whitespace-nowrap;
+    @apply bg-surface2 text-ink2 text-left px-3 py-2 border-b border-line whitespace-nowrap;
     font-size: 0.78rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.045em;
   }
-  td { @apply px-3 py-2 border-b border-line align-middle; }
+  /*
+   * CỐ Ý không dùng `position: sticky` cho th: vùng cuộn gần nhất là khung .table-wrap (cuộn
+   * ngang), không phải trang, nên sticky không giữ được tiêu đề khi cuộn trang — chỉ còn là
+   * nguyên nhân giật/kẹt khi cuộn ngang trên Safari iOS.
+   */
+  td { @apply px-3 py-2 border-b border-line align-middle; max-width: 20rem; }
   tbody tr { transition: background 0.14s; }
   tbody tr:hover { @apply bg-surface2; }
   tfoot td { @apply bg-surface2 font-bold border-t-2 border-lineStrong; border-bottom: 0; }
@@ -212,7 +223,64 @@
     @apply rounded;
   }
   .qr-svg svg { display: block; width: 100%; height: auto; }
+  /*
+   * Khung cuộn ngang của bảng.
+   *
+   * overflow-y: hidden là BẮT BUỘC KHAI RÕ. Theo CSS, một trục là `auto` thì trục `visible`
+   * còn lại tự thành `auto`, nên `overflow-x:auto` đơn độc biến khung thành vùng cuộn cả hai
+   * chiều: cú kéo dọc bắt đầu trên bảng bị vùng này nhận rồi không cuộn được gì (nó không có
+   * nội dung tràn theo chiều dọc), mà cũng không nhường lại cho trang — đúng cảm giác "treo"
+   * trên điện thoại.
+   *
+   * Hai lớp gradient tạo vệt mờ ở rìa và CHỈ hiện khi còn nội dung chưa thấy (nhờ
+   * background-attachment: local/scroll), nên người dùng biết là cuộn ngang được.
+   */
+  .table-wrap {
+    /*
+     * `contain: inline-size` + `min-width: 0`: bề rộng của khung KHÔNG được tính từ nội dung
+     * bên trong. Thiếu hai dòng này thì bảng `width: max-content` làm thẻ chứa (và cột grid
+     * ngầm, vốn là `auto`) phình theo, và cả trang tràn ngang — sửa được cuộn bảng lại làm
+     * hỏng cuộn trang.
+     */
+    min-width: 0;
+    contain: inline-size;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    background:
+      linear-gradient(to right, rgb(var(--c-surface)) 40%, rgb(var(--c-surface) / 0)) left center / 34px 100% no-repeat local,
+      linear-gradient(to left, rgb(var(--c-surface)) 40%, rgb(var(--c-surface) / 0)) right center / 34px 100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%, rgb(var(--c-text-3) / 0.28), rgb(var(--c-text-3) / 0)) left center / 13px 100% no-repeat scroll,
+      radial-gradient(farthest-side at 100% 50%, rgb(var(--c-text-3) / 0.28), rgb(var(--c-text-3) / 0)) right center / 13px 100% no-repeat scroll;
+  }
   .row-flash { animation: flash 1.8s cubic-bezier(0.22, 1, 0.36, 1); }
+  /*
+   * Drawer menu trên điện thoại — LUÔN có trong DOM, đóng/mở bằng transform + visibility.
+   *
+   * Cố ý KHÔNG dùng mount/unmount qua AnimatePresence: nếu vì bất kỳ lý do gì animation exit
+   * không hoàn tất (trước đây là do Fragment bọc hai <motion>, rồi do hai `layoutId` trùng
+   * nhau khi nav được render cả ở sidebar lẫn drawer) thì lớp phủ z-70 ở lại DOM và phủ lên
+   * mọi thứ — app trông bình thường nhưng bấm gì cũng không ăn. Với CSS thì trạng thái đóng
+   * là `visibility: hidden`, không thể chặn cú chạm nào.
+   *
+   * visibility chuyển sau 0.3s để còn thấy panel trượt ra; opacity mờ dần ngay.
+   */
+  .drawer {
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.16s ease-out, visibility 0s linear 0.3s;
+  }
+  .drawer[data-open='true'] {
+    visibility: visible;
+    opacity: 1;
+    transition: opacity 0.16s ease-out, visibility 0s linear 0s;
+  }
+  .drawer-panel {
+    transform: translateX(-104%);
+    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .drawer[data-open='true'] .drawer-panel { transform: translateX(0); }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -239,6 +307,15 @@ body.no-motion *, body.no-motion *::before, body.no-motion *::after {
   animation-duration: 0.001ms !important;
   animation-iteration-count: 1 !important;
   transition-duration: 0.09s !important;
+}
+
+/*
+ * Kính mờ toàn màn hình (backdrop-filter) rất đắt trên GPU điện thoại tầm trung: mỗi khung
+ * mờ full-screen làm cả trang trễ vài trăm ms, cảm giác như bấm không ăn. Trên thiết bị chạm
+ * dùng màu đục thay cho kính mờ; máy tính vẫn giữ hiệu ứng.
+ */
+@media (hover: none) {
+  .backdrop-blur-md, .backdrop-blur-\[7px\] { backdrop-filter: none !important; }
 }
 
 @media print {

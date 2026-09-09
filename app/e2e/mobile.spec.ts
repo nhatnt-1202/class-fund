@@ -1,5 +1,29 @@
 import { devices, expect, test } from '@playwright/test';
-import { stubSupabase } from './fixtures';
+import { stubBulkClass, stubSupabase } from './fixtures';
+
+/** Đo bảng và khung cuộn của nó — đo bằng số, không nhìn bằng mắt. */
+async function measureTable(page: import('@playwright/test').Page) {
+  return page.evaluate(() => {
+    const table = document.querySelector('main table') as HTMLElement;
+    const wrap = table.parentElement as HTMLElement;
+    const cs = getComputedStyle(wrap);
+    const cells = Array.from(table.querySelectorAll('tbody tr:first-child td')) as HTMLElement[];
+    wrap.scrollLeft = 9999;
+    const scrolledTo = Math.round(wrap.scrollLeft);
+    wrap.scrollLeft = 0;
+    return {
+      viewport: window.innerWidth,
+      wrapClient: wrap.clientWidth,
+      wrapScroll: wrap.scrollWidth,
+      scrolledTo,
+      overflowX: cs.overflowX,
+      overflowY: cs.overflowY,
+      nameColWidth: Math.round(cells[2]?.getBoundingClientRect().width ?? 0),
+      rowHeight: Math.round((table.querySelector('tbody tr') as HTMLElement).getBoundingClientRect().height),
+      docScrollWidth: document.documentElement.scrollWidth,
+    };
+  });
+}
 
 /**
  * Những thứ chỉ vỡ trên điện thoại: sidebar thành drawer nên đường vào các trang khác hẳn,
@@ -40,24 +64,88 @@ test.describe('Trên điện thoại', () => {
     }
   });
 
-  test('bảng nhiều cột cuộn ngang trong khung riêng của nó', async ({ page }) => {
+  test('bảng nhiều cột CUỘN NGANG thật, và cột không bị bóp', async ({ page }) => {
+    // Cỡ lớp thật: 49 sinh viên × 4 đợt thu ⇒ 12 cột. Với 3 sinh viên mẫu thì lỗi không lộ.
+    await stubSupabase(page, { role: 'treasurer' });
+    await stubBulkClass(page);
+    await page.goto('/students');
+    await expect(page.locator('main table tbody tr').nth(10)).toBeVisible();
+
+    const m = await measureTable(page);
+    // 1. khung phải cuộn ngang được thật, không phải "vừa khít vì đã bị bóp"
+    expect(m.wrapScroll).toBeGreaterThan(m.wrapClient + 200);
+    expect(m.scrolledTo).toBeGreaterThan(200);
+    // 2. overflow-y phải khai rõ là hidden: để `auto` thì CSS tự bật cuộn dọc và cú kéo dọc
+    //    trên điện thoại bị mắc kẹt trong khung này (không cuộn được gì, cũng không nhường trang)
+    expect(m.overflowY).toBe('hidden');
+    // 3. cột tên không bị bóp: một dòng, không gãy 2–3 dòng như khi bảng là w-full
+    expect(m.nameColWidth).toBeGreaterThan(150);
+    expect(m.rowHeight).toBeLessThan(60);
+    // 4. và cả trang vẫn không cuộn ngang
+    expect(m.docScrollWidth).toBeLessThanOrEqual(m.viewport + 1);
+  });
+
+  test('cuộn trang rồi mở menu, đi trang khác: không còn lớp phủ nào chặn thao tác', async ({ page }) => {
+    /*
+     * Đây là lỗi đã gặp thật: drawer nằm trong AnimatePresence, exit không hoàn tất nên lớp
+     * phủ z-70 ở lại DOM và phủ lên thanh tiêu đề z-30 — app trông bình thường mà bấm gì
+     * cũng không ăn. Test đo bằng elementFromPoint chứ không chỉ nhìn giao diện.
+     */
+    await stubSupabase(page, { role: 'treasurer' });
+    await stubBulkClass(page);
+    await page.goto('/students');
+    await expect(page.locator('main table tbody tr').nth(10)).toBeVisible();
+
+    await page.mouse.move(200, 600);
+    await page.mouse.wheel(0, 2400);
+    await expect.poll(() => page.evaluate(() => Math.round(window.scrollY))).toBeGreaterThan(500);
+
+    await page.getByRole('button', { name: 'Mở menu' }).click();
+    await expect(page.locator('nav:visible').first()).toBeVisible();
+    await page.locator('nav:visible').first().getByRole('link', { name: 'Chi', exact: true }).click();
+    await expect(page).toHaveURL(/\/expenses$/);
+
+    await expect.poll(async () => page.evaluate(() => {
+      const covering = Array.from(document.querySelectorAll('body *')).filter((el) => {
+        const cs = getComputedStyle(el);
+        const r = el.getBoundingClientRect();
+        return cs.position === 'fixed' && r.width > innerWidth * 0.5 && r.height > innerHeight * 0.5
+          && cs.pointerEvents !== 'none' && cs.visibility !== 'hidden' && cs.display !== 'none';
+      });
+      const btn = document.querySelector('header button[aria-label="Mở menu"]') as HTMLElement | null;
+      if (!btn) return 'khong-thay-nut-menu';
+      const r = btn.getBoundingClientRect();
+      const at = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+      if (covering.length > 0) return `bi-phu:${covering.length}`;
+      return at && (btn === at || btn.contains(at)) ? 'bam-duoc' : 'bi-che';
+    }), { timeout: 6000 }).toBe('bam-duoc');
+
+    // và bấm thật cũng phải ăn
+    await page.getByRole('button', { name: /Đổi giao diện/ }).click({ timeout: 4000 });
+  });
+
+  test('đóng hộp thoại rồi vẫn tương tác được (không sót pointer-events trên body)', async ({ page }) => {
+    /*
+     * Radix đặt body{pointer-events:none} khi hộp thoại mở. Nếu phần dọn không chạy — hay
+     * khi hai hộp thoại nối nhau như QR → "Nộp tiền mặt…" — thì cả app không bấm được nữa.
+     */
     await stubSupabase(page, { role: 'treasurer' });
     await page.goto('/students');
-    await expect(page.locator('main table')).toBeVisible();
+    await page.getByRole('row', { name: /Phạm Minh Ví/ })
+      .getByTitle(/Mở QR chuyển khoản cho đợt/).first().click();
+    await expect(page.getByRole('dialog')).toBeVisible();
 
-    // Đo trong expect.poll: React có thể vẽ lại bảng ngay giữa lúc đo, làm querySelector
-    // trả null một nhịp và test hoá flaky.
-    await expect.poll(async () => page.evaluate(() => {
-      const table = document.querySelector('main table');
-      if (!table) return 'chua-co-bang';
-      let el: HTMLElement | null = table.parentElement;
-      while (el && el.tagName !== 'MAIN') {
-        if (el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflowX !== 'visible') return 'cuon-trong-khung';
-        el = el.parentElement;
-      }
-      const parentWidth = table.parentElement?.clientWidth ?? 0;
-      return table.scrollWidth <= parentWidth + 1 ? 'vua-khit' : 'day-ca-trang';
-    }), { timeout: 8000 }).not.toBe('day-ca-trang');
+    await page.getByRole('button', { name: /Nộp tiền mặt/ }).click();
+    await expect(page.getByRole('dialog')).toContainText('Thêm khoản thu');
+    await page.keyboard.press('Escape');
+
+    await expect.poll(() => page.evaluate(() => ({
+      dialogs: document.querySelectorAll('[role=dialog]').length,
+      pe: document.body.style.pointerEvents || 'auto',
+    })), { timeout: 6000 }).toEqual({ dialogs: 0, pe: 'auto' });
+
+    await page.getByLabel('Tìm sinh viên').fill('Ví');
+    await expect(page.getByLabel('Tìm sinh viên')).toHaveValue('Ví');
   });
 
   test('hộp thoại thu vừa màn hình và cuộn được bên trong', async ({ page }) => {
