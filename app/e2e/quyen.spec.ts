@@ -18,9 +18,9 @@ test.describe('Khách chưa đăng nhập', () => {
     // trên điện thoại sidebar bị ẩn nên nút này phải nằm ở thanh tiêu đề
     await expect(page.getByRole('banner').getByRole('link', { name: /Đăng nhập/ })).toBeVisible();
 
-    await page.goto('/thu');
+    await page.goto('/incomes');
     await expect(page.getByRole('button', { name: 'Thêm thu' })).toHaveCount(0);
-    await page.goto('/chi');
+    await page.goto('/expenses');
     await expect(page.getByRole('button', { name: 'Thêm chi' })).toHaveCount(0);
   });
 
@@ -35,7 +35,7 @@ test.describe('Khách chưa đăng nhập', () => {
 
   test('danh sách lớp không có cột ngày sinh', async ({ page }) => {
     await stubSupabase(page);
-    await page.goto('/lop');
+    await page.goto('/students');
     await expect(page.getByRole('columnheader', { name: /Họ và tên/ })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'Ngày sinh' })).toHaveCount(0);
   });
@@ -43,7 +43,7 @@ test.describe('Khách chưa đăng nhập', () => {
   test('danh sách lớp đánh dấu ai là thủ quỹ, ai là quản trị lớp', async ({ page }) => {
     // Khách cũng phải biết ai đang giữ quỹ để liên hệ khi nộp tiền hay khi số liệu sai
     await stubSupabase(page);
-    await page.goto('/lop');
+    await page.goto('/students');
     const officers = page.getByText('Ban quản lý lớp:').locator('..');
     await expect(officers.getByText('Lê Thị Thử')).toBeVisible();
     await expect(officers.getByText('Phạm Lớp Trưởng')).toBeVisible();
@@ -59,7 +59,7 @@ test.describe('Khách chưa đăng nhập', () => {
 
   test('bật che tên thì chỉ thấy tên viết tắt', async ({ page }) => {
     await stubSupabase(page, { hideNamesFromGuest: true });
-    await page.goto('/lop');
+    await page.goto('/students');
     await expect(page.getByText('Trần V. M.')).toBeVisible();
     await expect(page.getByText('Trần Văn Mẫu')).toHaveCount(0);
   });
@@ -68,7 +68,7 @@ test.describe('Khách chưa đăng nhập', () => {
 test.describe('Thành viên', () => {
   test('đọc được số liệu nhưng không ghi được', async ({ page }) => {
     await stubSupabase(page, { role: 'member' });
-    await page.goto('/thu');
+    await page.goto('/incomes');
     await expect(page.getByRole('heading', { name: 'Thu' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Thêm thu' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Thu theo lô' })).toHaveCount(0);
@@ -76,7 +76,7 @@ test.describe('Thành viên', () => {
 
   test('chỉ xem được QR của chính mình', async ({ page }) => {
     await stubSupabase(page, { role: 'member' });   // profile gắn với s2 = Lê Thị Thử
-    await page.goto('/lop');
+    await page.goto('/students');
     await expect(page.locator('main table')).toBeVisible();
     const rowMine = page.getByRole('row').filter({ hasText: 'Lê Thị Thử' });
     const rowOther = page.getByRole('row').filter({ hasText: 'Phạm Minh Ví' });
@@ -86,7 +86,7 @@ test.describe('Thành viên', () => {
 
   test('không vào được trang Thành viên & quyền', async ({ page }) => {
     await stubSupabase(page, { role: 'member' });
-    await page.goto('/tai-khoan');
+    await page.goto('/members');
     await expect(page.getByText(/chỉ dành cho quản trị lớp/)).toBeVisible();
   });
 });
@@ -94,7 +94,7 @@ test.describe('Thành viên', () => {
 test.describe('Thủ quỹ và quản trị', () => {
   test('thủ quỹ không tạo được đợt thu', async ({ page }) => {
     await stubSupabase(page, { role: 'treasurer' });
-    await page.goto('/dot-thu');
+    await page.goto('/periods');
     await page.waitForTimeout(400);
     await expect(page.getByRole('button', { name: 'Tạo đợt thu' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'QR cả lớp' }).first()).toBeVisible();
@@ -102,7 +102,7 @@ test.describe('Thủ quỹ và quản trị', () => {
 
   test('quản trị tạo được đợt thu và gửi lên đúng dữ liệu', async ({ page }) => {
     const sent = await stubSupabase(page, { role: 'admin' });
-    await page.goto('/dot-thu');
+    await page.goto('/periods');
     await page.getByRole('button', { name: 'Tạo đợt thu' }).first().click();
     const dialog = page.getByRole('dialog');
 
@@ -119,7 +119,7 @@ test.describe('Thủ quỹ và quản trị', () => {
 
   test('thủ quỹ xem được lịch sử thao tác', async ({ page }) => {
     await stubSupabase(page, { role: 'treasurer' });
-    await page.goto('/lich-su');
+    await page.goto('/audit-log');
     await expect(page.getByText(/đã ghi nhận thu 50.000 ₫ từ Trần Văn Mẫu vào Quỹ Lớp/)).toBeVisible();
   });
 });

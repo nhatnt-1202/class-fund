@@ -17,7 +17,7 @@ async function ready(page: import('@playwright/test').Page) {
 test.describe('Ghi khoản thu', () => {
   test('thủ quỹ ghi được khoản thu, gửi lên đúng quỹ và đúng số tiền', async ({ page }) => {
     const sent = await stubSupabase(page, { role: 'treasurer' });
-    await page.goto('/thu');
+    await page.goto('/incomes');
     await ready(page);
 
     await page.getByRole('button', { name: 'Thêm thu' }).first().click();
@@ -45,7 +45,7 @@ test.describe('Ghi khoản thu', () => {
 
   test('chọn đợt Quỹ Đoàn thì quỹ đi theo đợt và không sửa được', async ({ page }) => {
     const sent = await stubSupabase(page, { role: 'treasurer' });
-    await page.goto('/thu');
+    await page.goto('/incomes');
     await ready(page);
     await page.getByRole('button', { name: 'Thêm thu' }).first().click();
     const dialog = page.getByRole('dialog');
@@ -66,7 +66,7 @@ test.describe('Ghi khoản thu', () => {
 
   test('cảnh báo khi nộp thừa nhưng vẫn cho lưu', async ({ page }) => {
     const sent = await stubSupabase(page, { role: 'treasurer' });
-    await page.goto('/thu');
+    await page.goto('/incomes');
     await ready(page);
     await page.getByRole('button', { name: 'Thêm thu' }).first().click();
     const dialog = page.getByRole('dialog');
@@ -82,7 +82,7 @@ test.describe('Ghi khoản thu', () => {
 
   test('không chọn người nộp thì báo lỗi và không gửi gì lên', async ({ page }) => {
     const sent = await stubSupabase(page, { role: 'treasurer' });
-    await page.goto('/thu');
+    await page.goto('/incomes');
     await ready(page);
     await page.getByRole('button', { name: 'Thêm thu' }).first().click();
     const dialog = page.getByRole('dialog');
@@ -95,7 +95,7 @@ test.describe('Ghi khoản thu', () => {
 
   test('người thu: chọn từ danh sách hoặc chuyển sang nhập tay', async ({ page }) => {
     const sent = await stubSupabase(page, { role: 'treasurer' });
-    await page.goto('/thu');
+    await page.goto('/incomes');
     await ready(page);
     await page.getByRole('button', { name: 'Thêm thu' }).first().click();
     const dialog = page.getByRole('dialog');
@@ -120,7 +120,7 @@ test.describe('Ghi khoản thu', () => {
 test.describe('Ghi khoản chi', () => {
   test('chi trong tồn quỹ thì lưu thẳng, không đánh dấu vượt quỹ', async ({ page }) => {
     const sent = await stubSupabase(page, { role: 'treasurer' });
-    await page.goto('/chi');
+    await page.goto('/expenses');
     await ready(page);
     await page.getByRole('button', { name: 'Thêm chi' }).first().click();
     const dialog = page.getByRole('dialog');
@@ -142,7 +142,7 @@ test.describe('Ghi khoản chi', () => {
 
   test('chi vượt tồn quỹ phải xác nhận, và bản ghi bị đánh dấu vượt quỹ', async ({ page }) => {
     const sent = await stubSupabase(page, { role: 'treasurer' });
-    await page.goto('/chi');
+    await page.goto('/expenses');
     await ready(page);
     await page.getByRole('button', { name: 'Thêm chi' }).first().click();
     const dialog = page.getByRole('dialog').first();
@@ -167,7 +167,7 @@ test.describe('Ghi khoản chi', () => {
 
   test('thiếu người đi mua thì không lưu được', async ({ page }) => {
     const sent = await stubSupabase(page, { role: 'treasurer' });
-    await page.goto('/chi');
+    await page.goto('/expenses');
     await ready(page);
     await page.getByRole('button', { name: 'Thêm chi' }).first().click();
     const dialog = page.getByRole('dialog');
@@ -195,7 +195,7 @@ test.describe('Quỹ âm vì có người ứng tiền mua trước', () => {
 
   test('khoản chi làm âm quỹ mang dấu vượt quỹ ở trang Chi', async ({ page }) => {
     await stubSupabase(page, { role: 'treasurer', negativeFund: true });
-    await page.goto('/chi');
+    await page.goto('/expenses');
     const row = page.getByRole('row', { name: /Ứng tiền mua nước/ });
     await expect(row).toBeVisible();
     await expect(row.getByText(/vượt quỹ/i)).toBeVisible();
@@ -203,7 +203,7 @@ test.describe('Quỹ âm vì có người ứng tiền mua trước', () => {
 
   test('chi tiếp khi quỹ đã âm: cảnh báo tính từ tồn quỹ âm', async ({ page }) => {
     await stubSupabase(page, { role: 'treasurer', negativeFund: true });
-    await page.goto('/chi');
+    await page.goto('/expenses');
     await page.getByRole('button', { name: 'Thêm chi' }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByLabel(/Số tiền/).fill('10.000');

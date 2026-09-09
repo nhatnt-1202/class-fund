@@ -160,7 +160,7 @@ if (profiles.status === 200 && (await profiles.json()).length > 0) {
 
 console.log('');
 if (failed === 0) {
-  console.log(`${C.g}${C.b}Sẵn sàng.${C.x} Chạy ${C.b}npm run dev${C.x} rồi mở ${C.b}/dang-ky${C.x} —`);
+  console.log(`${C.g}${C.b}Sẵn sàng.${C.x} Chạy ${C.b}npm run dev${C.x} rồi mở ${C.b}/signup${C.x} —`);
   console.log(`người đăng ký ${C.b}đầu tiên${C.x} tự động thành chủ sở hữu, không cần chạy SQL tay.\n`);
 } else {
   console.log(`${C.r}${C.b}${failed} chỗ cần sửa.${C.x} Xem hướng dẫn ở app/README.md, mục "Dựng lên".\n`);

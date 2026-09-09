@@ -1,4 +1,4 @@
-# Class Fund v2 — Supabase + React
+# Finance v2 — Supabase + React
 
 Bản đầy đủ của hệ thống quản lý thu chi quỹ lớp: **nhiều lớp trong một hệ thống, có tài khoản,
 phân quyền theo từng lớp, audit log** và thu tiền bằng **QR chuyển khoản VietQR**.
@@ -83,8 +83,10 @@ Dashboard → **Authentication**:
   trường, hoặc email đã được quản trị lớp thêm sẵn — email lạ bị chặn ngay khi đăng ký.
 - **URL Configuration**: đặt *Site URL* = `http://localhost:5173` khi phát triển, và thêm vào
   *Redirect URLs*:
-  `http://localhost:5173/doi-mat-khau` (link đặt lại mật khẩu trả về đây).
-  Khi deploy thì thêm domain thật, ví dụ `https://class-fund.netlify.app/doi-mat-khau`.
+  `http://localhost:5173/reset-password` (link đặt lại mật khẩu trả về đây).
+  Khi deploy thì thêm domain thật, ví dụ `https://class-fund.netlify.app/reset-password`.
+  (Đường dẫn tiếng Việt cũ — `/doi-mat-khau` — vẫn được app tự chuyển sang đường dẫn mới,
+  giữ nguyên cả token trong hash, nên link đã gửi đi trong hộp thư vẫn dùng được.)
 
 ### 5. Kiểm tra rồi chạy
 
@@ -98,7 +100,7 @@ npm run dev
 kiểm tra được cả việc **khách không đọc được** bảng `students`, `profiles`, `audit_logs`. Nếu
 bước này báo "anon ĐỌC ĐƯỢC bảng students" thì bạn chưa chạy `0003_rls.sql`, đừng dùng thật.
 
-Mở `http://localhost:5173/dang-ky` — **người đăng ký đầu tiên tự động thành tài khoản gốc**
+Mở `http://localhost:5173/signup` — **người đăng ký đầu tiên tự động thành tài khoản gốc**
 (chủ sở hữu hệ thống), không cần chạy SQL tay. Sau đó:
 
 1. Vào **Quản lý lớp** → *Mở lớp mới*, điền mã lớp và **email của người sẽ quản trị lớp đó**.
@@ -128,7 +130,7 @@ npm run build     # ra thư mục dist/
 
 Đưa `dist/` lên Netlify / Vercel / Cloudflare Pages. Nhớ:
 - khai `VITE_SUPABASE_URL` và `VITE_SUPABASE_ANON_KEY` trong phần environment variables,
-- bật **SPA fallback** (mọi đường dẫn trả về `index.html`) để `/thu`, `/lop`… không bị 404,
+- bật **SPA fallback** (mọi đường dẫn trả về `index.html`) để `/incomes`, `/students`… không bị 404,
 - thêm domain thật vào *Redirect URLs* của Supabase.
 
 ---
@@ -242,7 +244,7 @@ npm run build         # tsc strict + vite build
 bash ../tests/db/run.sh   # 141 phép kiểm tra RLS/nghiệp vụ trên Postgres 17 thật (cần Docker)
 ```
 
-E2E bằng Playwright — 55 phép kiểm tra × 3 cấu hình (desktop sáng, desktop tối, Pixel 7):
+E2E bằng Playwright — 57 phép kiểm tra × 3 cấu hình (desktop sáng, desktop tối, Pixel 7):
 
 ```bash
 npx playwright install chromium     # một lần
@@ -262,7 +264,7 @@ chặn và trả dữ liệu mẫu. Nhờ vậy test chạy offline, không ph�
 | `thu-chi.spec.ts` | Quỹ âm vì có người ứng tiền mua trước: tổng quan nói rõ đang âm bao nhiêu, khoản chi mang dấu ⚠ vượt quỹ, chi tiếp thì cảnh báo tính từ tồn quỹ âm · ghi thu/chi gửi lên đúng dữ liệu · chọn đợt Quỹ Đoàn thì quỹ đi theo đợt và bị khoá · cảnh báo nộp thừa · chi vượt tồn quỹ phải xác nhận rồi mới ghi kèm cờ vượt quỹ · thiếu người nộp/người mua thì không gửi gì lên · người thu chọn từ danh sách hoặc nhập tay |
 | `quyen.spec.ts` | Khách xem được số liệu nhưng không có nút ghi chép, không thấy menu quản trị, không thấy cột ngày sinh, che tên khi bật công tắc · danh sách lớp đánh dấu thủ quỹ / quản trị lớp · thành viên chỉ xem QR của chính mình · thủ quỹ không tạo được đợt thu · quản trị tạo được |
 | `qr.spec.ts` | Khách chưa đăng nhập cũng quét được QR và chuyển khoản (lớp bật che tên thì không, vì nội dung chuyển khoản sẽ vô danh) · QR mang đúng số còn thiếu, số tài khoản và mã SV · xác nhận đã nhận tiền ghi khoản thu dạng chuyển khoản · QR cả lớp đúng số người còn nợ |
-| `giao-dien.spec.ts` | Hộp thoại đúng tâm màn hình · mọi ô nhập cao bằng nhau · không cuộn ngang · Esc đóng hộp thoại · bảng có `<caption>` · đổi sáng/tối |
+| `giao-dien.spec.ts` | Đường dẫn tiếng Anh và link tiếng Việt cũ vẫn mở đúng trang (giữ cả hash của link đặt lại mật khẩu) · hộp thoại đúng tâm màn hình · mọi ô nhập cao bằng nhau · không cuộn ngang · Esc đóng hộp thoại · bảng có `<caption>` · đổi sáng/tối |
 | `nhieu-lop.spec.ts` | Gắn tài khoản với sinh viên trong danh sách (bỏ gắn gửi `null`, không phải chuỗi rỗng) · quản trị lớp không thấy menu *Quản lý lớp* và vào thẳng URL cũng bị từ chối · mọi truy vấn số liệu đều kèm `class_id` của lớp đang xem · tài khoản gốc thấy mọi lớp, đổi lớp thì dữ liệu hỏi theo lớp mới · mở lớp mới gửi đúng `create_class` (email hạ chữ thường) · giao quản trị gửi đúng `grant_class_role` · chưa có lớp thì được dẫn đi mở lớp / được nói rõ vì sao chưa thấy gì |
 | `mobile.spec.ts` | Khách thấy nút đăng nhập trên thanh tiêu đề · menu hamburger điều hướng được · không trang nào cuộn ngang · bảng cuộn trong khung riêng · hộp thoại vừa màn hình · form xếp một cột · vùng bấm ≥ 32px · mã QR ≥ 140px để quét được |
 
@@ -284,6 +286,28 @@ Bộ DB dựng một Postgres sạch trong Docker, chạy cả 9 migration, rồ
 mọi vai trò (kể cả `anon`), **cách ly dữ liệu giữa các lớp**, việc chỉ tài khoản gốc mở được lớp,
 đẳng thức tồn quỹ, tách biệt hai quỹ, quy tắc xoá mềm, bảo vệ tài khoản, nội dung audit log và
 RPC import. Đây là chỗ chứng minh phân quyền, chứ không phải giao diện.
+
+---
+
+## Đường dẫn
+
+| Đường dẫn | Trang | Ai vào được |
+|---|---|---|
+| `/` | Tổng quan | mọi người, kể cả khách |
+| `/students` | Danh sách lớp | mọi người |
+| `/incomes` · `/expenses` | Thu · Chi | mọi người (ghi thì cần thủ quỹ) |
+| `/periods` | Đợt thu | mọi người (tạo/sửa cần quản trị lớp) |
+| `/import-export` | Nhập / Xuất Excel | thành viên trở lên |
+| `/members` | Thành viên & quyền | quản trị lớp |
+| `/audit-log` | Lịch sử thao tác | thủ quỹ trở lên |
+| `/classes` | Quản lý lớp | tài khoản gốc |
+| `/settings` · `/profile` | Cài đặt lớp · Tài khoản của tôi | đã đăng nhập |
+| `/login` · `/signup` · `/forgot-password` · `/reset-password` | Đăng nhập / đăng ký / mật khẩu | — |
+
+Đường dẫn tiếng Việt của các bản trước (`/lop`, `/thu`, `/chi`, `/dot-thu`, `/nhap-xuat`,
+`/tai-khoan`, `/lich-su`, `/cai-dat`, `/lop-hoc`, `/toi`, `/dang-nhap`, `/dang-ky`,
+`/quen-mat-khau`, `/doi-mat-khau`) vẫn tự chuyển sang đường dẫn mới, **giữ nguyên query và
+hash** — link đặt lại mật khẩu đã gửi trong hộp thư vì thế vẫn dùng được.
 
 ---
 

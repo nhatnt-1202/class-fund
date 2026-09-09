@@ -7,8 +7,8 @@ import { stubSupabase } from './fixtures';
  */
 test.describe('Giao diện', () => {
   const dialogs = [
-    { path: '/thu', button: 'Thêm thu' },
-    { path: '/chi', button: 'Thêm chi' },
+    { path: '/incomes', button: 'Thêm thu' },
+    { path: '/expenses', button: 'Thêm chi' },
   ];
 
   for (const { path, button } of dialogs) {
@@ -77,7 +77,7 @@ test.describe('Giao diện', () => {
 
   test('thân trang không cuộn ngang, kể cả trên điện thoại', async ({ page }) => {
     await stubSupabase(page, { role: 'treasurer' });
-    for (const path of ['/', '/lop', '/thu', '/chi', '/dot-thu']) {
+    for (const path of ['/', '/students', '/incomes', '/expenses', '/periods']) {
       await page.goto(path);
       await page.waitForTimeout(300);
       const overflow = await page.evaluate(() =>
@@ -88,7 +88,7 @@ test.describe('Giao diện', () => {
 
   test('Esc đóng hộp thoại và trả tiêu điểm về nút đã mở', async ({ page }) => {
     await stubSupabase(page, { role: 'treasurer' });
-    await page.goto('/chi');
+    await page.goto('/expenses');
     await page.waitForTimeout(400);
     await page.getByRole('button', { name: 'Thêm chi' }).first().click();
     await expect(page.getByRole('dialog')).toBeVisible();
@@ -98,7 +98,7 @@ test.describe('Giao diện', () => {
 
   test('bảng dữ liệu có caption cho trình đọc màn hình', async ({ page }) => {
     await stubSupabase(page, { role: 'treasurer' });
-    await page.goto('/thu');
+    await page.goto('/incomes');
     // Chờ đúng bảng xuất hiện thay vì chờ theo thời gian: khi máy chạy nhiều test song song,
     // 400ms có thể chưa đủ để dữ liệu về và bảng vẫn còn là skeleton ⇒ test flaky.
     await expect(page.locator('main table')).toBeVisible();
@@ -113,5 +113,38 @@ test.describe('Giao diện', () => {
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
     await btn.click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  });
+});
+
+test.describe('Đường dẫn', () => {
+  test('đường dẫn tiếng Anh, và link tiếng Việt cũ vẫn mở đúng trang', async ({ page }) => {
+    await stubSupabase(page, { role: 'treasurer' });
+
+    for (const [oldPath, newPath] of [
+      ['/lop', '/students'],
+      ['/thu', '/incomes'],
+      ['/chi', '/expenses'],
+      ['/dot-thu', '/periods'],
+      ['/tai-khoan', '/members'],
+      ['/lop-hoc', '/classes'],
+    ] as const) {
+      await page.goto(oldPath);
+      await expect(page).toHaveURL(new RegExp(`${newPath}$`));
+    }
+
+    // Link đặt lại mật khẩu của Supabase mang token trong hash ⇒ hash phải được giữ
+    await page.goto('/doi-mat-khau?x=1#access_token=abc');
+    await expect(page).toHaveURL(/\/reset-password\?x=1#access_token=abc$/);
+  });
+
+  test('menu điều hướng tới đúng đường dẫn tiếng Anh', async ({ page }) => {
+    await stubSupabase(page, { role: 'admin' });
+    await page.goto('/');
+    const menu = page.getByRole('button', { name: 'Mở menu' });
+    if (await menu.isVisible()) await menu.click();
+    const nav = page.locator('nav:visible').first();
+    await expect(nav.getByRole('link', { name: 'Danh sách lớp' })).toHaveAttribute('href', '/students');
+    await expect(nav.getByRole('link', { name: 'Thành viên & quyền' })).toHaveAttribute('href', '/members');
+    await expect(nav.getByRole('link', { name: 'Lịch sử thao tác' })).toHaveAttribute('href', '/audit-log');
   });
 });

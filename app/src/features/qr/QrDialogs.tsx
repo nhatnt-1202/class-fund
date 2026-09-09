@@ -101,7 +101,7 @@ function NeedBankSetup({ onClose }: { onClose: () => void }) {
         </span>
       </Note>
       {can.editSettings(role) && (
-        <Link to="/cai-dat" onClick={onClose}>
+        <Link to="/settings" onClick={onClose}>
           <Button variant="primary">Mở Cài đặt</Button>
         </Link>
       )}

@@ -153,7 +153,7 @@ export default function StudentsPage() {
           </Select>
           <div className="flex-1" />
           {can.importStudents(role) && (
-            <Link to="/nhap-xuat"><Button size="sm" icon={<FileSpreadsheet className="h-4 w-4" />}>Nhập từ Excel</Button></Link>
+            <Link to="/import-export"><Button size="sm" icon={<FileSpreadsheet className="h-4 w-4" />}>Nhập từ Excel</Button></Link>
           )}
           {can.writeStudent(role) && (
             <Button size="sm" variant="primary" icon={<UserPlus className="h-4 w-4" />}

@@ -1,4 +1,4 @@
-# Class Fund — Quản lý thu chi quỹ lớp học
+# Finance — Quản lý thu chi quỹ lớp học
 
 Công cụ quản lý tài chính lớp học **rành mạch đến từng đồng**: theo dõi ai đã nộp / ai còn nợ,
 ghi nhật ký mua sắm, và luôn có bảng tổng kết tự động cho **từng quỹ riêng biệt**.

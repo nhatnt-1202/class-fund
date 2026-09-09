@@ -41,7 +41,7 @@ const queryClient = new QueryClient({
 function RequireLogin({ children }: { children: React.ReactNode }) {
   const { session, loading } = useAuth();
   if (loading) return null;
-  if (!session) return <Navigate to="/dang-nhap" replace />;
+  if (!session) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
@@ -70,7 +70,7 @@ function ClassGate({ children }: { children: React.ReactNode }) {
   const location = useLocation();
 
   // Trang quản lý lớp và trang tài khoản của tôi phải vào được kể cả khi chưa có lớp nào
-  const bypass = location.pathname === '/lop-hoc' || location.pathname === '/toi';
+  const bypass = location.pathname === '/classes' || location.pathname === '/profile';
   if (loading || !hasNoClass || bypass) return <>{children}</>;
 
   if (isSystemOwner) {
@@ -81,7 +81,7 @@ function ClassGate({ children }: { children: React.ReactNode }) {
           Bạn là tài khoản gốc: hãy mở lớp đầu tiên và giao nó cho một tài khoản quản trị. Từ đó
           họ tự nhập danh sách lớp và thu chi trong lớp của họ.
         </p>
-        <Link to="/lop-hoc" className="mt-4 inline-block">
+        <Link to="/classes" className="mt-4 inline-block">
           <Button variant="primary">Mở lớp mới</Button>
         </Link>
       </Card>
@@ -110,22 +110,53 @@ function ClassGate({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Đường dẫn tiếng Việt của các bản trước.
+ *
+ * Giữ lại vì link đã được gửi cho sinh viên (và cả link đặt lại mật khẩu trong hộp thư của
+ * họ) vẫn phải mở đúng trang, không phải rơi về trang chủ.
+ */
+const LEGACY_PATHS: Record<string, string> = {
+  '/lop': '/students',
+  '/thu': '/incomes',
+  '/chi': '/expenses',
+  '/dot-thu': '/periods',
+  '/nhap-xuat': '/import-export',
+  '/tai-khoan': '/members',
+  '/lich-su': '/audit-log',
+  '/cai-dat': '/settings',
+  '/lop-hoc': '/classes',
+  '/toi': '/profile',
+};
+
+/**
+ * Chuyển sang đường dẫn mới nhưng GIỮ query và hash: link đặt lại mật khẩu của Supabase mang
+ * token trong hash (#access_token=…), mất hash là mất luôn phiên đặt lại.
+ */
+function LegacyRedirect({ to }: { to: string }) {
+  const { search, hash } = useLocation();
+  return <Navigate to={`${to}${search}${hash}`} replace />;
+}
+
 function AppRoutes() {
   const location = useLocation();
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
         <Route path="/" element={<DashboardPage />} />
-        <Route path="/lop" element={<StudentsPage />} />
-        <Route path="/thu" element={<IncomesPage />} />
-        <Route path="/chi" element={<ExpensesPage />} />
-        <Route path="/dot-thu" element={<PeriodsPage />} />
-        <Route path="/nhap-xuat" element={<Lazy><ImportExportPage /></Lazy>} />
-        <Route path="/tai-khoan" element={<RequireLogin><Lazy><UsersPage /></Lazy></RequireLogin>} />
-        <Route path="/lich-su" element={<RequireLogin><Lazy><AuditPage /></Lazy></RequireLogin>} />
-        <Route path="/lop-hoc" element={<RequireLogin><ClassesPage /></RequireLogin>} />
-        <Route path="/cai-dat" element={<RequireLogin><SettingsPage /></RequireLogin>} />
-        <Route path="/toi" element={<RequireLogin><ProfilePage /></RequireLogin>} />
+        <Route path="/students" element={<StudentsPage />} />
+        <Route path="/incomes" element={<IncomesPage />} />
+        <Route path="/expenses" element={<ExpensesPage />} />
+        <Route path="/periods" element={<PeriodsPage />} />
+        <Route path="/import-export" element={<Lazy><ImportExportPage /></Lazy>} />
+        <Route path="/members" element={<RequireLogin><Lazy><UsersPage /></Lazy></RequireLogin>} />
+        <Route path="/audit-log" element={<RequireLogin><Lazy><AuditPage /></Lazy></RequireLogin>} />
+        <Route path="/classes" element={<RequireLogin><ClassesPage /></RequireLogin>} />
+        <Route path="/settings" element={<RequireLogin><SettingsPage /></RequireLogin>} />
+        <Route path="/profile" element={<RequireLogin><ProfilePage /></RequireLogin>} />
+        {Object.entries(LEGACY_PATHS).map(([from, to]) => (
+          <Route key={from} path={from} element={<LegacyRedirect to={to} />} />
+        ))}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AnimatePresence>
@@ -164,10 +195,15 @@ export default function App() {
             ) : (
               <BrowserRouter>
                 <Routes>
-                  <Route path="/dang-nhap" element={<LoginPage />} />
-                  <Route path="/dang-ky" element={<SignupPage />} />
-                  <Route path="/quen-mat-khau" element={<ForgotPasswordPage />} />
-                  <Route path="/doi-mat-khau" element={<ResetPasswordPage />} />
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/signup" element={<SignupPage />} />
+                  <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                  <Route path="/reset-password" element={<ResetPasswordPage />} />
+                  {/* Link cũ trong email đặt lại mật khẩu vẫn phải dùng được */}
+                  <Route path="/dang-nhap" element={<LegacyRedirect to="/login" />} />
+                  <Route path="/dang-ky" element={<LegacyRedirect to="/signup" />} />
+                  <Route path="/quen-mat-khau" element={<LegacyRedirect to="/forgot-password" />} />
+                  <Route path="/doi-mat-khau" element={<LegacyRedirect to="/reset-password" />} />
                   <Route path="*" element={
                     <ClassProvider>
                       <Layout><ClassGate><AppRoutes /></ClassGate></Layout>

@@ -18,9 +18,9 @@ function Shell({ title, sub, children, foot }: {
       <motion.div variants={pageVariants} initial="hidden" animate="show" className="w-full max-w-[420px]">
         <div className="mb-5 flex items-center gap-3">
           <div className="grid h-11 w-11 place-items-center rounded-[12px] bg-gradient-to-br from-lop to-doan
-            font-head text-lg font-bold text-white shadow-s1" aria-hidden>CF</div>
+            font-head text-lg font-bold text-white shadow-s1" aria-hidden>F</div>
           <div>
-            <div className="font-head text-lg font-bold leading-tight">Class Fund</div>
+            <div className="font-head text-lg font-bold leading-tight">Finance</div>
             <div className="text-xs text-ink3">Quản lý thu chi lớp học</div>
           </div>
         </div>
@@ -56,7 +56,7 @@ export function LoginPage() {
     <Shell
       title="Đăng nhập"
       sub="Dành cho quản trị lớp, thủ quỹ và sinh viên của lớp."
-      foot={<>Chưa có tài khoản? <Link to="/dang-ky" className="underline">Đăng ký bằng email trường</Link></>}
+      foot={<>Chưa có tài khoản? <Link to="/signup" className="underline">Đăng ký bằng email trường</Link></>}
     >
       <form
         onSubmit={form.handleSubmit(async (v) => {
@@ -84,7 +84,7 @@ export function LoginPage() {
           Đăng nhập
         </Button>
         <div className="mt-3 text-center">
-          <Link to="/quen-mat-khau" className="text-sm text-ink3 underline hover:text-ink">Quên mật khẩu?</Link>
+          <Link to="/forgot-password" className="text-sm text-ink3 underline hover:text-ink">Quên mật khẩu?</Link>
         </div>
       </form>
     </Shell>
@@ -134,7 +134,7 @@ export function SignupPage() {
             ? `Tài khoản ${done.email} đã tạo. Hệ thống tự đưa bạn vào lớp có mã sinh viên ${done.code} trong danh sách. Nếu lớp chưa nhập danh sách thì bạn sẽ vào lớp ngay sau khi lớp nhập.`
             : `Tài khoản ${done.email} đã tạo. Bạn sẽ thấy lớp mà quản trị lớp đã thêm bạn vào.`}
         </Note>
-        <Button variant="primary" className="mt-4 w-full" onClick={() => { window.location.href = '/dang-nhap'; }}>
+        <Button variant="primary" className="mt-4 w-full" onClick={() => { window.location.href = '/login'; }}>
           Tới trang đăng nhập
         </Button>
       </Shell>
@@ -145,7 +145,7 @@ export function SignupPage() {
     <Shell
       title="Đăng ký"
       sub={`Sinh viên tự đăng ký bằng email trường dạng <mã SV>@${domain} — không cần ai mời, không cần xác nhận email.`}
-      foot={<>Đã có tài khoản? <Link to="/dang-nhap" className="underline">Đăng nhập</Link></>}
+      foot={<>Đã có tài khoản? <Link to="/login" className="underline">Đăng nhập</Link></>}
     >
       <form
         onSubmit={form.handleSubmit(async (v) => {
@@ -233,7 +233,7 @@ export function ForgotPasswordPage() {
         </form>
       )}
       <div className="mt-3 text-center">
-        <Link to="/dang-nhap" className="text-sm text-ink3 underline hover:text-ink">Về trang đăng nhập</Link>
+        <Link to="/login" className="text-sm text-ink3 underline hover:text-ink">Về trang đăng nhập</Link>
       </div>
     </Shell>
   );

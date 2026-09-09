@@ -126,7 +126,7 @@ export default function DashboardPage() {
         )}
         <div className="flex-1" />
         {can.exportExcel(role) && (
-          <Link to="/nhap-xuat">
+          <Link to="/import-export">
             <Button size="sm" icon={<Download className="h-4 w-4" />}>Xuất Excel</Button>
           </Link>
         )}
@@ -221,7 +221,7 @@ export default function DashboardPage() {
         <Card>
           <CardHead
             title="Tiến độ các đợt thu"
-            actions={can.writePeriod(role) ? <Link to="/dot-thu"><Button size="sm" variant="ghost">Quản lý</Button></Link> : undefined}
+            actions={can.writePeriod(role) ? <Link to="/periods"><Button size="sm" variant="ghost">Quản lý</Button></Link> : undefined}
           />
           {progress.isLoading ? (
             <TableSkeleton rows={3} cols={2} />
@@ -229,7 +229,7 @@ export default function DashboardPage() {
             <EmptyState
               title="Chưa có đợt thu nào"
               hint="Tạo đợt thu để theo dõi ai đã nộp, ai còn nợ."
-              action={can.writePeriod(role) ? <Link to="/dot-thu"><Button variant="primary" size="sm">Tạo đợt thu</Button></Link> : undefined}
+              action={can.writePeriod(role) ? <Link to="/periods"><Button variant="primary" size="sm">Tạo đợt thu</Button></Link> : undefined}
             />
           ) : (
             <ul className="divide-y divide-line">
@@ -268,7 +268,7 @@ export default function DashboardPage() {
         <CardHead
           title="Top công nợ"
           sub={topDebt.length ? `${topDebt.length} sinh viên còn nợ nhiều nhất` : undefined}
-          actions={<Link to="/lop"><Button size="sm" variant="ghost">Xem cả lớp</Button></Link>}
+          actions={<Link to="/students"><Button size="sm" variant="ghost">Xem cả lớp</Button></Link>}
         />
         {debts.isLoading ? (
           <TableSkeleton rows={4} cols={3} />
@@ -300,7 +300,7 @@ export default function DashboardPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <CardHead title="Khoản thu gần nhất" actions={<Link to="/thu"><Button size="sm" variant="ghost">Tất cả</Button></Link>} />
+          <CardHead title="Khoản thu gần nhất" actions={<Link to="/incomes"><Button size="sm" variant="ghost">Tất cả</Button></Link>} />
           <TableWrap>
             <table>
               <caption className="sr-only">Năm khoản thu gần nhất</caption>
@@ -325,7 +325,7 @@ export default function DashboardPage() {
         </Card>
 
         <Card>
-          <CardHead title="Khoản chi gần nhất" actions={<Link to="/chi"><Button size="sm" variant="ghost">Tất cả</Button></Link>} />
+          <CardHead title="Khoản chi gần nhất" actions={<Link to="/expenses"><Button size="sm" variant="ghost">Tất cả</Button></Link>} />
           <TableWrap>
             <table>
               <caption className="sr-only">Năm khoản chi gần nhất</caption>

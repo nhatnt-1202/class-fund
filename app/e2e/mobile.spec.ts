@@ -31,7 +31,7 @@ test.describe('Trên điện thoại', () => {
 
   test('không trang nào làm cả trang cuộn ngang', async ({ page }) => {
     await stubSupabase(page, { role: 'treasurer' });
-    for (const path of ['/', '/lop', '/thu', '/chi', '/dot-thu', '/nhap-xuat', '/cai-dat', '/lich-su']) {
+    for (const path of ['/', '/students', '/incomes', '/expenses', '/periods', '/import-export', '/settings', '/audit-log']) {
       await page.goto(path);
       await page.waitForTimeout(350);
       const over = await page.evaluate(() =>
@@ -42,7 +42,7 @@ test.describe('Trên điện thoại', () => {
 
   test('bảng nhiều cột cuộn ngang trong khung riêng của nó', async ({ page }) => {
     await stubSupabase(page, { role: 'treasurer' });
-    await page.goto('/lop');
+    await page.goto('/students');
     await expect(page.locator('main table')).toBeVisible();
 
     // Đo trong expect.poll: React có thể vẽ lại bảng ngay giữa lúc đo, làm querySelector
@@ -62,7 +62,7 @@ test.describe('Trên điện thoại', () => {
 
   test('hộp thoại thu vừa màn hình và cuộn được bên trong', async ({ page }) => {
     await stubSupabase(page, { role: 'treasurer' });
-    await page.goto('/thu');
+    await page.goto('/incomes');
     await page.waitForTimeout(400);
     await page.getByRole('button', { name: 'Thêm thu' }).first().click();
     const dialog = page.getByRole('dialog');
@@ -82,7 +82,7 @@ test.describe('Trên điện thoại', () => {
 
   test('form thu xếp một cột, các nhóm không chồng lên nhau', async ({ page }) => {
     await stubSupabase(page, { role: 'treasurer' });
-    await page.goto('/thu');
+    await page.goto('/incomes');
     await page.waitForTimeout(400);
     await page.getByRole('button', { name: 'Thêm thu' }).first().click();
     await expect(page.getByRole('dialog')).toBeVisible();
@@ -97,7 +97,7 @@ test.describe('Trên điện thoại', () => {
 
   test('vùng bấm của nút chính đủ lớn', async ({ page }) => {
     await stubSupabase(page, { role: 'treasurer' });
-    await page.goto('/chi');
+    await page.goto('/expenses');
     await page.waitForTimeout(400);
     const small = await page.evaluate(() => {
       const bad: string[] = [];
@@ -113,7 +113,7 @@ test.describe('Trên điện thoại', () => {
 
   test('QR mở được và mã đủ lớn để quét', async ({ page }) => {
     await stubSupabase(page, { role: 'treasurer' });
-    await page.goto('/lop');
+    await page.goto('/students');
     await expect(page.locator('main table')).toBeVisible();
     await page.getByRole('row').filter({ hasText: 'Lê Thị Thử' })
       .getByRole('button', { name: /QR chuyển khoản của/ }).click();

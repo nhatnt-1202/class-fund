@@ -4,7 +4,7 @@ import { stubSupabase } from './fixtures';
 test.describe('Thu tiền bằng QR', () => {
   test('mã QR mang đúng số tiền còn thiếu, số tài khoản và mã SV', async ({ page }) => {
     await stubSupabase(page, { role: 'treasurer' });
-    await page.goto('/lop');
+    await page.goto('/students');
     await expect(page.locator('main table')).toBeVisible();
 
     // bấm vào Ô CÔNG NỢ của đợt Quỹ Lớp ⇒ hộp thoại chọn đúng đợt đó (còn thiếu 20.000)
@@ -23,7 +23,7 @@ test.describe('Thu tiền bằng QR', () => {
 
   test('xác nhận đã nhận tiền thì ghi khoản thu dạng chuyển khoản', async ({ page }) => {
     const sent = await stubSupabase(page, { role: 'treasurer' });
-    await page.goto('/lop');
+    await page.goto('/students');
     await expect(page.locator('main table')).toBeVisible();
     // mở từ Ô CÔNG NỢ của một đợt ⇒ chỉ ghi cho đúng đợt đó
     await page.getByRole('row').filter({ hasText: 'Phạm Minh Ví' })
@@ -42,7 +42,7 @@ test.describe('Thu tiền bằng QR', () => {
 
   test('có nhiều đợt thì chọn được đợt, và gộp tất cả đợt còn nợ', async ({ page }) => {
     await stubSupabase(page, { role: 'treasurer' });
-    await page.goto('/lop');
+    await page.goto('/students');
     await expect(page.locator('main table')).toBeVisible();
     // Lê Thị Thử còn nợ 20.000 (Quỹ Lớp) + 20.000 (Quỹ Đoàn)
     await page.getByRole('row').filter({ hasText: 'Lê Thị Thử' })
@@ -68,7 +68,7 @@ test.describe('Thu tiền bằng QR', () => {
 
   test('gộp nhiều đợt thì tách thành nhiều khoản thu theo từng đợt', async ({ page }) => {
     const sent = await stubSupabase(page, { role: 'treasurer' });
-    await page.goto('/lop');
+    await page.goto('/students');
     await expect(page.locator('main table')).toBeVisible();
     await page.getByRole('row').filter({ hasText: 'Lê Thị Thử' })
       .getByRole('button', { name: /QR chuyển khoản của/ }).click();
@@ -90,7 +90,7 @@ test.describe('Thu tiền bằng QR', () => {
 
   test('QR cả lớp: mỗi sinh viên còn nợ một mã riêng', async ({ page }) => {
     await stubSupabase(page, { role: 'treasurer' });
-    await page.goto('/dot-thu');
+    await page.goto('/periods');
     await page.waitForTimeout(400);
     await page.getByRole('button', { name: 'QR cả lớp' }).first().click();
 
@@ -110,7 +110,7 @@ test.describe('Thu tiền bằng QR', () => {
   test('khách chưa đăng nhập cũng quét được QR và chuyển khoản', async ({ page }) => {
     // Người phải nộp tiền thường không đăng nhập: chặn khách là chặn đúng người cần trả tiền
     await stubSupabase(page);
-    await page.goto('/lop');
+    await page.goto('/students');
     await page.getByRole('row', { name: /Phạm Minh Ví/ })
       .getByTitle(/Mở QR chuyển khoản cho đợt/).first().click();
 
@@ -128,7 +128,7 @@ test.describe('Thu tiền bằng QR', () => {
   test('lớp bật che tên thì khách không tạo được QR vô danh', async ({ page }) => {
     // mã SV bị che ⇒ nội dung chuyển khoản không đối chiếu được với ai, thà không cho tạo
     await stubSupabase(page, { hideNamesFromGuest: true });
-    await page.goto('/lop');
+    await page.goto('/students');
     await expect(page.getByTitle(/Mở QR chuyển khoản cho đợt/)).toHaveCount(0);
     await expect(page.getByRole('button', { name: /QR chuyển khoản của/ })).toHaveCount(0);
   });

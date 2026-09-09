@@ -3,7 +3,7 @@
  * Tạo tài khoản đầu tiên (chủ sở hữu) mà không cần mở trình duyệt.
  *   npm run create:owner -- <email> [mật-khẩu] ["Họ và tên"]
  *
- * Chỉ gọi API đăng ký công khai bằng anon key — đúng như trang /dang-ky. Không dùng và
+ * Chỉ gọi API đăng ký công khai bằng anon key — đúng như trang /signup. Không dùng và
  * không cần service_role key. Việc "người đầu tiên thành chủ sở hữu" do trigger
  * handle_new_user() trong database quyết định, không phải script này.
  */
@@ -88,7 +88,7 @@ const role = Array.isArray(rows) && rows[0] ? rows[0].role : null;
 
 if (role === 'owner') {
   console.log('  Vai trò:           chủ sở hữu (owner) ✓');
-  console.log('\nĐăng nhập ở /dang-nhap, rồi vào /toi để đổi mật khẩu ngay.');
+  console.log('\nĐăng nhập ở /login, rồi vào /profile để đổi mật khẩu ngay.');
 } else if (role) {
   console.log(`  Vai trò:           ${role}`);
   console.log('\n⚠ Không phải chủ sở hữu — nghĩa là hệ thống đã có tài khoản trước đó.');

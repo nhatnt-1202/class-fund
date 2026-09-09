@@ -30,7 +30,7 @@ test.describe('Quản trị lớp', () => {
 
   test('vào thẳng trang Quản lý lớp cũng chỉ nhận được lời từ chối', async ({ page }) => {
     await stubSupabase(page, { role: 'admin' });
-    await page.goto('/lop-hoc');
+    await page.goto('/classes');
     await expect(page.getByText(/Chỉ tài khoản gốc/)).toBeVisible();
     await expect(page.getByRole('button', { name: 'Mở lớp mới' })).toHaveCount(0);
   });
@@ -72,7 +72,7 @@ test.describe('Tài khoản gốc', () => {
 
   test('mở lớp mới và giao ngay cho một tài khoản quản trị', async ({ page }) => {
     const sent: Sent[] = await stubSupabase(page, { systemOwner: true });
-    await page.goto('/lop-hoc');
+    await page.goto('/classes');
     await expect(page.getByRole('heading', { name: 'Các lớp trong hệ thống' })).toBeVisible();
     // bảng liệt kê cả hai lớp
     await expect(page.getByRole('cell', { name: CLASS_CODE })).toBeVisible();
@@ -94,7 +94,7 @@ test.describe('Tài khoản gốc', () => {
 
   test('giao quản trị cho một lớp đã có', async ({ page }) => {
     const sent: Sent[] = await stubSupabase(page, { systemOwner: true });
-    await page.goto('/lop-hoc');
+    await page.goto('/classes');
     await page.getByRole('row', { name: new RegExp(CLASS_CODE) })
       .getByRole('button', { name: 'Giao quản trị' }).click();
     const dialog = page.getByRole('dialog');
@@ -114,7 +114,7 @@ test.describe('Tài khoản gốc', () => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Chưa có lớp nào' })).toBeVisible();
     await page.getByRole('button', { name: 'Mở lớp mới' }).click();
-    await expect(page).toHaveURL(/\/lop-hoc$/);
+    await expect(page).toHaveURL(/\/classes$/);
   });
 });
 
@@ -130,7 +130,7 @@ test.describe('Sinh viên chưa được gán lớp', () => {
 test.describe('Đánh dấu ban quản lý trong danh sách lớp', () => {
   test('quản trị lớp gắn được tài khoản với một sinh viên trong danh sách', async ({ page }) => {
     const sent: Sent[] = await stubSupabase(page, { role: 'admin' });
-    await page.goto('/tai-khoan');
+    await page.goto('/members');
     await expect(page.getByRole('heading', { name: /Thành viên lớp/ })).toBeVisible();
 
     // Quản trị lớp được mời bằng email nên chưa gắn với sinh viên nào
@@ -146,7 +146,7 @@ test.describe('Đánh dấu ban quản lý trong danh sách lớp', () => {
 
   test('bỏ gắn thì gửi lên null, không phải chuỗi rỗng', async ({ page }) => {
     const sent: Sent[] = await stubSupabase(page, { role: 'admin' });
-    await page.goto('/tai-khoan');
+    await page.goto('/members');
     await page.getByRole('combobox', { name: /Gắn Lê Thủ Quỹ với sinh viên/ }).selectOption('');
 
     await expect.poll(() => sent.filter((s) => s.method === 'PATCH' && s.table === 'memberships').length,

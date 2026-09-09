@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
-<title>Class Fund — Quản lý thu chi lớp học</title>
+<title>Finance — Quản lý thu chi lớp học</title>
 <!--
   =====================================================================================
   CLASS FUND — HỆ THỐNG QUẢN LÝ TÀI CHÍNH LỚP HỌC (ALL-IN-ONE, 1 FILE)
@@ -463,9 +463,9 @@ body.no-motion *,body.no-motion *::before,body.no-motion *::after{
 <div class="app">
   <nav class="side" id="side" aria-label="Điều hướng chính">
     <div class="brand">
-      <div class="brand-logo" aria-hidden="true">CF</div>
+      <div class="brand-logo" aria-hidden="true">F</div>
       <div>
-        <div class="brand-name">Class Fund</div>
+        <div class="brand-name">Finance</div>
         <div class="brand-sub" id="brandSub">Đang tải…</div>
       </div>
     </div>
@@ -968,8 +968,8 @@ const VIEW_TITLE = { dashboard:'Tổng quan', students:'Danh sách lớp', incom
                      periods:'Đợt thu', io:'Nhập / Xuất', settings:'Cài đặt' };
 function render(){
   const host = byId('main');
-  byId('pageTitle').textContent = VIEW_TITLE[ui.view] || 'Class Fund';
-  document.title = (VIEW_TITLE[ui.view]||'') + ' · Class Fund' + (S.meta.className ? ' ' + S.meta.className : '');
+  byId('pageTitle').textContent = VIEW_TITLE[ui.view] || 'Finance';
+  document.title = (VIEW_TITLE[ui.view]||'') + ' · Finance' + (S.meta.className ? ' ' + S.meta.className : '');
   byId('brandSub').textContent = S.meta.className
     ? `${S.meta.className} · ${S.students.filter(s=>s.active!==false).length} SV`
     : 'Chưa có danh sách lớp';
@@ -1651,7 +1651,7 @@ function viewSettings(){
     </div></div>
 
     <div class="card"><div class="card-h"><h2>Về ứng dụng</h2></div><div class="card-b small muted">
-      <p><b>Class Fund</b> — bản all-in-one 1 file, không cần cài đặt, chạy offline sau lần mở đầu.</p>
+      <p><b>Finance</b> — bản all-in-one 1 file, không cần cài đặt, chạy offline sau lần mở đầu.</p>
       <p>Tồn quỹ luôn được tính lại từ bản ghi thu/chi: <b>Tồn(quỹ) = Σ Thu − Σ Chi</b>. Không có ô nhập tồn quỹ tay,
          nên số liệu không thể bị sửa ngầm.</p>
       <p>Phím tắt: <span class="kbd">T</span> thêm thu · <span class="kbd">C</span> thêm chi ·
@@ -3460,7 +3460,7 @@ function initEvents(){
   render();
   if (!had && !S.students.length){
     setTimeout(() => openModal({
-      title:'Chào mừng đến Class Fund', mw:520,
+      title:'Chào mừng đến Finance', mw:520,
       sub:'Công cụ quản lý thu chi quỹ lớp — rành mạch đến từng đồng',
       body:`<p>Ba việc app này làm cho bạn:</p>
         <ul style="margin:.2rem 0 .8rem;padding-left:1.1rem;line-height:1.9">

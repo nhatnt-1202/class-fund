@@ -33,17 +33,17 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   const items: NavItem[] = [
     { to: '/', label: 'Tổng quan', icon: <LayoutGrid className="h-5 w-5" />, show: true },
-    { to: '/lop', label: 'Danh sách lớp', icon: <Users className="h-5 w-5" />, show: true },
-    { to: '/thu', label: 'Thu', icon: <ArrowUpCircle className="h-5 w-5" />, show: true },
-    { to: '/chi', label: 'Chi', icon: <ArrowDownCircle className="h-5 w-5" />, show: true },
-    { to: '/dot-thu', label: 'Đợt thu', icon: <CalendarRange className="h-5 w-5" />, show: true },
-    { to: '/nhap-xuat', label: 'Nhập / Xuất', icon: <FileSpreadsheet className="h-5 w-5" />, show: can.exportExcel(role) },
+    { to: '/students', label: 'Danh sách lớp', icon: <Users className="h-5 w-5" />, show: true },
+    { to: '/incomes', label: 'Thu', icon: <ArrowUpCircle className="h-5 w-5" />, show: true },
+    { to: '/expenses', label: 'Chi', icon: <ArrowDownCircle className="h-5 w-5" />, show: true },
+    { to: '/periods', label: 'Đợt thu', icon: <CalendarRange className="h-5 w-5" />, show: true },
+    { to: '/import-export', label: 'Nhập / Xuất', icon: <FileSpreadsheet className="h-5 w-5" />, show: can.exportExcel(role) },
     // "Thành viên & quyền", không phải "Tài khoản": trong app có tới ba thứ mang chữ tài khoản
     // (tài khoản của tôi, tài khoản nhận chuyển khoản), nên tên này nói rõ trang làm gì.
-    { to: '/tai-khoan', label: 'Thành viên & quyền', icon: <ShieldCheck className="h-5 w-5" />, show: can.manageUsers(role) },
-    { to: '/lop-hoc', label: 'Quản lý lớp', icon: <Building2 className="h-5 w-5" />, show: can.manageClasses(role) },
-    { to: '/lich-su', label: 'Lịch sử thao tác', icon: <ScrollText className="h-5 w-5" />, show: can.viewAudit(role) },
-    { to: '/cai-dat', label: 'Cài đặt', icon: <Settings className="h-5 w-5" />, show: role !== 'guest' },
+    { to: '/members', label: 'Thành viên & quyền', icon: <ShieldCheck className="h-5 w-5" />, show: can.manageUsers(role) },
+    { to: '/classes', label: 'Quản lý lớp', icon: <Building2 className="h-5 w-5" />, show: can.manageClasses(role) },
+    { to: '/audit-log', label: 'Lịch sử thao tác', icon: <ScrollText className="h-5 w-5" />, show: can.viewAudit(role) },
+    { to: '/settings', label: 'Cài đặt', icon: <Settings className="h-5 w-5" />, show: role !== 'guest' },
   ];
 
   const ThemeIcon = prefs.theme === 'light' ? Sun : prefs.theme === 'dark' ? Moon : SunMoon;
@@ -53,10 +53,10 @@ export default function Layout({ children }: { children: ReactNode }) {
       <div className="flex items-center gap-3 px-2 pb-4">
         <div className="grid h-10 w-10 shrink-0 place-items-center rounded-[11px] bg-gradient-to-br
           from-lop to-doan font-head text-[1.05rem] font-bold text-white shadow-s1" aria-hidden>
-          CF
+          F
         </div>
         <div className="min-w-0">
-          <div className="font-head text-[1.05rem] font-bold leading-tight">Class Fund</div>
+          <div className="font-head text-[1.05rem] font-bold leading-tight">Finance</div>
           <div className="truncate text-xs text-ink3">Quản lý thu chi quỹ lớp</div>
         </div>
       </div>
@@ -122,7 +122,7 @@ export default function Layout({ children }: { children: ReactNode }) {
               <Badge tone={role === 'owner' || role === 'admin' ? 'brand' : role === 'treasurer' ? 'ok' : 'neutral'}>
                 {ROLE_LABEL[role]}
               </Badge>
-              <Link to="/toi" className="text-xs text-ink3 underline hover:text-ink">Tài khoản của tôi</Link>
+              <Link to="/profile" className="text-xs text-ink3 underline hover:text-ink">Tài khoản của tôi</Link>
             </div>
             <Button
               variant="ghost"
@@ -141,7 +141,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             <div className="text-sm font-semibold">Bạn đang xem với tư cách khách</div>
             <p className="mt-1 text-xs text-ink3">Xem được mọi số liệu, nhưng không thay đổi được gì.</p>
             <Link
-              to="/dang-nhap"
+              to="/login"
               className="mt-2 flex min-h-[32px] items-center justify-center gap-1.5 rounded-[10px]
                 bg-brand px-2.5 text-[13px] font-medium text-white shadow-s1 hover:brightness-110"
             >
@@ -198,7 +198,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             <Menu className="h-5 w-5" />
           </Button>
           <h1 className="font-head text-[1.25rem] font-semibold">
-            {items.find((i) => i.to === location.pathname)?.label ?? 'Class Fund'}
+            {items.find((i) => i.to === location.pathname)?.label ?? 'Finance'}
           </h1>
           <div className="flex-1" />
           {/*
@@ -207,7 +207,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             */}
           {!profile && (
             <Link
-              to="/dang-nhap"
+              to="/login"
               className="flex h-8 items-center gap-1.5 rounded-[10px] bg-brand px-2.5 text-[13px]
                 font-medium text-white shadow-s1 hover:brightness-110"
             >
