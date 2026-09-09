@@ -1,12 +1,12 @@
 import { motion } from 'framer-motion';
-import { Copy, Lock, LockOpen, Pencil, Plus, QrCode, Users, Wallet } from 'lucide-react';
+import { Lock, LockOpen, Pencil, Plus, QrCode, Trash2, Users, Wallet } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useKlassContext } from '@/app/ClassProvider';
 import { useToast } from '@/app/ToastProvider';
 import {
-  Badge, Button, Card, EmptyState, FundBadge, Modal, Money, Progress, TableSkeleton, TableWrap,
+  Badge, Button, Card, ConfirmModal, EmptyState, FundBadge, Modal, Money, Progress, TableSkeleton, TableWrap,
 } from '@/components/ui';
-import { useDebts, usePeriodProgress, usePeriods, useSavePeriod, useStudents } from '@/data/api';
+import { useDebts, usePeriodProgress, usePeriods, useSavePeriod, useSoftDelete, useStudents } from '@/data/api';
 import { fmtDate, fmtVnd, toInt } from '@/lib/format';
 import { can } from '@/lib/permissions';
 import { pageVariants } from '@/lib/motion';
@@ -24,11 +24,13 @@ export default function PeriodsPage() {
   const students = useStudents(classId, role);
   const debts = useDebts(classId, role);
   const savePeriod = useSavePeriod(classId);
+  const softDelete = useSoftDelete('periods', classId);
 
   const [dialog, setDialog] = useState<{ open: boolean; editing: Period | null }>({ open: false, editing: null });
   const [detail, setDetail] = useState<Period | null>(null);
   const [sheet, setSheet] = useState<Period | null>(null);
   const [batch, setBatch] = useState(false);
+  const [confirmDel, setConfirmDel] = useState<Period | null>(null);
   const [qr, setQr] = useState<{ open: boolean; student: Student | null; periodId: string }>(
     { open: false, student: null, periodId: '' },
   );
@@ -67,25 +69,6 @@ export default function PeriodsPage() {
     );
   };
 
-  const duplicate = (p: Period) => {
-    savePeriod.mutate(
-      {
-        values: {
-          name: `${p.name} (bản sao)`,
-          fund: p.fund,
-          amount_per_student: p.amount_per_student,
-          open_date: new Date().toISOString().slice(0, 10),
-          note: p.note,
-          status: 'OPEN',
-        },
-      },
-      {
-        onSuccess: (row) => toast.ok('Đã nhân bản đợt thu', row.name),
-        onError: (e) => toast.err('Không nhân bản được', e instanceof Error ? e.message : undefined),
-      },
-    );
-  };
-
   if (periods.isLoading) {
     return <Card><TableSkeleton rows={4} cols={3} /></Card>;
   }
@@ -119,6 +102,7 @@ export default function PeriodsPage() {
           {list.map((p) => {
             const st = progress.data?.find((x) => x.period_id === p.id);
             const pct = st && st.expected ? st.collected / st.expected : 0;
+            const deletable = st?.collected === 0;
             return (
               <Card key={p.id} className="p-4">
                 <div className="flex items-start gap-2">
@@ -139,14 +123,16 @@ export default function PeriodsPage() {
                         onClick={() => setDialog({ open: true, editing: p })}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button size="sm" variant="ghost" aria-label="Nhân bản đợt thu" onClick={() => duplicate(p)}>
-                        <Copy className="h-4 w-4" />
-                      </Button>
                       <Button size="sm" variant="ghost"
                         aria-label={p.status === 'CLOSED' ? 'Mở lại đợt thu' : 'Đóng đợt thu'}
                         onClick={() => toggleStatus(p)}>
                         {p.status === 'CLOSED' ? <LockOpen className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
                       </Button>
+                      {deletable && (
+                        <Button size="sm" variant="ghost" aria-label="Xoá đợt thu" onClick={() => setConfirmDel(p)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -217,7 +203,7 @@ export default function PeriodsPage() {
                             <td>{r.student.full_name}</td>
                             <td className="text-right"><Money value={r.paid} kind={r.paid ? 'in' : undefined} /></td>
                             <td className="text-right">
-                              {r.remaining ? <Money value={r.remaining} kind="out" /> : ''}
+                              <Money value={r.remaining} kind={r.remaining ? 'out' : undefined} />
                             </td>
                             <td className="text-right">
                               <div className="flex justify-end gap-1">
@@ -252,6 +238,40 @@ export default function PeriodsPage() {
         onOpenChange={(v) => setDialog((s) => ({ ...s, open: v }))}
         editing={dialog.editing}
         activeStudents={(students.data ?? []).filter((s) => s.is_active).length}
+      />
+
+      <ConfirmModal
+        open={Boolean(confirmDel)}
+        onOpenChange={(v) => !v && setConfirmDel(null)}
+        title="Xoá đợt thu?"
+        danger
+        okLabel="Xoá"
+        loading={softDelete.isPending}
+        message={
+          <>
+            Xoá đợt thu <b>{confirmDel?.name}</b> — chưa có ai đóng nên xoá không ảnh hưởng công nợ.
+          </>
+        }
+        onConfirm={() => {
+          const row = confirmDel;
+          if (!row) return;
+          softDelete.mutate({ id: row.id }, {
+            onSuccess: () => {
+              toast.toast('warn', 'Đã xoá đợt thu', row.name, {
+                label: 'Hoàn tác',
+                run: () => softDelete.mutate({ id: row.id, restore: true }, {
+                  onSuccess: () => toast.ok('Đã hoàn tác'),
+                  onError: (e) => toast.err('Không hoàn tác được', e instanceof Error ? e.message : undefined),
+                }),
+              });
+              setConfirmDel(null);
+            },
+            onError: (e) => {
+              toast.err('Không xoá được', e instanceof Error ? e.message : undefined);
+              setConfirmDel(null);
+            },
+          });
+        }}
       />
 
       <QrSheetDialog

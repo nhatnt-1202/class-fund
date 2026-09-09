@@ -414,47 +414,49 @@ export default function ImportExportPage() {
               <p className="mb-2 text-xs text-ink3">
                 Hệ thống đã tự đoán. Sửa lại nếu sai — “Họ và tên đệm” + “Tên” là hai cột riêng khi ô tiêu đề bị gộp.
               </p>
-              <TableWrap className="max-h-[38vh] overflow-y-auto rounded-[10px] border border-line">
-                <table>
-                  <caption className="sr-only">Khớp cột trong file với trường dữ liệu</caption>
-                  <thead>
-                    <tr><th>Cột</th><th>Tiêu đề trong file</th><th>Dữ liệu mẫu</th><th>Đưa vào trường</th></tr>
-                  </thead>
-                  <tbody>
-                    {Object.keys(mapping).map(Number).sort((a, b) => a - b).map((c) => (
-                      <tr key={c}>
-                        <td className="num text-ink3">{XLSX.utils.encode_col(c)}</td>
-                        <td>{String((aoa[headerRow] ?? [])[c] ?? '')}</td>
-                        <td className="text-xs text-ink3">
-                          {aoa.slice(headerRow + 1, headerRow + 4)
-                            .map((r) => String((r ?? [])[c] ?? '').slice(0, 22))
-                            .filter(Boolean).join(' · ') || '—'}
-                        </td>
-                        <td>
-                          <Select
-                            className="min-w-[190px]"
-                            aria-label={`Trường cho cột ${XLSX.utils.encode_col(c)}`}
-                            value={mapping[c] ?? 'skip'}
-                            onChange={(e) => {
-                              const v = e.target.value as ImportField;
-                              setMapping((m) => {
-                                const next = { ...m };
-                                if (v !== 'skip') {
-                                  for (const k of Object.keys(next).map(Number)) if (next[k] === v && k !== c) next[k] = 'skip';
-                                }
-                                next[c] = v;
-                                return next;
-                              });
-                            }}
-                          >
-                            {IMPORT_FIELDS.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
-                          </Select>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </TableWrap>
+              <div className="max-h-[38vh] overflow-y-auto rounded-[10px] border border-line">
+                <TableWrap>
+                  <table>
+                    <caption className="sr-only">Khớp cột trong file với trường dữ liệu</caption>
+                    <thead>
+                      <tr><th>Cột</th><th>Tiêu đề trong file</th><th>Dữ liệu mẫu</th><th>Đưa vào trường</th></tr>
+                    </thead>
+                    <tbody>
+                      {Object.keys(mapping).map(Number).sort((a, b) => a - b).map((c) => (
+                        <tr key={c}>
+                          <td className="num text-ink3">{XLSX.utils.encode_col(c)}</td>
+                          <td>{String((aoa[headerRow] ?? [])[c] ?? '')}</td>
+                          <td className="text-xs text-ink3">
+                            {aoa.slice(headerRow + 1, headerRow + 4)
+                              .map((r) => String((r ?? [])[c] ?? '').slice(0, 22))
+                              .filter(Boolean).join(' · ') || '—'}
+                          </td>
+                          <td>
+                            <Select
+                              className="min-w-[190px]"
+                              aria-label={`Trường cho cột ${XLSX.utils.encode_col(c)}`}
+                              value={mapping[c] ?? 'skip'}
+                              onChange={(e) => {
+                                const v = e.target.value as ImportField;
+                                setMapping((m) => {
+                                  const next = { ...m };
+                                  if (v !== 'skip') {
+                                    for (const k of Object.keys(next).map(Number)) if (next[k] === v && k !== c) next[k] = 'skip';
+                                  }
+                                  next[c] = v;
+                                  return next;
+                                });
+                              }}
+                            >
+                              {IMPORT_FIELDS.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+                            </Select>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </TableWrap>
+              </div>
             </div>
 
             <Field label="Nếu sinh viên đã có trong hệ thống" group>
@@ -490,40 +492,42 @@ export default function ImportExportPage() {
                 </span>
               </Note>
             )}
-            <TableWrap className="max-h-[44vh] overflow-y-auto rounded-[10px] border border-line">
-              <table>
-                <caption className="sr-only">Xem trước dữ liệu sẽ được nhập</caption>
-                <thead>
-                  <tr>
-                    <th>Dòng</th><th>STT</th><th>Mã SV</th><th>Họ và tên</th><th>Ngày sinh</th>
-                    <th>Lớp</th><th>Trạng thái</th><th className="text-right">Số tiền</th><th>Kết quả</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {parsed.rows.slice(0, 20).map((r) => (
-                    <tr key={r.row}>
-                      <td className="num text-xs text-ink3">{r.row}</td>
-                      <td className="num text-ink3">{r.stt ?? ''}</td>
-                      <td className="num">{r.code}</td>
-                      <td className="font-semibold">{r.full_name}</td>
-                      <td className="num text-xs">{fmtDate(r.dob)}</td>
-                      <td className="text-xs text-ink3">{r.class_code}</td>
-                      <td className="text-xs">
-                        {r.status.startsWith('da dong')
-                          ? <Badge tone="ok">Đã đóng</Badge>
-                          : r.status ? <Badge>Chưa đóng</Badge> : '—'}
-                      </td>
-                      <td className="num text-right">{r.amount ? fmtVnd(r.amount) : '—'}</td>
-                      <td>
-                        {r.errors.length > 0
-                          ? <span title={r.errors.join(', ')}><Badge tone="bad">Lỗi</Badge></span>
-                          : existingCodes.has(r.code) ? <Badge tone="warn">Đã có</Badge> : <Badge tone="ok">Mới</Badge>}
-                      </td>
+            <div className="max-h-[44vh] overflow-y-auto rounded-[10px] border border-line">
+              <TableWrap>
+                <table>
+                  <caption className="sr-only">Xem trước dữ liệu sẽ được nhập</caption>
+                  <thead>
+                    <tr>
+                      <th>Dòng</th><th>STT</th><th>Mã SV</th><th>Họ và tên</th><th>Ngày sinh</th>
+                      <th>Lớp</th><th>Trạng thái</th><th className="text-right">Số tiền</th><th>Kết quả</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </TableWrap>
+                  </thead>
+                  <tbody>
+                    {parsed.rows.slice(0, 20).map((r) => (
+                      <tr key={r.row}>
+                        <td className="num text-xs text-ink3">{r.row}</td>
+                        <td className="num text-ink3">{r.stt ?? ''}</td>
+                        <td className="num">{r.code}</td>
+                        <td className="font-semibold">{r.full_name}</td>
+                        <td className="num text-xs">{fmtDate(r.dob)}</td>
+                        <td className="text-xs text-ink3">{r.class_code}</td>
+                        <td className="text-xs">
+                          {r.status.startsWith('da dong')
+                            ? <Badge tone="ok">Đã đóng</Badge>
+                            : r.status ? <Badge>Chưa đóng</Badge> : '—'}
+                        </td>
+                        <td className="num text-right">{r.amount ? fmtVnd(r.amount) : '—'}</td>
+                        <td>
+                          {r.errors.length > 0
+                            ? <span title={r.errors.join(', ')}><Badge tone="bad">Lỗi</Badge></span>
+                            : existingCodes.has(r.code) ? <Badge tone="warn">Đã có</Badge> : <Badge tone="ok">Mới</Badge>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </TableWrap>
+            </div>
             <p className="text-xs text-ink3">
               {parsed.rows.length > 20 && `Xem trước 20/${parsed.rows.length} dòng. `}
               Dữ liệu chỉ được ghi khi bạn bấm “Xác nhận import”.

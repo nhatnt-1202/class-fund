@@ -10,7 +10,7 @@ import type { UiRole } from '@/types/db';
 
 const RANK: Record<UiRole, number> = { guest: 0, member: 1, treasurer: 2, admin: 3, owner: 4 };
 
-/** Chủ sở hữu hệ thống hành xử như quản trị lớp ở mọi lớp. */
+/** Admin hành xử như quản trị lớp ở mọi lớp. */
 export const isClassAdmin = (r: UiRole) => r === 'admin' || r === 'owner';
 
 export const atLeast = (role: UiRole, min: UiRole) => RANK[role] >= RANK[min];

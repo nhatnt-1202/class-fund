@@ -170,7 +170,7 @@ $$;
 
 /**
  * Có quyền tối thiểu `min` trong lớp `p_class` hay không.
- * Chủ sở hữu hệ thống được coi như admin của mọi lớp — cần thiết để dựng lớp mới và cứu hộ
+ * Admin được coi như admin của mọi lớp — cần thiết để dựng lớp mới và cứu hộ
  * khi lớp không còn ai quản trị.
  */
 create or replace function has_class_role(p_class uuid, min class_role) returns boolean
@@ -178,7 +178,7 @@ language sql stable security definer set search_path = public as $$
   select is_system_owner() or coalesce(my_class_role(p_class) >= min, false)
 $$;
 
-/** Các lớp người đang đăng nhập được phép xem. Chủ sở hữu hệ thống thấy tất cả. */
+/** Các lớp người đang đăng nhập được phép xem. Admin thấy tất cả. */
 create or replace function my_class_ids() returns setof uuid
 language sql stable security definer set search_path = public as $$
   select c.id from classes c where is_system_owner()

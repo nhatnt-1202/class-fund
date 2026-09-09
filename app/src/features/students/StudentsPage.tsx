@@ -264,7 +264,7 @@ export default function StudentsPage() {
                     })}
                     <td className="text-right"><Money value={r.paid} kind={r.paid ? 'in' : undefined} /></td>
                     <td className="text-right">
-                      {r.remaining ? <Money value={r.remaining} kind="out" /> : <span className="text-ink3">—</span>}
+                      <Money value={r.remaining} kind={r.remaining ? 'out' : undefined} />
                     </td>
                     <td>
                       <div className="flex justify-end gap-1 opacity-40 transition-opacity hover:opacity-100 focus-within:opacity-100">

@@ -1007,7 +1007,7 @@ $$;
 
 /**
  * Có quyền tối thiểu `min` trong lớp `p_class` hay không.
- * Chủ sở hữu hệ thống được coi như admin của mọi lớp — cần thiết để dựng lớp mới và cứu hộ
+ * Admin được coi như admin của mọi lớp — cần thiết để dựng lớp mới và cứu hộ
  * khi lớp không còn ai quản trị.
  */
 create or replace function has_class_role(p_class uuid, min class_role) returns boolean
@@ -1015,7 +1015,7 @@ language sql stable security definer set search_path = public as $$
   select is_system_owner() or coalesce(my_class_role(p_class) >= min, false)
 $$;
 
-/** Các lớp người đang đăng nhập được phép xem. Chủ sở hữu hệ thống thấy tất cả. */
+/** Các lớp người đang đăng nhập được phép xem. Admin thấy tất cả. */
 create or replace function my_class_ids() returns setof uuid
 language sql stable security definer set search_path = public as $$
   select c.id from classes c where is_system_owner()
@@ -2145,4 +2145,24 @@ create policy audit_select on audit_logs for select to authenticated
 
 comment on table audit_logs is
   'Lịch sử thao tác, bất biến. Chỉ chủ sở hữu hệ thống và quản trị của đúng lớp đó đọc được.';
+
+-- ─────────────────────────────────────────────────────────────────────────────────────
+-- 0011_periods_select_admin.sql
+-- ─────────────────────────────────────────────────────────────────────────────────────
+/**
+ * 0011 — Sửa lỗi "không có quyền" khi xoá đợt thu
+ * =================================================================
+ * `periods_select_public` chỉ cho đọc đợt thu CHƯA xoá (`deleted_at is null`) — đúng cho
+ * khách/thành viên thường. Nhưng thao tác xoá mềm ở frontend là một lệnh
+ * `.update({ deleted_at: now() }).select()`: PostgREST dùng CHÍNH policy SELECT đó để trả về
+ * bản ghi vừa sửa, mà bản ghi vừa xoá thì `deleted_at` không còn null nữa — nên `.select()`
+ * luôn trả về mảng rỗng dù UPDATE đã thành công, và `assertChanged()` ở frontend hiểu nhầm
+ * thành "không có quyền, hoặc bản ghi đã bị người khác thay đổi".
+ *
+ * Thêm policy riêng cho quản trị lớp: đọc được đợt thu của lớp mình kể cả đã xoá. Nhờ đó
+ * `.select()` sau khi xoá trả lại đúng bản ghi, và sau này có làm màn phục hồi thì admin cũng
+ * nhìn thấy đợt đã xoá.
+ */
+create policy periods_select_admin on periods for select to authenticated
+  using (has_class_role(class_id, 'admin'));
 

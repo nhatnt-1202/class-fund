@@ -131,7 +131,7 @@ export default function ProfilePage() {
                     <td className="num text-right">{fmtVnd(d.must_pay)}</td>
                     <td className="text-right"><Money value={d.paid} kind={d.paid ? 'in' : undefined} /></td>
                     <td className="text-right">
-                      {d.remaining ? <Money value={d.remaining} kind="out" /> : <Badge tone="ok">đủ</Badge>}
+                      <Money value={d.remaining} kind={d.remaining ? 'out' : undefined} />
                     </td>
                     <td className="text-[13px] text-ink3">
                       {(periods.data ?? []).find((p) => p.id === d.period_id)?.due_date ?? '—'}

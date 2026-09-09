@@ -100,7 +100,7 @@ export function useMyClasses(enabled: boolean, isSystemOwner: boolean, userId: s
       const mine = new Map(members.map((m) => [m.class_id, m]));
       return classes.map((c) => ({
         ...c,
-        // Chủ sở hữu hệ thống thấy mọi lớp và hành xử như quản trị lớp
+        // Admin thấy mọi lớp và hành xử như quản trị lớp
         myRole: mine.get(c.id)?.role ?? (isSystemOwner ? 'admin' : 'member'),
         myStudentId: mine.get(c.id)?.student_id ?? null,
       }));

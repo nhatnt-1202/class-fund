@@ -284,7 +284,7 @@ export const ROLE_LABEL: Record<UiRole, string> = {
   member: 'Thành viên',
   treasurer: 'Thủ quỹ',
   admin: 'Quản trị lớp',
-  owner: 'Chủ sở hữu hệ thống',
+  owner: 'Admin',
 };
 
 export const CLASS_ROLES: ClassRole[] = ['member', 'treasurer', 'admin'];

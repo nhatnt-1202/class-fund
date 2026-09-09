@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/app/ToastProvider';
-import { Badge, Button, Field, Input, Modal, MoneyInput, Select, TableWrap } from '@/components/ui';
+import { Button, Field, Input, Modal, Money, MoneyInput, Select, TableWrap } from '@/components/ui';
 import { useKlassContext } from '@/app/ClassProvider';
 import { useSaveIncomesBatch } from '@/data/api';
 import { fmtVnd, toInt } from '@/lib/format';
@@ -120,59 +120,61 @@ export default function BatchCollectDialog({
         <Button size="sm" variant="ghost" onClick={() => setPicked({})}>Bỏ chọn hết</Button>
       </div>
 
-      <TableWrap className="max-h-[46vh] overflow-y-auto rounded-[10px] border border-line">
-        <table>
-          <caption className="sr-only">Chọn sinh viên để ghi nhận thu theo lô</caption>
-          <thead>
-            <tr>
-              <th className="w-9" />
-              <th>Sinh viên</th>
-              <th className="text-right">Đã nộp</th>
-              <th className="text-right">Còn thiếu</th>
-              <th className="w-[140px] text-right">Ghi nhận (₫)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => {
-              const on = (picked[r.s.id] ?? 0) > 0;
-              return (
-                <tr key={r.s.id}>
-                  <td>
-                    <input
-                      type="checkbox"
-                      className="h-[18px] w-[18px] min-h-0 accent-[rgb(var(--c-brand))]"
-                      aria-label={`Chọn ${r.s.full_name}`}
-                      checked={on}
-                      disabled={r.remaining === 0 && !on}
-                      onChange={(e) => setPicked((p) => {
-                        const next = { ...p };
-                        if (e.target.checked) next[r.s.id] = r.remaining || toInt(period?.amount_per_student ?? 0);
-                        else delete next[r.s.id];
-                        return next;
-                      })}
-                    />
-                  </td>
-                  <td>
-                    <div>{r.s.full_name}</div>
-                    <div className="num text-xs text-ink3">{r.s.code}</div>
-                  </td>
-                  <td className="num text-right text-income">{r.paid ? fmtVnd(r.paid) : '—'}</td>
-                  <td className="num text-right text-expense">
-                    {r.remaining ? fmtVnd(r.remaining) : <Badge tone="ok">đủ</Badge>}
-                  </td>
-                  <td>
-                    <MoneyInput
-                      value={picked[r.s.id] ?? 0}
-                      onChange={(v) => setPicked((p) => ({ ...p, [r.s.id]: v }))}
-                      aria-label={`Số tiền của ${r.s.full_name}`}
-                    />
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </TableWrap>
+      <div className="max-h-[46vh] overflow-y-auto rounded-[10px] border border-line">
+        <TableWrap>
+          <table>
+            <caption className="sr-only">Chọn sinh viên để ghi nhận thu theo lô</caption>
+            <thead>
+              <tr>
+                <th className="w-9" />
+                <th>Sinh viên</th>
+                <th className="text-right">Đã nộp</th>
+                <th className="text-right">Còn thiếu</th>
+                <th className="w-[140px] text-right">Ghi nhận (₫)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => {
+                const on = (picked[r.s.id] ?? 0) > 0;
+                return (
+                  <tr key={r.s.id}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        className="h-[18px] w-[18px] min-h-0 accent-[rgb(var(--c-brand))]"
+                        aria-label={`Chọn ${r.s.full_name}`}
+                        checked={on}
+                        disabled={r.remaining === 0 && !on}
+                        onChange={(e) => setPicked((p) => {
+                          const next = { ...p };
+                          if (e.target.checked) next[r.s.id] = r.remaining || toInt(period?.amount_per_student ?? 0);
+                          else delete next[r.s.id];
+                          return next;
+                        })}
+                      />
+                    </td>
+                    <td>
+                      <div>{r.s.full_name}</div>
+                      <div className="num text-xs text-ink3">{r.s.code}</div>
+                    </td>
+                    <td className="num text-right text-income">{r.paid ? fmtVnd(r.paid) : '—'}</td>
+                    <td className="text-right">
+                      <Money value={r.remaining} kind={r.remaining ? 'out' : undefined} />
+                    </td>
+                    <td>
+                      <MoneyInput
+                        value={picked[r.s.id] ?? 0}
+                        onChange={(v) => setPicked((p) => ({ ...p, [r.s.id]: v }))}
+                        aria-label={`Số tiền của ${r.s.full_name}`}
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </TableWrap>
+      </div>
     </Modal>
   );
 }
