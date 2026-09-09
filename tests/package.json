@@ -1,0 +1,13 @@
+{
+  "name": "class-fund-tests",
+  "private": true,
+  "description": "Bộ kiểm thử cho index.html — chạy: npm i && npm test",
+  "scripts": {
+    "test": "node run.js"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0",
+    "qrcode-generator": "^1.4.4",
+    "xlsx": "^0.18.5"
+  }
+}
