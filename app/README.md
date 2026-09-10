@@ -40,10 +40,10 @@ VITE_SUPABASE_ANON_KEY=sb_publishable_xxxxxxxxxxxxxxxxxxxx
 
 Không đặt dấu ngoặc kép, không có dấu `/` ở cuối URL. File `.env` đã được `.gitignore`.
 
-### 3. Chạy 10 migration
+### 3. Chạy 12 migration
 
 **Cách A — không cài gì thêm** (nhanh nhất): Dashboard → **SQL Editor** → *New query* → dán
-**toàn bộ** file `supabase/setup_all.sql` → *Run*. File này là bản gộp của cả 10 migration nên
+**toàn bộ** file `supabase/setup_all.sql` → *Run*. File này là bản gộp của cả 12 migration nên
 chỉ phải dán một lần; thành công thì SQL Editor báo *“Success. No rows returned”*.
 
 Muốn dán từng file (dễ soi lỗi hơn) thì theo **đúng thứ tự** này, mỗi file *Run* một lần:
@@ -58,6 +58,8 @@ Muốn dán từng file (dễ soi lỗi hơn) thì theo **đúng thứ tự** n�
 8. `supabase/migrations/0008_no_email_confirm.sql` — không bao giờ phải xác nhận email
 9. `supabase/migrations/0009_guest_qr.sql` — khách cũng quét được QR để chuyển khoản
 10. `supabase/migrations/0010_audit_admin_only.sql` — lịch sử thao tác chỉ cho quản trị lớp
+11. `supabase/migrations/0011_periods_select_admin.sql` — quản trị đọc được đợt thu đã xoá (để xoá đợt không báo lỗi oan)
+12. `supabase/migrations/0012_visits.sql` — đếm lượt truy cập, kể cả của khách chưa đăng nhập
 
 Sửa migration thì chạy `npm run db:bundle` để sinh lại `setup_all.sql`.
 
@@ -264,15 +266,48 @@ Hai chi tiết dễ sai đã được xử lý:
 
 ---
 
+## Đếm lượt truy cập
+
+Trang **Lượt truy cập** (`/visits`) trả lời "có bao nhiêu người vào web", tính cả **khách chưa
+đăng nhập** — nhóm đông nhất và cũng là nhóm mà `audit_logs` không ghi được (RPC `log_event`
+đòi phải đăng nhập).
+
+**Một lượt truy cập = một PHIÊN**, không phải một lượt xem trang. Mở app rồi bấm qua 8 trang
+vẫn là một người vào. Trình duyệt tự sinh hai khoá:
+
+| Khoá | Ở đâu | Nói lên điều gì |
+|---|---|---|
+| `session_key` | `sessionStorage` | một lần mở app — đóng tab là hết |
+| `device_key` | `localStorage` | một máy — nhờ vậy phân biệt "20 người vào" với "một người vào 20 lần" |
+
+**Thời gian ở lại** đo bằng nhịp tim: app gọi lại `track_visit` mỗi 60 giây **khi tab đang hiển
+thị** (tab nền không phải là người đang xem). Ngồi yên quá 30 phút thì lần gọi sau mở phiên
+mới, nên không có "phiên 9 tiếng" chỉ vì ai đó quên đóng tab.
+
+Ghi thì ai cũng ghi — nhưng chỉ qua RPC `track_visit` (`security definer`), khách không có
+quyền ghi thẳng vào bảng nên không chèn được dòng giả. Hàm còn tự chặn: nhịp tim dày dưới 20
+giây bị bỏ, một IP mở tối đa 60 phiên mới mỗi giờ, tối đa 1000 lượt xem trang một phiên.
+
+**Đọc thì chỉ quản trị**: tài khoản gốc thấy toàn hệ thống, quản trị lớp chỉ thấy lượt truy cập
+vào lớp mình. Thủ quỹ và thành viên không thấy gì — RLS ở `0012_visits.sql` chặn thật, không
+chỉ ẩn menu. Không ai sửa hay xoá lẻ được một dòng, giống audit log.
+
+> **Dữ liệu cá nhân.** Bảng này lưu **IP gốc, user agent và referrer** của cả khách. Đó là lựa
+> chọn có chủ ý để điều tra được khi cần. Đổi lại: chỉ quản trị đọc được, và cuối trang có nút
+> **Xoá dữ liệu cũ hơn 90 ngày** (RPC `purge_visits`, chỉ tài khoản gốc). Nên bấm định kỳ —
+> giữ IP mãi mãi không thêm ích lợi gì mà rủi ro thì có.
+
+---
+
 ## Kiểm thử
 
 ```bash
-npm test              # 49 phép kiểm tra logic + smoke test mount App (vitest)
+npm test              # 51 phép kiểm tra logic + smoke test mount App (vitest)
 npm run build         # tsc strict + vite build
-bash ../tests/db/run.sh   # 145 phép kiểm tra RLS/nghiệp vụ trên Postgres 17 thật (cần Docker)
+bash ../tests/db/run.sh   # 164 phép kiểm tra RLS/nghiệp vụ trên Postgres 17 thật (cần Docker)
 ```
 
-E2E bằng Playwright — 64 phép kiểm tra × 3 cấu hình (desktop sáng, desktop tối, Pixel 7):
+E2E bằng Playwright — 68 phép kiểm tra × 3 cấu hình (desktop sáng, desktop tối, Pixel 7):
 
 ```bash
 npx playwright install chromium     # một lần
@@ -295,6 +330,7 @@ chặn và trả dữ liệu mẫu. Nhờ vậy test chạy offline, không ph�
 | `dang-ky.spec.ts` | Đăng ký xong rồi bấm Back vẫn ở trong app và không có request nào ra máy chủ (phát hiện điều hướng bằng `window.location`, thứ chỉ nhìn URL sẽ không thấy) · mọi liên kết ở khu đăng nhập/đăng ký đều là điều hướng trong app |
 | `giao-dien.spec.ts` | Sáng/tối đi theo hệ thống và không có nút đổi trong app · đường dẫn tiếng Anh và link tiếng Việt cũ vẫn mở đúng trang (giữ cả hash của link đặt lại mật khẩu) · hộp thoại đúng tâm màn hình · mọi ô nhập cao bằng nhau · không cuộn ngang · Esc đóng hộp thoại · bảng có `<caption>` · đổi sáng/tối |
 | `nhieu-lop.spec.ts` | Gắn tài khoản với sinh viên trong danh sách (bỏ gắn gửi `null`, không phải chuỗi rỗng) · quản trị lớp không thấy menu *Quản lý lớp* và vào thẳng URL cũng bị từ chối · mọi truy vấn số liệu đều kèm `class_id` của lớp đang xem · tài khoản gốc thấy mọi lớp, đổi lớp thì dữ liệu hỏi theo lớp mới · mở lớp mới gửi đúng `create_class` (email hạ chữ thường) · giao quản trị gửi đúng `grant_class_role` · chưa có lớp thì được dẫn đi mở lớp / được nói rõ vì sao chưa thấy gì |
+| `truy-cap.spec.ts` | Khách chưa đăng nhập vẫn được đếm một lượt · đổi trang thì thêm lượt xem chứ không thêm phiên mới · thủ quỹ không thấy menu *Lượt truy cập* và vào thẳng URL cũng bị từ chối · quản trị xem được số lượt, số máy khác nhau và thời gian ở lại |
 | `mobile.spec.ts` | **Thanh tiêu đề đục** (kính mờ bị tắt trên thiết bị chạm nên nền mờ 80% sẽ để tiêu đề trang lộ xuyên qua) · **ô lọc ngày rỗng hiện chữ gợi ý** (`input[type=date]` không nhận `placeholder`, iOS vẽ ô rỗng thành hộp trắng trống trơn) · **Bảng 12 cột (49 SV × 4 đợt) cuộn ngang thật và cột không bị bóp** (đo `scrollWidth`, bề rộng cột tên, chiều cao hàng, và `overflow-y` phải là `hidden`) · **cuộn trang rồi mở menu, đi trang khác thì không còn lớp phủ nào chặn thao tác** (đo bằng `elementFromPoint`) · **đóng hộp thoại lồng nhau không sót `pointer-events` trên body** · khách thấy nút đăng nhập trên thanh tiêu đề · menu hamburger điều hướng được · không trang nào cuộn ngang · hộp thoại vừa màn hình · form xếp một cột · vùng bấm ≥ 32px · mã QR ≥ 140px để quét được |
 
 Soi giao diện bằng ảnh chụp thật, không cần Supabase:
@@ -328,13 +364,14 @@ RPC import. Đây là chỗ chứng minh phân quyền, chứ không phải giao
 | `/periods` | Đợt thu | mọi người (tạo/sửa cần quản trị lớp) |
 | `/import-export` | Nhập / Xuất Excel | thành viên trở lên |
 | `/members` | Thành viên & quyền | quản trị lớp |
-| `/audit-log` | Lịch sử thao tác | thủ quỹ trở lên |
+| `/audit-log` | Lịch sử thao tác | quản trị lớp |
+| `/visits` | Lượt truy cập | quản trị lớp (tài khoản gốc thấy mọi lớp) |
 | `/classes` | Quản lý lớp | tài khoản gốc |
 | `/settings` · `/profile` | Cài đặt lớp · Tài khoản của tôi | đã đăng nhập |
 | `/login` · `/signup` · `/forgot-password` · `/reset-password` | Đăng nhập / đăng ký / mật khẩu | — |
 
 Đường dẫn tiếng Việt của các bản trước (`/lop`, `/thu`, `/chi`, `/dot-thu`, `/nhap-xuat`,
-`/tai-khoan`, `/lich-su`, `/cai-dat`, `/lop-hoc`, `/toi`, `/dang-nhap`, `/dang-ky`,
+`/tai-khoan`, `/lich-su`, `/truy-cap`, `/cai-dat`, `/lop-hoc`, `/toi`, `/dang-nhap`, `/dang-ky`,
 `/quen-mat-khau`, `/doi-mat-khau`) vẫn tự chuyển sang đường dẫn mới, **giữ nguyên query và
 hash** — link đặt lại mật khẩu đã gửi trong hộp thư vì thế vẫn dùng được.
 
@@ -349,7 +386,7 @@ src/types/db.ts        kiểu dữ liệu DB (viết tay; sinh lại bằng npm 
 src/data/api.ts        toàn bộ query/mutation — chọn nguồn dữ liệu theo vai trò, phân trang, kiểm tra số dòng
 src/app/               App (router) · AuthProvider · ThemeProvider · ToastProvider
 src/components/        ui.tsx (bộ thành phần) · Layout.tsx
-src/features/          dashboard · students · incomes · expenses · periods · qr · users · audit · io · settings · auth
+src/features/          dashboard · students · incomes · expenses · periods · qr · users · audit · visits · io · settings · auth
 ```
 
 **Thêm quỹ thứ ba?** Thêm giá trị vào enum `fund_type` trong một migration mới, thêm entry vào

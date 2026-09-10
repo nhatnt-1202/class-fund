@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import {
-  ArrowDownCircle, ArrowUpCircle, Building2, CalendarRange, FileSpreadsheet, LayoutGrid, LogIn,
-  LogOut, Menu, ScrollText, Settings, ShieldCheck, Users, X,
+  ActivitySquare, ArrowDownCircle, ArrowUpCircle, Building2, CalendarRange, FileSpreadsheet,
+  LayoutGrid, LogIn, LogOut, Menu, ScrollText, Settings, ShieldCheck, Users, X,
 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
@@ -40,6 +40,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     { to: '/members', label: 'Thành viên & quyền', icon: <ShieldCheck className="h-5 w-5" />, show: can.manageUsers(role) },
     { to: '/classes', label: 'Quản lý lớp', icon: <Building2 className="h-5 w-5" />, show: can.manageClasses(role) },
     { to: '/audit-log', label: 'Lịch sử thao tác', icon: <ScrollText className="h-5 w-5" />, show: can.viewAudit(role) },
+    { to: '/visits', label: 'Lượt truy cập', icon: <ActivitySquare className="h-5 w-5" />, show: can.viewVisits(role) },
     { to: '/settings', label: 'Cài đặt', icon: <Settings className="h-5 w-5" />, show: role !== 'guest' },
   ];
 
@@ -209,7 +210,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           )}
         </header>
 
-        <main id="main" tabIndex={-1} className="w-full max-w-[1500px] p-4">
+        <main id="main" tabIndex={-1} className="w-full p-4">
           {children}
         </main>
       </div>

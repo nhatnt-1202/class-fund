@@ -11,6 +11,7 @@ Repo có **hai bản dùng được**, chọn theo nhu cầu:
 | Lưu dữ liệu | localStorage của một trình duyệt | Postgres trên Supabase |
 | Nhiều người dùng | Không — ai mở file cũng sửa được | Có — tài khoản, phân quyền theo từng lớp bằng RLS |
 | Audit log | Không | Có, do trigger DB ghi, không ai sửa được |
+| Thống kê lượt truy cập | Không | Có — đếm cả khách chưa đăng nhập, chỉ quản trị xem được |
 | Thu qua QR VietQR | Có | Có |
 | Import / export Excel | Có | Có |
 | Số lớp | Một lớp trong một file | Nhiều lớp trong một hệ thống, tách biệt hoàn toàn |

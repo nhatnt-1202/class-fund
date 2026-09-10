@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from './AuthProvider';
 import { ClassProvider, useKlassContext } from './ClassProvider';
 import { PrefsProvider } from './PrefsProvider';
 import { ToastProvider } from './ToastProvider';
+import VisitTracker from './VisitTracker';
 import { ForgotPasswordPage, LoginPage, ResetPasswordPage, SignupPage } from '@/features/auth/AuthPages';
 import ProfilePage from '@/features/auth/ProfilePage';
 import ClassesPage from '@/features/classes/ClassesPage';
@@ -20,12 +21,14 @@ import SettingsPage from '@/features/settings/SettingsPage';
 import StudentsPage from '@/features/students/StudentsPage';
 
 /**
- * Ba trang này nạp riêng: trang Nhập/Xuất kéo theo thư viện Excel (~800KB) mà phần lớn
- * người dùng không mở tới, còn Tài khoản và Lịch sử thao tác chỉ dành cho quản trị.
+ * Bốn trang này nạp riêng: trang Nhập/Xuất kéo theo thư viện Excel (~800KB) mà phần lớn
+ * người dùng không mở tới, còn Tài khoản, Lịch sử thao tác và Lượt truy cập chỉ dành
+ * cho quản trị.
  */
 const ImportExportPage = lazy(() => import('@/features/io/ImportExportPage'));
 const UsersPage = lazy(() => import('@/features/users/UsersPage'));
 const AuditPage = lazy(() => import('@/features/audit/AuditPage'));
+const VisitsPage = lazy(() => import('@/features/visits/VisitsPage'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -124,6 +127,7 @@ const LEGACY_PATHS: Record<string, string> = {
   '/nhap-xuat': '/import-export',
   '/tai-khoan': '/members',
   '/lich-su': '/audit-log',
+  '/truy-cap': '/visits',
   '/cai-dat': '/settings',
   '/lop-hoc': '/classes',
   '/toi': '/profile',
@@ -151,6 +155,7 @@ function AppRoutes() {
         <Route path="/import-export" element={<Lazy><ImportExportPage /></Lazy>} />
         <Route path="/members" element={<RequireLogin><Lazy><UsersPage /></Lazy></RequireLogin>} />
         <Route path="/audit-log" element={<RequireLogin><Lazy><AuditPage /></Lazy></RequireLogin>} />
+        <Route path="/visits" element={<RequireLogin><Lazy><VisitsPage /></Lazy></RequireLogin>} />
         <Route path="/classes" element={<RequireLogin><ClassesPage /></RequireLogin>} />
         <Route path="/settings" element={<RequireLogin><SettingsPage /></RequireLogin>} />
         <Route path="/profile" element={<RequireLogin><ProfilePage /></RequireLogin>} />
@@ -194,6 +199,8 @@ export default function App() {
               <ConfigWarning />
             ) : (
               <BrowserRouter>
+                {/* Ngoài <Routes> để đếm được mọi trang, kể cả đăng nhập/đăng ký */}
+                <VisitTracker />
                 <Routes>
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/signup" element={<SignupPage />} />

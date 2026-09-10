@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fmtDate, fmtVnd, fmtVndSigned, noAccent, normCode, parseMoney, splitName } from './format';
+import { fmtDate, fmtDuration, fmtVnd, fmtVndSigned, noAccent, normCode, parseMoney, splitName } from './format';
 
 describe('tiền', () => {
   it('hiển thị dấu chấm nhóm nghìn', () => {
@@ -41,5 +41,18 @@ describe('tên và ngày', () => {
   it('hiển thị ngày dd/MM/yyyy', () => {
     expect(fmtDate('2026-09-09')).toBe('09/09/2026');
     expect(fmtDate(null)).toBe('');
+  });
+});
+
+describe('thời lượng ở lại', () => {
+  it('dưới một phút thì nói giây, không làm tròn lên phút', () => {
+    expect(fmtDuration(0)).toBe('0 giây');
+    expect(fmtDuration(3)).toBe('3 giây');
+  });
+  it('phút và giờ đọc như người nói', () => {
+    expect(fmtDuration(60)).toBe('1 phút');
+    expect(fmtDuration(150)).toBe('2 phút 30 giây');
+    expect(fmtDuration(3600)).toBe('1 giờ');
+    expect(fmtDuration(3900)).toBe('1 giờ 5 phút');
   });
 });

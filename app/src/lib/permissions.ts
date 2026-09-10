@@ -54,6 +54,12 @@ export const can = {
    * 0010_audit_admin_only.sql chặn thật chứ không chỉ ẩn menu.
    */
   viewAudit: (r: UiRole) => atLeast(r, 'admin'),
+  /**
+   * Thống kê lượt truy cập. Cùng lý lẽ với lịch sử thao tác: là công cụ giám sát nên chỉ
+   * quản trị thấy. Tài khoản gốc thấy toàn hệ thống, quản trị lớp chỉ thấy lớp mình —
+   * việc phân tách đó do RLS ở 0012_visits.sql làm, không phải do giao diện.
+   */
+  viewVisits: (r: UiRole) => atLeast(r, 'admin'),
   restoreRecords: (r: UiRole) => atLeast(r, 'admin'),
   editSettings: (r: UiRole) => atLeast(r, 'admin'),
   grantOwner: (r: UiRole) => atLeast(r, 'owner'),

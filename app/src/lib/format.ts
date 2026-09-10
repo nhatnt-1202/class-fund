@@ -52,6 +52,24 @@ export function fmtRelative(iso: string): string {
 }
 
 /** Bỏ dấu tiếng Việt để "tran van mau" khớp "Trần Văn Mẫu". */
+/**
+ * Thời lượng ở lại, đọc như người nói: "2 phút 30 giây", "1 giờ 5 phút".
+ * Dưới 1 phút thì nói giây — làm tròn lên phút sẽ biến 3 giây thành "1 phút" và thổi phồng
+ * số liệu truy cập.
+ */
+export function fmtDuration(seconds: unknown): string {
+  const s = Math.max(0, Math.round(toInt(seconds)));
+  if (s < 60) return `${s} giây`;
+  const m = Math.floor(s / 60);
+  if (m < 60) {
+    const rest = s % 60;
+    return rest ? `${m} phút ${rest} giây` : `${m} phút`;
+  }
+  const h = Math.floor(m / 60);
+  const restM = m % 60;
+  return restM ? `${h} giờ ${restM} phút` : `${h} giờ`;
+}
+
 export function noAccent(s: unknown): string {
   return String(s ?? '')
     .normalize('NFD')

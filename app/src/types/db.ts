@@ -268,6 +268,47 @@ export interface AuditLog {
   meta: Record<string, unknown> | null;
 }
 
+/**
+ * Một PHIÊN truy cập — một lần mở app, của khách hay của người đã đăng nhập.
+ * `user_id === null` nghĩa là khách chưa đăng nhập.
+ */
+export interface VisitSession {
+  id: string;
+  session_key: string;
+  device_key: string | null;
+  user_id: string | null;
+  class_id: string | null;
+  role: UiRole;
+  started_at: string;
+  last_seen_at: string;
+  views: number;
+  entry_path: string;
+  last_path: string;
+  referrer: string;
+  user_agent: string;
+  ip: string | null;
+}
+
+/** Lượt truy cập gộp theo ngày (giờ Việt Nam) và theo lớp — view v_visit_daily. */
+export interface VisitDaily {
+  day: string;
+  class_id: string | null;
+  sessions: number;
+  guest_sessions: number;
+  visitors: number;
+  ips: number;
+  pageviews: number;
+  total_seconds: number;
+}
+
+/** Lượt xem theo từng đường dẫn, gộp theo ngày — view v_visit_paths. */
+export interface VisitPath {
+  day: string;
+  class_id: string | null;
+  path: string;
+  views: number;
+}
+
 export const FUNDS: Record<Fund, { label: string; short: string; cls: 'lop' | 'doan' }> = {
   QUY_LOP: { label: 'Quỹ Lớp', short: 'Lớp', cls: 'lop' },
   QUY_DOAN: { label: 'Quỹ Đoàn', short: 'Đoàn', cls: 'doan' },

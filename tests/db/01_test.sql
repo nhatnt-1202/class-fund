@@ -716,4 +716,82 @@ begin;
 commit;
 
 \echo ''
+\echo '=== 22. Đếm lượt truy cập, kể cả của khách chưa đăng nhập (0012) ==='
+-- Khách chưa đăng nhập mở app rồi bấm sang trang danh sách lớp
+begin;
+  set local role anon;
+  select track_visit('sess-khach-000001', 'dev-khach-000001', :'class_a', '/', '', 'view');
+  select track_visit('sess-khach-000001', 'dev-khach-000001', :'class_a', '/students', '', 'view');
+  -- Nhịp tim dày dưới 20 giây là script chứ không phải người ⇒ phải bị bỏ qua
+  select track_visit('sess-khach-000001', 'dev-khach-000001', :'class_a', '/students', '', 'ping');
+  select assert_blocked('select count(*) from visit_sessions',
+    'Khách ghi được lượt truy cập nhưng KHÔNG đọc được bảng');
+commit;
+-- Một khách khác, ở lớp khác
+begin;
+  set local role anon;
+  select track_visit('sess-khach-000002', 'dev-khach-000002', :'class_b', '/', '', 'view');
+commit;
+-- Người đã đăng nhập cũng được đếm, kèm tài khoản và vai trò trong lớp
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'tq_jwt';
+  select track_visit('sess-thuquy-00001', 'dev-thuquy-00001', :'class_a', '/incomes', '', 'view');
+  select assert((select count(*) from visit_sessions) = 0,
+    'Thủ quỹ không đọc được số liệu truy cập, kể cả phiên của chính mình');
+  select assert_blocked('select purge_visits(1)', 'Thủ quỹ không xoá được dữ liệu truy cập');
+commit;
+
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'owner_jwt';
+  select assert((select count(*) from visit_sessions where session_key = 'sess-khach-000001') = 1,
+    'Hai lượt xem trang trong cùng một lần mở app chỉ là MỘT lượt truy cập');
+  select assert((select views from visit_sessions where session_key = 'sess-khach-000001') = 2,
+    'Nhịp tim quá dày bị bỏ, số lượt xem trang vẫn là 2');
+  select assert((select count(*) from visit_events e join visit_sessions s on s.id = e.session_id
+                 where s.session_key = 'sess-khach-000001') = 2,
+    'Mỗi lần đổi trang ghi một lượt xem trang, nhịp tim thì không');
+  select assert((select user_id is null and role = 'guest'
+                 from visit_sessions where session_key = 'sess-khach-000001'),
+    'Khách chưa đăng nhập được ghi rõ là khách');
+  select assert((select user_id is not null and role = 'treasurer'
+                 from visit_sessions where session_key = 'sess-thuquy-00001'),
+    'Người đã đăng nhập được ghi kèm tài khoản và vai trò trong lớp');
+  select assert((select count(*) from visit_sessions) = 3,
+    'Tài khoản gốc thấy lượt truy cập của mọi lớp');
+  select assert((visit_summary(30, null) ->> 'guest_sessions')::int = 2,
+    'Bản tổng kết đếm đúng số lượt của khách');
+  select assert((visit_summary(30, null) ->> 'visitors')::int = 3,
+    'Ba máy khác nhau là ba người, không phải ba lượt của một người');
+  select assert((visit_summary(30, :'class_a') ->> 'sessions')::int = 2,
+    'Lọc theo lớp thì chỉ đếm lượt vào lớp đó');
+  select assert_noop($$update visit_sessions set views = 999$$,
+    'Không ai sửa được số liệu truy cập, kể cả tài khoản gốc');
+  select assert_noop($$delete from visit_sessions where true$$,
+    'Không ai xoá lẻ được số liệu truy cập (chỉ purge_visits xoá theo hạn)');
+commit;
+
+-- Quản trị lớp chỉ thấy lớp mình: đây là chỗ dễ rò rỉ nhất vì view thống kê gộp mọi lớp
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'qtb_jwt';
+  select assert((select count(*) from visit_sessions) = 1,
+    'Quản trị lớp B chỉ thấy lượt truy cập vào lớp B');
+  select assert((select count(*) from visit_sessions where class_id = :'class_a') = 0,
+    'Quản trị lớp B không thấy một dòng nào của lớp A');
+  select assert((select coalesce(sum(sessions), 0) from v_visit_daily where class_id = :'class_a') = 0,
+    'View thống kê theo ngày cũng bị RLS lọc, không đi vòng qua được');
+  select assert((visit_summary(30, null) ->> 'sessions')::int = 1,
+    'Bản tổng kết của quản trị lớp chỉ tính lớp của họ');
+commit;
+
+begin;
+  set local role authenticated;
+  set local request.jwt.claims to :'owner_jwt';
+  select assert((purge_visits(90) ->> 'sessions')::int = 0,
+    'Dọn dữ liệu cũ hơn 90 ngày không đụng vào số liệu vừa ghi');
+commit;
+
+\echo ''
 \echo '=== XONG: tất cả phép kiểm tra DB đều đạt ==='

@@ -16,7 +16,7 @@ import { assertChanged, friendlyError, supabase } from '@/lib/supabase';
 import type {
   AppConfig, AuditLog, ClassOfficer, ClassRole, Expense, ExpensePublic, Fund, FundBalance, Income, IncomePublic,
   Invite, Klass, KlassPublic, LedgerRow, Membership, Period, PeriodProgress, Profile, Student,
-  StudentDebt, StudentPublic, UiRole,
+  StudentDebt, StudentPublic, UiRole, VisitDaily, VisitPath, VisitSession,
 } from '@/types/db';
 
 const PAGE = 1000;
@@ -53,6 +53,7 @@ export const qk = {
   members: (id: string) => ['members', id] as const,
   officers: (id: string) => ['officers', id] as const,
   invites: (id: string) => ['invites', id] as const,
+  visits: (scope: string) => ['visits', scope] as const,
 };
 
 const isGuest = (role: UiRole) => role === 'guest';
@@ -378,6 +379,108 @@ export function useAuditLogs(classId: string | null, filter: AuditFilter, enable
       return (data ?? []) as AuditLog[];
     },
     enabled: enabled && Boolean(classId),
+  });
+}
+
+/* ============================== LƯỢT TRUY CẬP ==============================
+   Khác mọi phần còn lại của app: KHÔNG lọc theo lớp ở đây khi người xem là tài khoản gốc.
+   Câu hỏi cần trả lời là "cả web có bao nhiêu người vào", mà khách thì thường chưa chọn
+   lớp nào cả. Quản trị lớp gọi đúng những hook này nhưng RLS chỉ trả về lớp của họ.
+   ========================================================================= */
+
+/** Số ngày gần nhất được xem, tính theo mốc 00:00 giờ Việt Nam của (hôm nay − days + 1). */
+function sinceDay(days: number): string {
+  const d = new Date(Date.now() - (days - 1) * 86_400_000);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Lượt truy cập theo ngày, dùng vẽ biểu đồ và cộng ra các con số tổng. */
+export function useVisitDaily(days: number, enabled: boolean, classId?: string | null) {
+  return useQuery({
+    queryKey: qk.visits(`daily:${days}:${classId ?? 'all'}`),
+    queryFn: async (): Promise<VisitDaily[]> => {
+      let q = supabase.from('v_visit_daily').select('*').gte('day', sinceDay(days)).order('day');
+      if (classId) q = q.eq('class_id', classId);
+      const { data, error } = await q;
+      if (error) throw new Error(friendlyError(error.message));
+      return (data ?? []) as VisitDaily[];
+    },
+    enabled,
+  });
+}
+
+/** Các phiên gần đây, mới nhất trước — bảng chi tiết "ai vào, lúc nào, ở lại bao lâu". */
+export function useVisitSessions(
+  days: number, enabled: boolean, classId?: string | null, limit = 300,
+) {
+  return useQuery({
+    queryKey: qk.visits(`sessions:${days}:${classId ?? 'all'}:${limit}`),
+    queryFn: async (): Promise<VisitSession[]> => {
+      let q = supabase.from('visit_sessions').select('*')
+        .gte('started_at', `${sinceDay(days)}T00:00:00`)
+        .order('started_at', { ascending: false }).limit(limit);
+      if (classId) q = q.eq('class_id', classId);
+      const { data, error } = await q;
+      if (error) throw new Error(friendlyError(error.message));
+      return (data ?? []) as VisitSession[];
+    },
+    enabled,
+  });
+}
+
+/** Trang nào được xem nhiều nhất trong khoảng đang xem. */
+export function useVisitPaths(days: number, enabled: boolean, classId?: string | null) {
+  return useQuery({
+    queryKey: qk.visits(`paths:${days}:${classId ?? 'all'}`),
+    queryFn: async (): Promise<VisitPath[]> => {
+      let q = supabase.from('v_visit_paths').select('*').gte('day', sinceDay(days));
+      if (classId) q = q.eq('class_id', classId);
+      const { data, error } = await q;
+      if (error) throw new Error(friendlyError(error.message));
+      return (data ?? []) as VisitPath[];
+    },
+    enabled,
+  });
+}
+
+/** Các con số tổng của khoảng đang xem (số máy khác nhau phải để DB đếm, xem 0012). */
+export interface VisitSummary {
+  sessions: number;
+  visitors: number;
+  guest_sessions: number;
+  guest_visitors: number;
+  accounts: number;
+  pageviews: number;
+  seconds: number;
+  online: number;
+}
+
+export function useVisitSummary(days: number, enabled: boolean, classId?: string | null) {
+  return useQuery({
+    queryKey: qk.visits(`summary:${days}:${classId ?? 'all'}`),
+    queryFn: async (): Promise<VisitSummary> => {
+      const { data, error } = await supabase.rpc('visit_summary', {
+        p_days: days, p_class: classId ?? null,
+      });
+      if (error) throw new Error(friendlyError(error.message));
+      return data as VisitSummary;
+    },
+    enabled,
+  });
+}
+
+/** Xoá dữ liệu truy cập cũ — dữ liệu cá nhân, không giữ mãi. Chỉ tài khoản gốc gọi được. */
+export function usePurgeVisits() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (days: number) => {
+      const { data, error } = await supabase.rpc('purge_visits', { p_days: days });
+      if (error) throw new Error(friendlyError(error.message));
+      return data as { sessions: number; days: number };
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['visits'] });
+    },
   });
 }
 

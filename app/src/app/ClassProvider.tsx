@@ -11,6 +11,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useAuth } from './AuthProvider';
 import { useKlass, useMyClasses, usePublicClasses, type MyClass } from '@/data/api';
+import { setTrackedClass } from '@/lib/visits';
 import type { Klass, UiRole } from '@/types/db';
 
 export interface ClassOption {
@@ -81,6 +82,12 @@ export function ClassProvider({ children }: { children: ReactNode }) {
   };
 
   const current = signedIn ? (mine.data ?? []).find((c) => c.id === classId) : undefined;
+
+  // Bộ đếm lượt truy cập nằm ngoài provider này (nó phải chạy cả ở trang đăng nhập) nên
+  // lớp đang xem được đẩy sang bằng biến module thay vì context.
+  useEffect(() => {
+    setTrackedClass(options.some((o) => o.id === classId) ? classId : options[0]?.id ?? null);
+  }, [classId, options]);
 
   // Tài khoản gốc luôn ở vai 'owner' (cao hơn quản trị lớp) dù ở lớp nào: nó là vai hệ thống,
   // không phải vai trong lớp. Người thường thì lấy đúng vai trò của mình TRONG lớp đang xem.

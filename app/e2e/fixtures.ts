@@ -67,6 +67,15 @@ export interface Sent {
   body: unknown;
 }
 
+/**
+ * Chỉ những request GHI DỮ LIỆU nghiệp vụ.
+ *
+ * Bộ đếm lượt truy cập cũng gửi POST (rpc/track_visit) ở mọi trang, nên phép kiểm tra
+ * "không gửi gì lên" mà đếm POST trần sẽ luôn sai — dù app thật sự không ghi gì.
+ */
+export const dataWrites = (sent: Sent[]) =>
+  sent.filter((s) => s.method === 'POST' && !s.table.startsWith('rpc/'));
+
 export interface StubOptions {
   /** Vai trò TRONG LỚP. Không truyền = khách chưa đăng nhập. */
   role?: ClassRole;
@@ -194,6 +203,18 @@ export async function stubSupabase(page: Page, opts: StubOptions = {}): Promise<
     v_incomes_public: [{ id: 'i1', class_id: CLASS_ID, date: '2026-09-03', fund: 'QUY_LOP', period_id: 'p1', amount: 50000, method: 'TRANSFER', payer: 'Trần Văn Mẫu', period_name: 'Quỹ lớp học kỳ I' }],
     v_expenses_public: [{ id: 'e1', class_id: CLASS_ID, date: '2026-09-05', fund: 'QUY_LOP', item: 'Nước + bánh sinh hoạt lớp', category: 'Sinh hoạt', buyer: 'Phạm Minh Ví', amount: 30000, has_receipt: false, overdraft: false }],
     v_debt_public: debts,
+    // Lượt truy cập: một phiên của khách và một phiên của người đã đăng nhập
+    visit_sessions: [
+      { id: 'vs1', session_key: 'sess-khach-0001', device_key: 'dev-khach-0001', user_id: null, class_id: CLASS_ID, role: 'guest', started_at: new Date(Date.now() - 6 * 60_000).toISOString(), last_seen_at: new Date(Date.now() - 60_000).toISOString(), views: 4, entry_path: '/', last_path: '/students', referrer: '', user_agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1', ip: '113.161.0.10' },
+      { id: 'vs2', session_key: 'sess-thuquy-0001', device_key: 'dev-thuquy-0001', user_id: 'u1', class_id: CLASS_ID, role: 'treasurer', started_at: new Date(Date.now() - 40 * 60_000).toISOString(), last_seen_at: new Date(Date.now() - 30 * 60_000).toISOString(), views: 9, entry_path: '/login', last_path: '/incomes', referrer: '', user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36', ip: '113.161.0.11' },
+    ],
+    v_visit_daily: [
+      { day: new Date().toISOString().slice(0, 10), class_id: CLASS_ID, sessions: 2, guest_sessions: 1, visitors: 2, ips: 2, pageviews: 13, total_seconds: 900 },
+    ],
+    v_visit_paths: [
+      { day: new Date().toISOString().slice(0, 10), class_id: CLASS_ID, path: '/', views: 7 },
+      { day: new Date().toISOString().slice(0, 10), class_id: CLASS_ID, path: '/students', views: 6 },
+    ],
   };
 
   await page.route('**/rest/v1/**', async (route: Route) => {
@@ -218,7 +239,9 @@ export async function stubSupabase(page: Page, opts: StubOptions = {}): Promise<
             ? { status: 'granted', email: args.p_email, role: args.p_role, role_before: null }
             : fn === 'import_students'
               ? { batch_id: 'b1', added: 0, updated: 0, skipped: 0, failed: 0 }
-              : null;
+              : fn === 'visit_summary'
+                ? { sessions: 2, visitors: 2, guest_sessions: 1, guest_visitors: 1, accounts: 1, pageviews: 13, seconds: 900, online: 1 }
+                : null;
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(result) });
       return;
     }

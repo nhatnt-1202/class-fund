@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { stubSupabase, type Sent } from './fixtures';
+import { dataWrites, stubSupabase, type Sent } from './fixtures';
 
 /**
  * Giới hạn trong listbox "Danh sách sinh viên": getByRole('option') nếu để rộng sẽ khớp cả
@@ -90,7 +90,7 @@ test.describe('Ghi khoản thu', () => {
     await dialog.getByRole('button', { name: 'Ghi nhận thu' }).click();
     await expect(dialog.getByText('Chọn một sinh viên trong danh sách')).toBeVisible();
     await expect(dialog).toBeVisible();
-    expect(sent.filter((s) => s.method === 'POST')).toHaveLength(0);
+    expect(dataWrites(sent)).toHaveLength(0);
   });
 
   test('người thu: chọn từ danh sách hoặc chuyển sang nhập tay', async ({ page }) => {
@@ -154,13 +154,13 @@ test.describe('Ghi khoản chi', () => {
 
     await dialog.getByRole('button', { name: 'Ghi nhận chi' }).click();
     // chưa gửi gì lên: phải qua bước xác nhận
-    expect(sent.filter((s) => s.method === 'POST')).toHaveLength(0);
+    expect(dataWrites(sent)).toHaveLength(0);
 
     const confirm = page.getByRole('dialog').filter({ hasText: 'Chi vượt tồn quỹ' });
     await expect(confirm).toBeVisible();
     await confirm.getByRole('button', { name: 'Vẫn ghi nhận' }).click();
 
-    await expect.poll(() => sent.filter((s) => s.method === 'POST').length).toBe(1);
+    await expect.poll(() => dataWrites(sent).length).toBe(1);
     expect(sent.find((s) => s.table === 'expenses')!.body)
       .toMatchObject({ amount: 90000, overdraft: true, fund: 'QUY_LOP' });
   });
@@ -178,7 +178,7 @@ test.describe('Ghi khoản chi', () => {
     await dialog.getByRole('button', { name: 'Ghi nhận chi' }).click();
 
     await expect(dialog.getByText('Chọn hoặc nhập tên người đi mua')).toBeVisible();
-    expect(sent.filter((s) => s.method === 'POST')).toHaveLength(0);
+    expect(dataWrites(sent)).toHaveLength(0);
   });
 });
 
