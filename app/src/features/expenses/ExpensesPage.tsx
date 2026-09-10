@@ -50,22 +50,22 @@ export default function ExpensesPage() {
       <Card>
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3">
           <label className="sr-only" htmlFor="exp-fund">Lọc quỹ</label>
-          <Select id="exp-fund" className="w-auto" value={fund} onChange={(e) => setFund(e.target.value as Fund | '')}>
+          <Select id="exp-fund" className="filter-field" value={fund} onChange={(e) => setFund(e.target.value as Fund | '')}>
             <option value="">Mọi quỹ</option>
             {FUND_KEYS.map((f) => <option key={f} value={f}>{FUNDS[f].label}</option>)}
           </Select>
           <label className="sr-only" htmlFor="exp-cat">Lọc danh mục</label>
-          <Select id="exp-cat" className="w-auto" value={category} onChange={(e) => setCategory(e.target.value)}>
+          <Select id="exp-cat" className="filter-field" value={category} onChange={(e) => setCategory(e.target.value)}>
             <option value="">Mọi danh mục</option>
             {categories.map((c) => <option key={c} value={c}>{c}</option>)}
           </Select>
           <label className="sr-only" htmlFor="exp-buyer">Lọc người đi mua</label>
-          <Select id="exp-buyer" className="w-auto" value={buyer} onChange={(e) => setBuyer(e.target.value)}>
+          <Select id="exp-buyer" className="filter-field" value={buyer} onChange={(e) => setBuyer(e.target.value)}>
             <option value="">Mọi người mua</option>
             {buyers.map((b) => <option key={b} value={b}>{b}</option>)}
           </Select>
-          <DateBox id="exp-from" label="Từ ngày" value={from} onChange={setFrom} />
-          <DateBox id="exp-to" label="Đến ngày" value={to} onChange={setTo} />
+          <DateBox id="exp-from" className="filter-field" label="Từ ngày" value={from} onChange={setFrom} />
+          <DateBox id="exp-to" className="filter-field" label="Đến ngày" value={to} onChange={setTo} />
           {hasFilter && (
             <Button size="sm" variant="ghost"
               onClick={() => { setFund(''); setCategory(''); setBuyer(''); setFrom(''); setTo(''); }}>

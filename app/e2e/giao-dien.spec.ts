@@ -75,6 +75,43 @@ test.describe('Giao diện', () => {
     });
   }
 
+  test('mọi nút bấm trong app cao bằng nhau', async ({ page }) => {
+    // Trước đây <Button size="sm"> cao 32px và size="md" cao 40px, còn chip lọc thì 28px:
+    // hai nút cạnh nhau trong cùng một hàng cao thấp so le tuỳ người viết đặt size nào.
+    await stubSupabase(page, { systemOwner: true });
+    const found = new Map<number, string>();
+    for (const path of ['/', '/students', '/incomes', '/expenses', '/periods', '/members', '/visits', '/settings']) {
+      await page.goto(path);
+      await page.waitForTimeout(400);
+      const rows = await page.evaluate(() => Array.from(document.querySelectorAll('button'))
+        // Chỉ nút hành động (Button/Chip). Nút bọc badge, tiêu đề cột để sắp xếp hay một dòng
+        // trong danh sách cũng là <button> nhưng không phải nút bấm theo nghĩa này.
+        .filter((b) => b.className.includes('min-h-[40px]'))
+        .filter((b) => b.getBoundingClientRect().height > 0)
+        .map((b) => `${Math.round(b.getBoundingClientRect().height)}|${((b.textContent ?? '').trim() || b.getAttribute('aria-label') || '?').slice(0, 24)}`));
+      for (const r of rows) {
+        const [h, label] = r.split('|');
+        found.set(Number(h), `${path} → “${label}”`);
+      }
+    }
+    expect(found.size, `nút cao khác nhau: ${[...found].map(([h, w]) => `${h}px ${w}`).join(' · ')}`).toBe(1);
+    expect([...found.keys()][0], 'nút phải cao 40px').toBe(40);
+  });
+
+  test('mọi ô lọc trên thanh lọc rộng bằng nhau', async ({ page }) => {
+    // `w-auto` cũ cho mỗi <select> tự co theo nội dung, nên hàng lọc so le và còn đổi bề
+    // ngang mỗi khi đổi lớp (tên đợt thu dài ngắn khác nhau). Xem `.filter-field`.
+    await stubSupabase(page, { systemOwner: true });
+    for (const path of ['/students', '/incomes', '/expenses', '/audit-log', '/visits']) {
+      await page.goto(path);
+      await page.waitForTimeout(400);
+      const widths = await page.evaluate(() => Array.from(document.querySelectorAll('.filter-field'))
+        .map((e) => Math.round((e as HTMLElement).getBoundingClientRect().width)));
+      expect(widths.length, `${path} không có ô lọc nào`).toBeGreaterThan(0);
+      expect(new Set(widths).size, `${path} có ô lọc rộng khác nhau: ${widths}`).toBe(1);
+    }
+  });
+
   test('thân trang không cuộn ngang, kể cả trên điện thoại', async ({ page }) => {
     await stubSupabase(page, { role: 'treasurer' });
     for (const path of ['/', '/students', '/incomes', '/expenses', '/periods']) {

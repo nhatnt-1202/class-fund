@@ -256,6 +256,28 @@
   }
   .row-flash { animation: flash 1.8s cubic-bezier(0.22, 1, 0.36, 1); }
   /*
+   * MỘT BỀ NGANG CHUNG CHO MỌI Ô LỌC.
+   *
+   * Trước đây mỗi <select> trên thanh lọc để `w-auto` nên rộng theo nội dung: hàng lọc so le
+   * cái dài cái ngắn, và cùng một trang lại đổi bề ngang mỗi khi đổi lớp (tên đợt thu dài
+   * ngắn khác nhau). Nay mọi ô — chọn, tìm kiếm, chọn ngày — đúng một bề ngang:
+   *   • dưới 640px: hai ô một hàng, khớp với `gap-2` (8px) của thanh lọc ⇒ 50% − 4px
+   *   • từ 640px:   200px, giống nhau ở mọi trang
+   *
+   * `flex: 0 0 auto` chứ không cho co giãn: cho phép grow thì hàng cuối còn một ô sẽ dài
+   * gấp đôi các ô khác — đúng cái so le vừa bỏ đi.
+   *
+   * Đánh đổi: nhãn dài hơn 200px bị cắt trong ô lúc đóng (tên đợt thu, tên người mua). Mở
+   * danh sách ra vẫn đọc đủ, và bù lại thanh lọc không còn nhảy bề ngang.
+   */
+  .filter-field { width: calc(50% - 0.25rem); flex: 0 0 auto; }
+  /* .date-box là khung inline-flex bọc ngoài; ô ngày bên trong phải căng theo khung */
+  .date-box.filter-field > input { width: 100%; }
+  @media (min-width: 640px) {
+    .filter-field { width: 200px; }
+  }
+
+  /*
    * Chữ gợi ý cho ô chọn ngày. input[type=date] không nhận `placeholder`, và iOS vẽ ô rỗng
    * thành hộp trắng trống trơn. Khi rỗng: ẩn editor ngày của WebKit và vẽ chữ gợi ý bằng
    * ::after; khi có giá trị hoặc đang focus thì trả lại editor thật.

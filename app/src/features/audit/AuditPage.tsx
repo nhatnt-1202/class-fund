@@ -5,6 +5,7 @@ import { useKlassContext } from '@/app/ClassProvider';
 import { useToast } from '@/app/ToastProvider';
 import {
   Badge, Button, Card, CardHead, DateBox, EmptyState, Input, Modal, Note, Select, TableSkeleton,
+  TableWrap,
 } from '@/components/ui';
 import { useAuditLogs, useMembers, useSoftDelete, type AuditFilter } from '@/data/api';
 import { fmtDateTime, fmtRelative, fmtVnd } from '@/lib/format';
@@ -84,16 +85,16 @@ export default function AuditPage() {
         />
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3">
           <label className="sr-only" htmlFor="au-q">Tìm trong diễn giải</label>
-          <Input id="au-q" type="search" className="max-w-[260px]" placeholder="Tìm trong diễn giải…"
+          <Input id="au-q" type="search" className="filter-field" placeholder="Tìm trong diễn giải…"
             value={filter.q ?? ''} onChange={(e) => setFilter((f) => ({ ...f, q: e.target.value }))} />
           <label className="sr-only" htmlFor="au-action">Lọc hành động</label>
-          <Select id="au-action" className="w-auto" value={filter.action ?? ''}
+          <Select id="au-action" className="filter-field" value={filter.action ?? ''}
             onChange={(e) => setFilter((f) => ({ ...f, action: e.target.value }))}>
             <option value="">Mọi hành động</option>
             {Object.entries(ACTION_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </Select>
           <label className="sr-only" htmlFor="au-table">Lọc bảng</label>
-          <Select id="au-table" className="w-auto" value={filter.table ?? ''}
+          <Select id="au-table" className="filter-field" value={filter.table ?? ''}
             onChange={(e) => setFilter((f) => ({ ...f, table: e.target.value }))}>
             <option value="">Mọi loại dữ liệu</option>
             {Object.entries(TABLE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -101,7 +102,7 @@ export default function AuditPage() {
           {can.manageUsers(role) && (
             <>
               <label className="sr-only" htmlFor="au-actor">Lọc người thực hiện</label>
-              <Select id="au-actor" className="w-auto" value={filter.actor ?? ''}
+              <Select id="au-actor" className="filter-field" value={filter.actor ?? ''}
                 onChange={(e) => setFilter((f) => ({ ...f, actor: e.target.value }))}>
                 <option value="">Mọi người</option>
                 {(members.data ?? []).map((m) => (
@@ -112,9 +113,9 @@ export default function AuditPage() {
               </Select>
             </>
           )}
-          <DateBox id="au-from" label="Từ ngày" value={filter.from ?? ''}
+          <DateBox id="au-from" className="filter-field" label="Từ ngày" value={filter.from ?? ''}
             onChange={(v) => setFilter((f) => ({ ...f, from: v }))} />
-          <DateBox id="au-to" label="Đến ngày" value={filter.to ?? ''}
+          <DateBox id="au-to" className="filter-field" label="Đến ngày" value={filter.to ?? ''}
             onChange={(v) => setFilter((f) => ({ ...f, to: v }))} />
           {Object.values(filter).some(Boolean) && (
             <Button size="sm" variant="ghost" onClick={() => setFilter({})}>Xoá lọc</Button>
@@ -179,8 +180,10 @@ export default function AuditPage() {
         {detail && (
           <div className="space-y-3">
             <p className="text-sm">{detail.summary}</p>
+            {/* Bảng nằm trong TableWrap chứ không phải div overflow-hidden: trên điện thoại
+                cột "Sau" — thứ quan trọng nhất — nằm ngoài màn hình và không cuộn tới được. */}
             {detail.changed_fields && detail.changed_fields.length > 0 ? (
-              <div className="overflow-hidden rounded-[10px] border border-line">
+              <TableWrap className="rounded-[10px] border border-line">
                 <table>
                   <caption className="sr-only">Các trường đã thay đổi</caption>
                   <thead>
@@ -196,7 +199,7 @@ export default function AuditPage() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </TableWrap>
             ) : (
               <Note tone="info"><span>Thao tác này không sửa trường nào (thêm mới hoặc sự kiện hệ thống).</span></Note>
             )}

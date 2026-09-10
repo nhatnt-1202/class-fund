@@ -136,7 +136,7 @@ export default function UsersPage() {
                       <td className="text-[13px]">{m.profile?.email}</td>
                       <td>
                         <Select
-                          className="w-auto"
+                          className="w-[180px]"
                           aria-label={`Vai trò của ${m.profile?.full_name || m.profile?.email} trong lớp`}
                           value={m.role}
                           disabled={isMe}
@@ -153,7 +153,7 @@ export default function UsersPage() {
                         */}
                       <td>
                         <Select
-                          className="w-auto min-w-[150px]"
+                          className="w-[180px]"
                           aria-label={`Gắn ${m.profile?.full_name || m.profile?.email} với sinh viên trong danh sách`}
                           value={m.student_id ?? ''}
                           onChange={(e) => update.mutate(

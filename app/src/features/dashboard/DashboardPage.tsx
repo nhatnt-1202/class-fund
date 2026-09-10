@@ -4,7 +4,8 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useKlassContext } from '@/app/ClassProvider';
 import {
-  Badge, Button, Card, CardHead, CountUp, DateBox, EmptyState, FundBadge, Money, Note, Progress, TableSkeleton, TableWrap,
+  Badge, Button, Card, CardHead, Chip, CountUp, DateBox, EmptyState, FundBadge, Money, Note, Progress,
+  TableSkeleton, TableWrap,
 } from '@/components/ui';
 import { useBalances, useDebts, useExpenses, useIncomes, usePeriodProgress } from '@/data/api';
 import { fmtDate, fmtVnd, fmtVndSigned, toInt } from '@/lib/format';
@@ -97,26 +98,27 @@ export default function DashboardPage() {
       {/* Bộ lọc thời gian: một hàng, ngay trên các con số mà nó ảnh hưởng */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex flex-wrap gap-2">
+          {/* Dùng <Chip> chứ không tự vẽ lại pill: bản tự vẽ trước đây cao 28px trong khi
+              chip ở các trang khác cao 40px. */}
           {rangeChips.map(([m, label]) => (
-            <button
+            <Chip
               key={m}
-              type="button"
+              on={mode === m}
               onClick={() => { setMode(m); if (m === 'day' && !from) setFrom(new Date().toISOString().slice(0, 10)); }}
-              className={`rounded-full border px-3 py-1 text-[13px] transition-colors ${
-                mode === m ? 'border-transparent bg-brand font-semibold text-white' : 'border-lineStrong bg-surface hover:bg-surface2'
-              }`}
             >
               {label}
-            </button>
+            </Chip>
           ))}
         </div>
         {(mode === 'range' || mode === 'day') && (
-          <div className="flex items-center gap-2">
-            <DateBox id="dash-from" label={mode === 'day' ? 'Ngày' : 'Từ ngày'} value={from} onChange={setFrom} />
+          /* w-full trên điện thoại: hai ô ngày phải rộng đúng bằng ô lọc ở mọi trang khác,
+             mà .filter-field tính theo 50% của thẻ chứa nên thẻ chứa phải là cả hàng. */
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <DateBox id="dash-from" className="filter-field" label={mode === 'day' ? 'Ngày' : 'Từ ngày'} value={from} onChange={setFrom} />
             {mode === 'range' && (
               <>
-                <span className="text-sm text-ink3">→</span>
-                <DateBox id="dash-to" label="Đến ngày" value={to} onChange={setTo} />
+                <span className="hidden text-sm text-ink3 sm:inline">→</span>
+                <DateBox id="dash-to" className="filter-field" label="Đến ngày" value={to} onChange={setTo} />
               </>
             )}
           </div>

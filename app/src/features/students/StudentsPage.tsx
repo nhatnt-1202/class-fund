@@ -130,23 +130,23 @@ export default function StudentsPage() {
     <motion.div variants={pageVariants} initial="hidden" animate="show">
       <Card>
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3">
-          <div className="min-w-[200px] flex-1 sm:max-w-[320px]">
+          <div className="filter-field">
             <label className="sr-only" htmlFor="stu-q">Tìm sinh viên</label>
             <Input id="stu-q" type="search" value={q} onChange={(e) => setQ(e.target.value)}
               placeholder="Tìm tên hoặc mã SV (bỏ dấu vẫn tìm được)…" />
           </div>
           <label className="sr-only" htmlFor="stu-fund">Lọc theo quỹ</label>
-          <Select id="stu-fund" className="w-auto" value={fundFilter} onChange={(e) => setFundFilter(e.target.value as Fund | '')}>
+          <Select id="stu-fund" className="filter-field" value={fundFilter} onChange={(e) => setFundFilter(e.target.value as Fund | '')}>
             <option value="">Mọi quỹ</option>
             {Object.entries(FUNDS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </Select>
           <label className="sr-only" htmlFor="stu-period">Lọc theo đợt thu</label>
-          <Select id="stu-period" className="w-auto" value={periodFilter} onChange={(e) => setPeriodFilter(e.target.value)}>
+          <Select id="stu-period" className="filter-field" value={periodFilter} onChange={(e) => setPeriodFilter(e.target.value)}>
             <option value="">Mọi đợt thu</option>
             {(periods.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </Select>
           <label className="sr-only" htmlFor="stu-status">Lọc theo tình trạng nộp</label>
-          <Select id="stu-status" className="w-auto" value={status} onChange={(e) => setStatus(e.target.value as '' | 'debt' | 'paid')}>
+          <Select id="stu-status" className="filter-field" value={status} onChange={(e) => setStatus(e.target.value as '' | 'debt' | 'paid')}>
             <option value="">Tất cả SV</option>
             <option value="debt">Chỉ SV còn nợ</option>
             <option value="paid">Chỉ SV đã đủ</option>

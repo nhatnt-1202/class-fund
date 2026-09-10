@@ -23,6 +23,13 @@ const VARIANT: Record<Variant, string> = {
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
+  /**
+   * `size` chỉ đổi chữ và padding NGANG — chiều cao thì mọi nút đều 40px.
+   *
+   * Trước đây `sm` cao 32px và `md` cao 40px, nên hai nút cạnh nhau trong cùng một hàng
+   * (thanh lọc, chân hộp thoại, ô hành động trong bảng) cao thấp so le tuỳ người viết đặt
+   * size nào. Một chiều cao duy nhất thì không ai đặt sai được nữa.
+   */
   size?: 'sm' | 'md';
   loading?: boolean;
   icon?: ReactNode;
@@ -37,7 +44,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       className={`inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[10px] border
         font-medium transition-[transform,background,border-color] duration-150 ease-out
         active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50
-        ${size === 'sm' ? 'min-h-[32px] px-2.5 text-[13px]' : 'min-h-[40px] px-3.5 text-sm'}
+        min-h-[40px] ${size === 'sm' ? 'px-2.5 text-[13px]' : 'px-3.5 text-sm'}
         ${VARIANT[variant]} ${className}`}
       {...rest}
     >
@@ -411,12 +418,14 @@ export function Note({ tone = 'info', children }: { tone?: 'info' | 'warn' | 'ok
   return <div className={`flex gap-2 rounded-[10px] border px-3 py-2 text-sm ${cls}`}>{children}</div>;
 }
 
-/* ============================== Chip lọc ============================== */
+/* ============================== Chip lọc ==============================
+   Cao đúng 40px như <Button>: chip và nút hay đứng cùng một hàng lọc, lệch nhau vài px là
+   thấy ngay. */
 export function Chip({ on, children, ...rest }: { on?: boolean } & ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       type="button"
-      className={`rounded-full border px-3 py-1 text-[13px] transition-colors
+      className={`inline-flex min-h-[40px] items-center rounded-full border px-4 text-[13px] transition-colors
         ${on ? 'border-transparent bg-brand font-semibold text-white' : 'border-lineStrong bg-surface hover:bg-surface2'}`}
       {...rest}
     >

@@ -170,7 +170,7 @@ export default function VisitsPage() {
           {options.length > 1 && (
             <>
               <label className="sr-only" htmlFor="vs-class">Lọc theo lớp</label>
-              <Select id="vs-class" className="w-auto" value={scope} onChange={(e) => setScope(e.target.value)}>
+              <Select id="vs-class" className="filter-field" value={scope} onChange={(e) => setScope(e.target.value)}>
                 <option value="">Mọi lớp {isSystemOwner ? 'trong hệ thống' : 'tôi quản trị'}</option>
                 {options.map((o) => <option key={o.id} value={o.id}>{o.code}</option>)}
               </Select>

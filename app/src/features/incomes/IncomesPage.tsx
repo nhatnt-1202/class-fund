@@ -61,18 +61,18 @@ export default function IncomesPage() {
       <Card>
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3">
           <label className="sr-only" htmlFor="inc-fund">Lọc quỹ</label>
-          <Select id="inc-fund" className="w-auto" value={fund} onChange={(e) => setFund(e.target.value as Fund | '')}>
+          <Select id="inc-fund" className="filter-field" value={fund} onChange={(e) => setFund(e.target.value as Fund | '')}>
             <option value="">Mọi quỹ</option>
             {FUND_KEYS.map((f) => <option key={f} value={f}>{FUNDS[f].label}</option>)}
           </Select>
           <label className="sr-only" htmlFor="inc-period">Lọc đợt thu</label>
-          <Select id="inc-period" className="w-auto" value={periodId} onChange={(e) => setPeriodId(e.target.value)}>
+          <Select id="inc-period" className="filter-field" value={periodId} onChange={(e) => setPeriodId(e.target.value)}>
             <option value="">Mọi đợt</option>
             {(periods.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             <option value="__none">Thu ngoài đợt</option>
           </Select>
-          <DateBox id="inc-from" label="Từ ngày" value={from} onChange={setFrom} />
-          <DateBox id="inc-to" label="Đến ngày" value={to} onChange={setTo} />
+          <DateBox id="inc-from" className="filter-field" label="Từ ngày" value={from} onChange={setFrom} />
+          <DateBox id="inc-to" className="filter-field" label="Đến ngày" value={to} onChange={setTo} />
           {hasFilter && (
             <Button size="sm" variant="ghost"
               onClick={() => { setFund(''); setPeriodId(''); setFrom(''); setTo(''); }}>

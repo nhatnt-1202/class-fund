@@ -299,6 +299,22 @@ chỉ ẩn menu. Không ai sửa hay xoá lẻ được một dòng, giống aud
 
 ---
 
+## Kích thước điều khiển — ba con số cố định
+
+Ba con số này được **kiểm thử tự động** (`giao-dien.spec.ts`), không phải quy ước miệng:
+
+| Thứ | Kích thước | Vì sao cố định |
+|---|---|---|
+| Ô nhập, `<select>`, ô ngày | **cao 44px** | ba loại này có chiều cao nội tại khác nhau; không ép thì hàng lọc cao thấp so le |
+| Mọi nút bấm và chip lọc | **cao 40px** | `size="sm"` / `"md"` giờ chỉ đổi chữ và padding ngang, KHÔNG đổi chiều cao — trước đây 32px và 40px lẫn lộn trong cùng một hàng |
+| Ô lọc trên thanh lọc (`.filter-field`) | **200px** từ 640px trở lên, **50% − 4px** dưới đó | `w-auto` cũ cho mỗi ô co theo nội dung, nên thanh lọc so le và còn đổi bề ngang mỗi khi đổi lớp |
+
+Hệ quả cần biết: nhãn dài hơn 200px bị cắt trong ô lúc đóng (tên đợt thu, tên người mua) —
+mở danh sách ra vẫn đọc đủ. Thêm nút mới thì **không đặt chiều cao riêng**; cần nút nhỏ hơn
+thì dùng `size="sm"` (chữ nhỏ, hẹp hơn, vẫn cao 40px).
+
+---
+
 ## Kiểm thử
 
 ```bash
@@ -307,7 +323,7 @@ npm run build         # tsc strict + vite build
 bash ../tests/db/run.sh   # 164 phép kiểm tra RLS/nghiệp vụ trên Postgres 17 thật (cần Docker)
 ```
 
-E2E bằng Playwright — 68 phép kiểm tra × 3 cấu hình (desktop sáng, desktop tối, Pixel 7):
+E2E bằng Playwright — 70 phép kiểm tra × 3 cấu hình (desktop sáng, desktop tối, Pixel 7):
 
 ```bash
 npx playwright install chromium     # một lần
@@ -328,7 +344,7 @@ chặn và trả dữ liệu mẫu. Nhờ vậy test chạy offline, không ph�
 | `quyen.spec.ts` | Khách xem được số liệu nhưng không có nút ghi chép, không thấy menu quản trị, không thấy cột ngày sinh, che tên khi bật công tắc · danh sách lớp đánh dấu thủ quỹ / quản trị lớp · thành viên chỉ xem QR của chính mình · thủ quỹ không tạo được đợt thu · quản trị tạo được |
 | `qr.spec.ts` | Khách chưa đăng nhập cũng quét được QR và chuyển khoản (lớp bật che tên thì không, vì nội dung chuyển khoản sẽ vô danh) · QR mang đúng số còn thiếu, số tài khoản và mã SV · xác nhận đã nhận tiền ghi khoản thu dạng chuyển khoản · QR cả lớp đúng số người còn nợ |
 | `dang-ky.spec.ts` | Đăng ký xong rồi bấm Back vẫn ở trong app và không có request nào ra máy chủ (phát hiện điều hướng bằng `window.location`, thứ chỉ nhìn URL sẽ không thấy) · mọi liên kết ở khu đăng nhập/đăng ký đều là điều hướng trong app |
-| `giao-dien.spec.ts` | Sáng/tối đi theo hệ thống và không có nút đổi trong app · đường dẫn tiếng Anh và link tiếng Việt cũ vẫn mở đúng trang (giữ cả hash của link đặt lại mật khẩu) · hộp thoại đúng tâm màn hình · mọi ô nhập cao bằng nhau · không cuộn ngang · Esc đóng hộp thoại · bảng có `<caption>` · đổi sáng/tối |
+| `giao-dien.spec.ts` | Sáng/tối đi theo hệ thống và không có nút đổi trong app · đường dẫn tiếng Anh và link tiếng Việt cũ vẫn mở đúng trang (giữ cả hash của link đặt lại mật khẩu) · hộp thoại đúng tâm màn hình · **mọi ô nhập cao bằng nhau (44px)** · **mọi nút bấm cao bằng nhau (40px)** · **mọi ô lọc rộng bằng nhau** · không cuộn ngang · Esc đóng hộp thoại · bảng có `<caption>` · đổi sáng/tối |
 | `nhieu-lop.spec.ts` | Gắn tài khoản với sinh viên trong danh sách (bỏ gắn gửi `null`, không phải chuỗi rỗng) · quản trị lớp không thấy menu *Quản lý lớp* và vào thẳng URL cũng bị từ chối · mọi truy vấn số liệu đều kèm `class_id` của lớp đang xem · tài khoản gốc thấy mọi lớp, đổi lớp thì dữ liệu hỏi theo lớp mới · mở lớp mới gửi đúng `create_class` (email hạ chữ thường) · giao quản trị gửi đúng `grant_class_role` · chưa có lớp thì được dẫn đi mở lớp / được nói rõ vì sao chưa thấy gì |
 | `truy-cap.spec.ts` | Khách chưa đăng nhập vẫn được đếm một lượt · đổi trang thì thêm lượt xem chứ không thêm phiên mới · thủ quỹ không thấy menu *Lượt truy cập* và vào thẳng URL cũng bị từ chối · quản trị xem được số lượt, số máy khác nhau và thời gian ở lại |
 | `mobile.spec.ts` | **Thanh tiêu đề đục** (kính mờ bị tắt trên thiết bị chạm nên nền mờ 80% sẽ để tiêu đề trang lộ xuyên qua) · **ô lọc ngày rỗng hiện chữ gợi ý** (`input[type=date]` không nhận `placeholder`, iOS vẽ ô rỗng thành hộp trắng trống trơn) · **Bảng 12 cột (49 SV × 4 đợt) cuộn ngang thật và cột không bị bóp** (đo `scrollWidth`, bề rộng cột tên, chiều cao hàng, và `overflow-y` phải là `hidden`) · **cuộn trang rồi mở menu, đi trang khác thì không còn lớp phủ nào chặn thao tác** (đo bằng `elementFromPoint`) · **đóng hộp thoại lồng nhau không sót `pointer-events` trên body** · khách thấy nút đăng nhập trên thanh tiêu đề · menu hamburger điều hướng được · không trang nào cuộn ngang · hộp thoại vừa màn hình · form xếp một cột · vùng bấm ≥ 32px · mã QR ≥ 140px để quét được |
