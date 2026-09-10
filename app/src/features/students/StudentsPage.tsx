@@ -151,12 +151,16 @@ export default function StudentsPage() {
             <option value="debt">Chỉ SV còn nợ</option>
             <option value="paid">Chỉ SV đã đủ</option>
           </Select>
-          <div className="flex-1" />
+          {/* Trên điện thoại thanh lọc là lưới hai cột, không có chỗ cho khoảng đệm đẩy
+              nút sang phải — nút phải nằm ngay ô kế tiếp của lưới. */}
+          <div className="hidden flex-1 sm:block" />
           {can.importStudents(role) && (
-            <Link to="/import-export"><Button size="sm" icon={<FileSpreadsheet className="h-4 w-4" />}>Nhập từ Excel</Button></Link>
+            <Link to="/import-export" className="filter-action">
+              <Button size="sm" className="w-full" icon={<FileSpreadsheet className="h-4 w-4" />}>Nhập từ Excel</Button>
+            </Link>
           )}
           {can.writeStudent(role) && (
-            <Button size="sm" variant="primary" icon={<UserPlus className="h-4 w-4" />}
+            <Button size="sm" variant="primary" className="filter-action" icon={<UserPlus className="h-4 w-4" />}
               onClick={() => setStudentDialog({ open: true, editing: null })}>
               Thêm sinh viên
             </Button>

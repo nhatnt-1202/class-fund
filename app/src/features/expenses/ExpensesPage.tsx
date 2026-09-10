@@ -67,14 +67,14 @@ export default function ExpensesPage() {
           <DateBox id="exp-from" className="filter-field" label="Từ ngày" value={from} onChange={setFrom} />
           <DateBox id="exp-to" className="filter-field" label="Đến ngày" value={to} onChange={setTo} />
           {hasFilter && (
-            <Button size="sm" variant="ghost"
+            <Button size="sm" variant="ghost" className="filter-action"
               onClick={() => { setFund(''); setCategory(''); setBuyer(''); setFrom(''); setTo(''); }}>
               Xoá lọc
             </Button>
           )}
-          <div className="flex-1" />
+          <div className="hidden flex-1 sm:block" />
           {can.writeExpense(role) && (
-            <Button size="sm" variant="expense" icon={<Plus className="h-4 w-4" />}
+            <Button size="sm" variant="expense" className="filter-action" icon={<Plus className="h-4 w-4" />}
               onClick={() => setDialog({ open: true, editing: null })}>
               Thêm chi
             </Button>

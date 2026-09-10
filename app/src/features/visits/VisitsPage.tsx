@@ -165,13 +165,16 @@ export default function VisitsPage() {
         />
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3">
           {RANGES.map((r) => (
-            <Chip key={r} on={days === r} onClick={() => setDays(r)}>{r} ngày gần nhất</Chip>
+            <Chip key={r} className="filter-action" on={days === r} onClick={() => setDays(r)}>
+              {r} ngày gần nhất
+            </Chip>
           ))}
           {options.length > 1 && (
             <>
               <label className="sr-only" htmlFor="vs-class">Lọc theo lớp</label>
               <Select id="vs-class" className="filter-field" value={scope} onChange={(e) => setScope(e.target.value)}>
-                <option value="">Mọi lớp {isSystemOwner ? 'trong hệ thống' : 'tôi quản trị'}</option>
+                {/* Nhãn ngắn: ô lọc rộng cố định 200px, chữ dài hơn sẽ bị cắt ngay trong ô */}
+                <option value="">{isSystemOwner ? 'Mọi lớp' : 'Lớp tôi quản trị'}</option>
                 {options.map((o) => <option key={o.id} value={o.id}>{o.code}</option>)}
               </Select>
             </>

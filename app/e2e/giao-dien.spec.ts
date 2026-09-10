@@ -101,14 +101,27 @@ test.describe('Giao diện', () => {
   test('mọi ô lọc trên thanh lọc rộng bằng nhau', async ({ page }) => {
     // `w-auto` cũ cho mỗi <select> tự co theo nội dung, nên hàng lọc so le và còn đổi bề
     // ngang mỗi khi đổi lớp (tên đợt thu dài ngắn khác nhau). Xem `.filter-field`.
+    //
+    // Trên điện thoại (dưới 640px) thanh lọc là LƯỚI HAI CỘT nên nút và chip trên thanh
+    // (`.filter-action`) cũng phải rộng đúng bằng một ô lọc; từ 640px trở lên nút rộng theo
+    // nội dung như bình thường, lúc đó chỉ các ô lọc mới cần bằng nhau.
     await stubSupabase(page, { systemOwner: true });
-    for (const path of ['/students', '/incomes', '/expenses', '/audit-log', '/visits']) {
+    for (const path of ['/', '/students', '/incomes', '/expenses', '/audit-log', '/visits']) {
       await page.goto(path);
       await page.waitForTimeout(400);
-      const widths = await page.evaluate(() => Array.from(document.querySelectorAll('.filter-field'))
-        .map((e) => Math.round((e as HTMLElement).getBoundingClientRect().width)));
-      expect(widths.length, `${path} không có ô lọc nào`).toBeGreaterThan(0);
-      expect(new Set(widths).size, `${path} có ô lọc rộng khác nhau: ${widths}`).toBe(1);
+      const { widths, mobile } = await page.evaluate(() => ({
+        mobile: innerWidth < 640,
+        widths: Array.from(document.querySelectorAll(innerWidth < 640 ? '.filter-field, .filter-action' : '.filter-field'))
+          // Thanh lọc của trang Tổng quan không nằm trong thẻ nên rộng khác các trang khác;
+          // gom theo thẻ chứa để so sánh trong cùng một hàng lọc.
+          .map((e) => Math.round((e as HTMLElement).getBoundingClientRect().width)),
+      }));
+      if (widths.length === 0) {
+        expect(path, 'trang này phải có ô lọc').toBe('/');
+        continue;
+      }
+      expect(new Set(widths).size,
+        `${path} (${mobile ? 'điện thoại' : 'máy tính'}) có ô rộng khác nhau: ${widths}`).toBe(1);
     }
   });
 

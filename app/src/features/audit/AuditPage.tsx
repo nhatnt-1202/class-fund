@@ -118,7 +118,7 @@ export default function AuditPage() {
           <DateBox id="au-to" className="filter-field" label="Đến ngày" value={filter.to ?? ''}
             onChange={(v) => setFilter((f) => ({ ...f, to: v }))} />
           {Object.values(filter).some(Boolean) && (
-            <Button size="sm" variant="ghost" onClick={() => setFilter({})}>Xoá lọc</Button>
+            <Button size="sm" variant="ghost" className="filter-action" onClick={() => setFilter({})}>Xoá lọc</Button>
           )}
         </div>
 

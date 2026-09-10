@@ -74,16 +74,19 @@ export default function IncomesPage() {
           <DateBox id="inc-from" className="filter-field" label="Từ ngày" value={from} onChange={setFrom} />
           <DateBox id="inc-to" className="filter-field" label="Đến ngày" value={to} onChange={setTo} />
           {hasFilter && (
-            <Button size="sm" variant="ghost"
+            <Button size="sm" variant="ghost" className="filter-action"
               onClick={() => { setFund(''); setPeriodId(''); setFrom(''); setTo(''); }}>
               Xoá lọc
             </Button>
           )}
-          <div className="flex-1" />
+          <div className="hidden flex-1 sm:block" />
           {can.writeIncome(role) && (
             <>
-              <Button size="sm" icon={<Layers className="h-4 w-4" />} onClick={() => setBatch(true)}>Thu theo lô</Button>
-              <Button size="sm" variant="income" icon={<Plus className="h-4 w-4" />}
+              <Button size="sm" className="filter-action" icon={<Layers className="h-4 w-4" />}
+                onClick={() => setBatch(true)}>
+                Thu theo lô
+              </Button>
+              <Button size="sm" variant="income" className="filter-action" icon={<Plus className="h-4 w-4" />}
                 onClick={() => setDialog({ open: true, editing: null })}>
                 Thêm thu
               </Button>

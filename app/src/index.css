@@ -271,6 +271,16 @@
    * danh sách ra vẫn đọc đủ, và bù lại thanh lọc không còn nhảy bề ngang.
    */
   .filter-field { width: calc(50% - 0.25rem); flex: 0 0 auto; }
+  /*
+   * Nút hành động và chip NẰM TRÊN thanh lọc: dưới 640px rộng đúng bằng một ô lọc, nhờ vậy
+   * cả thanh — ô chọn, ô ngày, chip, nút — thành một lưới hai cột đều nhau thay vì mỗi thứ
+   * một bề ngang theo độ dài chữ. Từ 640px trở lên rộng theo nội dung như nút bình thường,
+   * vì lúc đó chúng đứng cùng hàng với các ô lọc 200px và không cần bằng nhau.
+   */
+  .filter-action { width: calc(50% - 0.25rem); flex: 0 0 auto; }
+  @media (min-width: 640px) {
+    .filter-action { width: auto; }
+  }
   /* .date-box là khung inline-flex bọc ngoài; ô ngày bên trong phải căng theo khung */
   .date-box.filter-field > input { width: 100%; }
   @media (min-width: 640px) {

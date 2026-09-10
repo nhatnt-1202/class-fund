@@ -97,12 +97,13 @@ export default function DashboardPage() {
     <motion.div variants={pageVariants} initial="hidden" animate="show" className="space-y-4">
       {/* Bộ lọc thời gian: một hàng, ngay trên các con số mà nó ảnh hưởng */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
           {/* Dùng <Chip> chứ không tự vẽ lại pill: bản tự vẽ trước đây cao 28px trong khi
               chip ở các trang khác cao 40px. */}
           {rangeChips.map(([m, label]) => (
             <Chip
               key={m}
+              className="filter-action"
               on={mode === m}
               onClick={() => { setMode(m); if (m === 'day' && !from) setFrom(new Date().toISOString().slice(0, 10)); }}
             >
@@ -123,10 +124,10 @@ export default function DashboardPage() {
             )}
           </div>
         )}
-        <div className="flex-1" />
+        <div className="hidden flex-1 sm:block" />
         {can.exportExcel(role) && (
-          <Link to="/import-export">
-            <Button size="sm" icon={<Download className="h-4 w-4" />}>Xuất Excel</Button>
+          <Link to="/import-export" className="filter-action">
+            <Button size="sm" className="w-full" icon={<Download className="h-4 w-4" />}>Xuất Excel</Button>
           </Link>
         )}
       </div>

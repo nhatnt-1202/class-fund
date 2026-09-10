@@ -421,11 +421,13 @@ export function Note({ tone = 'info', children }: { tone?: 'info' | 'warn' | 'ok
 /* ============================== Chip lọc ==============================
    Cao đúng 40px như <Button>: chip và nút hay đứng cùng một hàng lọc, lệch nhau vài px là
    thấy ngay. */
-export function Chip({ on, children, ...rest }: { on?: boolean } & ButtonHTMLAttributes<HTMLButtonElement>) {
+export function Chip({ on, className = '', children, ...rest }:
+  { on?: boolean } & ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       type="button"
-      className={`inline-flex min-h-[40px] items-center rounded-full border px-4 text-[13px] transition-colors
+      className={`inline-flex min-h-[40px] items-center justify-center rounded-full border px-4 text-[13px]
+        transition-colors ${className}
         ${on ? 'border-transparent bg-brand font-semibold text-white' : 'border-lineStrong bg-surface hover:bg-surface2'}`}
       {...rest}
     >
