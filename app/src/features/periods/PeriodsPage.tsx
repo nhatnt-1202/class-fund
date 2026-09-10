@@ -201,9 +201,15 @@ export default function PeriodsPage() {
                           <tr key={r.student.id}>
                             <td className="num text-xs text-ink3">{r.student.code}</td>
                             <td>{r.student.full_name}</td>
-                            <td className="text-right"><Money value={r.paid} kind={r.paid ? 'in' : undefined} /></td>
+                            {/* Một cột tiền duy nhất: còn thiếu thì −, đã đủ thì +.
+                                Riêng nhóm đóng thiếu ghi thêm phần đã đóng cho khỏi mất dấu. */}
                             <td className="text-right">
-                              <Money value={r.remaining} kind={r.remaining ? 'out' : undefined} />
+                              {r.remaining > 0
+                                ? <Money value={r.remaining} kind="out" />
+                                : <Money value={r.paid} kind="in" />}
+                              {r.paid > 0 && r.remaining > 0 && (
+                                <div className="num text-xs text-ink3">đã đóng {fmtVnd(r.paid)}</div>
+                              )}
                             </td>
                             <td className="text-right">
                               <div className="flex justify-end gap-1">
@@ -213,7 +219,7 @@ export default function PeriodsPage() {
                                     QR
                                   </Button>
                                 )}
-                                {can.writeIncome(role) && (
+                                {can.writeIncome(role) && r.remaining > 0 && (
                                   <Button size="sm"
                                     onClick={() => { setDetail(null); setIncome({ open: true, studentId: r.student.id, periodId: detail.id }); }}>
                                     Thu tay
