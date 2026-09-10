@@ -78,6 +78,7 @@ test.describe('Giao diện', () => {
   test('mọi nút bấm trong app cao bằng nhau', async ({ page }) => {
     // Trước đây <Button size="sm"> cao 32px và size="md" cao 40px, còn chip lọc thì 28px:
     // hai nút cạnh nhau trong cùng một hàng cao thấp so le tuỳ người viết đặt size nào.
+    // 44px là con số chung với ô nhập / ô chọn / ô ngày (xem README → Kích thước điều khiển).
     await stubSupabase(page, { systemOwner: true });
     const found = new Map<number, string>();
     for (const path of ['/', '/students', '/incomes', '/expenses', '/periods', '/members', '/visits', '/settings']) {
@@ -86,7 +87,7 @@ test.describe('Giao diện', () => {
       const rows = await page.evaluate(() => Array.from(document.querySelectorAll('button'))
         // Chỉ nút hành động (Button/Chip). Nút bọc badge, tiêu đề cột để sắp xếp hay một dòng
         // trong danh sách cũng là <button> nhưng không phải nút bấm theo nghĩa này.
-        .filter((b) => b.className.includes('min-h-[40px]'))
+        .filter((b) => b.className.includes('min-h-[44px]'))
         .filter((b) => b.getBoundingClientRect().height > 0)
         .map((b) => `${Math.round(b.getBoundingClientRect().height)}|${((b.textContent ?? '').trim() || b.getAttribute('aria-label') || '?').slice(0, 24)}`));
       for (const r of rows) {
@@ -95,7 +96,7 @@ test.describe('Giao diện', () => {
       }
     }
     expect(found.size, `nút cao khác nhau: ${[...found].map(([h, w]) => `${h}px ${w}`).join(' · ')}`).toBe(1);
-    expect([...found.keys()][0], 'nút phải cao 40px').toBe(40);
+    expect([...found.keys()][0], 'nút phải cao 44px — bằng đúng ô nhập').toBe(44);
   });
 
   test('mọi ô lọc trên thanh lọc rộng bằng nhau', async ({ page }) => {

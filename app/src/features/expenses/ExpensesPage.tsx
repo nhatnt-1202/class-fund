@@ -72,12 +72,13 @@ export default function ExpensesPage() {
               Xoá lọc
             </Button>
           )}
-          <div className="hidden flex-1 sm:block" />
           {can.writeExpense(role) && (
-            <Button size="sm" variant="expense" className="filter-action" icon={<Plus className="h-4 w-4" />}
-              onClick={() => setDialog({ open: true, editing: null })}>
-              Thêm chi
-            </Button>
+            <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
+              <Button size="sm" variant="expense" className="filter-action" icon={<Plus className="h-4 w-4" />}
+                onClick={() => setDialog({ open: true, editing: null })}>
+                Thêm chi
+              </Button>
+            </div>
           )}
         </div>
 

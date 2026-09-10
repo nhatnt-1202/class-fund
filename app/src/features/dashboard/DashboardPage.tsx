@@ -124,11 +124,12 @@ export default function DashboardPage() {
             )}
           </div>
         )}
-        <div className="hidden flex-1 sm:block" />
         {can.exportExcel(role) && (
-          <Link to="/import-export" className="filter-action">
-            <Button size="sm" className="w-full" icon={<Download className="h-4 w-4" />}>Xuất Excel</Button>
-          </Link>
+          <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
+            <Link to="/import-export" className="filter-action">
+              <Button size="sm" className="w-full" icon={<Download className="h-4 w-4" />}>Xuất Excel</Button>
+            </Link>
+          </div>
         )}
       </div>
 

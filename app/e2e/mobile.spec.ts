@@ -19,6 +19,26 @@ async function measureTable(page: import('@playwright/test').Page) {
       overflowX: cs.overflowX,
       overflowY: cs.overflowY,
       nameColWidth: Math.round(cells[2]?.getBoundingClientRect().width ?? 0),
+      /*
+       * Số DÒNG CHỮ trong ô tên — đây mới là thứ nói lên cột có bị bóp hay không.
+       * Không đo được bằng chiều cao: ô của bảng luôn giãn bằng chiều cao hàng, mà hàng thì
+       * cao theo nút hành động (44px) chứ không theo chữ. Range.getClientRects() trả về một
+       * hình chữ nhật cho mỗi dòng chữ thật, nên 1 = một dòng, 2+ = tên đã gãy dòng.
+       */
+      nameLines: (() => {
+        const cell = cells[2];
+        if (!cell) return 0;
+        const range = document.createRange();
+        range.selectNodeContents(cell);
+        // Đếm số MỨC `top` khác nhau, không đếm số hình chữ nhật: nội dung ô nằm trong một
+        // <span> bọc nên một dòng chữ vẫn cho hai hình (hộp của span và dòng chữ bên trong),
+        // hai hình đó cùng một `top`. Gộp các mức lệch nhau dưới 4px cho khỏi lẻ vì làm tròn.
+        const tops: number[] = [];
+        for (const r of range.getClientRects()) {
+          if (!tops.some((t) => Math.abs(t - r.top) < 4)) tops.push(r.top);
+        }
+        return tops.length;
+      })(),
       rowHeight: Math.round((table.querySelector('tbody tr') as HTMLElement).getBoundingClientRect().height),
       docScrollWidth: document.documentElement.scrollWidth,
     };
@@ -78,9 +98,15 @@ test.describe('Trên điện thoại', () => {
     // 2. overflow-y phải khai rõ là hidden: để `auto` thì CSS tự bật cuộn dọc và cú kéo dọc
     //    trên điện thoại bị mắc kẹt trong khung này (không cuộn được gì, cũng không nhường trang)
     expect(m.overflowY).toBe('hidden');
-    // 3. cột tên không bị bóp: một dòng, không gãy 2–3 dòng như khi bảng là w-full
+    // 3. cột tên không bị bóp: một dòng, không gãy 2–3 dòng như khi bảng là w-full.
+    //    Đếm SỐ DÒNG CHỮ chứ không đo chiều cao: mọi điều khiển trong app cao 44px (xem
+    //    README → "Kích thước điều khiển") nên hàng nào có nút cũng cao ~61px dù chữ vẫn
+    //    một dòng, và ô của bảng thì luôn giãn bằng chiều cao hàng.
     expect(m.nameColWidth).toBeGreaterThan(150);
-    expect(m.rowHeight).toBeLessThan(60);
+    expect(m.nameLines, `tên gãy ${m.nameLines} dòng — cột tên đang bị bóp`).toBe(1);
+    // Hàng vẫn phải gọn: 44px nút + 2×8px padding + viền. Vượt xa mức này là có gì đó
+    // đang giãn hàng ra (chữ gãy dòng, nút chồng nút).
+    expect(m.rowHeight).toBeLessThan(70);
     // 4. và cả trang vẫn không cuộn ngang
     expect(m.docScrollWidth).toBeLessThanOrEqual(m.viewport + 1);
   });

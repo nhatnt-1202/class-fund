@@ -306,13 +306,18 @@ Ba con số này được **kiểm thử tự động** (`giao-dien.spec.ts`), k
 | Thứ | Kích thước | Vì sao cố định |
 |---|---|---|
 | Ô nhập, `<select>`, ô ngày | **cao 44px** | ba loại này có chiều cao nội tại khác nhau; không ép thì hàng lọc cao thấp so le |
-| Mọi nút bấm và chip lọc | **cao 40px** | `size="sm"` / `"md"` giờ chỉ đổi chữ và padding ngang, KHÔNG đổi chiều cao — trước đây 32px và 40px lẫn lộn trong cùng một hàng |
+| Mọi nút bấm và chip lọc | **cao 44px** — bằng đúng ô nhập | `size="sm"` / `"md"` chỉ đổi chữ và padding ngang, KHÔNG đổi chiều cao. Trước đây 32px và 40px lẫn lộn, mà nút đứng cạnh ô ngày trên thanh lọc thì vẫn lệch 4px |
 | Ô lọc trên thanh lọc (`.filter-field`) | **200px** từ 640px trở lên, **50% − 4px** dưới đó | `w-auto` cũ cho mỗi ô co theo nội dung, nên thanh lọc so le và còn đổi bề ngang mỗi khi đổi lớp |
 | Nút và chip **trên thanh lọc** (`.filter-action`) | **50% − 4px** dưới 640px, rộng theo nội dung từ 640px | trên điện thoại cả thanh là lưới hai cột: ô chọn, ô ngày, chip, nút đều một khuôn — nút rộng theo chữ sẽ phá lưới |
 
+Nút hành động của một thanh lọc phải nằm chung **một khối** `<div class="flex w-full flex-wrap
+items-center gap-2 sm:ml-auto sm:w-auto">`. Để rời nhau thì lúc thanh lọc xuống dòng, một nút
+mắc lại ở cuối dòng trên còn nút kia rơi xuống dòng dưới một mình (đã xảy ra ở trang Thu:
+“Thu theo lô” và “Thêm thu” bị tách hàng).
+
 Hệ quả cần biết: nhãn dài hơn 200px bị cắt trong ô lúc đóng (tên đợt thu, tên người mua) —
 mở danh sách ra vẫn đọc đủ. Thêm nút mới thì **không đặt chiều cao riêng**; cần nút nhỏ hơn
-thì dùng `size="sm"` (chữ nhỏ, hẹp hơn, vẫn cao 40px). Nút đặt trên thanh lọc thì thêm
+thì dùng `size="sm"` (chữ nhỏ, hẹp hơn, vẫn cao 44px). Nút đặt trên thanh lọc thì thêm
 `className="filter-action"` — và nếu nút bọc trong `<Link>` thì class đó đặt ở `<Link>`
 (nó mới là ô của lưới), còn nút bên trong dùng `w-full`.
 

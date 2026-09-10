@@ -79,9 +79,13 @@ export default function IncomesPage() {
               Xoá lọc
             </Button>
           )}
-          <div className="hidden flex-1 sm:block" />
+          {/*
+            * Nút hành động gom trong MỘT khối: để rời nhau thì khi thanh lọc xuống dòng,
+            * "Thu theo lô" ở cuối dòng trên còn "Thêm thu" rơi xuống dòng dưới một mình.
+            * `sm:ml-auto` đẩy cả khối sang phải thay cho khoảng đệm flex-1 trước đây.
+            */}
           {can.writeIncome(role) && (
-            <>
+            <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
               <Button size="sm" className="filter-action" icon={<Layers className="h-4 w-4" />}
                 onClick={() => setBatch(true)}>
                 Thu theo lô
@@ -90,7 +94,7 @@ export default function IncomesPage() {
                 onClick={() => setDialog({ open: true, editing: null })}>
                 Thêm thu
               </Button>
-            </>
+            </div>
           )}
         </div>
 

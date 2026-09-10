@@ -132,8 +132,11 @@ export default function StudentsPage() {
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3">
           <div className="filter-field">
             <label className="sr-only" htmlFor="stu-q">Tìm sinh viên</label>
+            {/* Ô lọc rộng cố định 200px nên chữ gợi ý phải ngắn; phần "bỏ dấu vẫn tìm được"
+                chuyển vào title để không bị cắt cụt giữa chừng. */}
             <Input id="stu-q" type="search" value={q} onChange={(e) => setQ(e.target.value)}
-              placeholder="Tìm tên hoặc mã SV (bỏ dấu vẫn tìm được)…" />
+              title="Gõ không dấu vẫn tìm được"
+              placeholder="Tìm tên hoặc mã SV…" />
           </div>
           <label className="sr-only" htmlFor="stu-fund">Lọc theo quỹ</label>
           <Select id="stu-fund" className="filter-field" value={fundFilter} onChange={(e) => setFundFilter(e.target.value as Fund | '')}>
@@ -151,20 +154,21 @@ export default function StudentsPage() {
             <option value="debt">Chỉ SV còn nợ</option>
             <option value="paid">Chỉ SV đã đủ</option>
           </Select>
-          {/* Trên điện thoại thanh lọc là lưới hai cột, không có chỗ cho khoảng đệm đẩy
-              nút sang phải — nút phải nằm ngay ô kế tiếp của lưới. */}
-          <div className="hidden flex-1 sm:block" />
-          {can.importStudents(role) && (
-            <Link to="/import-export" className="filter-action">
-              <Button size="sm" className="w-full" icon={<FileSpreadsheet className="h-4 w-4" />}>Nhập từ Excel</Button>
-            </Link>
-          )}
-          {can.writeStudent(role) && (
-            <Button size="sm" variant="primary" className="filter-action" icon={<UserPlus className="h-4 w-4" />}
-              onClick={() => setStudentDialog({ open: true, editing: null })}>
-              Thêm sinh viên
-            </Button>
-          )}
+          {/* Một khối riêng cho nút: thanh lọc xuống dòng thì cả khối xuống cùng nhau,
+              không để một nút mắc lại ở cuối dòng trên. */}
+          <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
+            {can.importStudents(role) && (
+              <Link to="/import-export" className="filter-action">
+                <Button size="sm" className="w-full" icon={<FileSpreadsheet className="h-4 w-4" />}>Nhập từ Excel</Button>
+              </Link>
+            )}
+            {can.writeStudent(role) && (
+              <Button size="sm" variant="primary" className="filter-action" icon={<UserPlus className="h-4 w-4" />}
+                onClick={() => setStudentDialog({ open: true, editing: null })}>
+                Thêm sinh viên
+              </Button>
+            )}
+          </div>
         </div>
 
         {/*
